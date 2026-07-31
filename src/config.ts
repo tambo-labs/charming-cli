@@ -119,18 +119,37 @@ async function writeConfig(config: Config, options: ConfigOptions): Promise<void
   await chmod(path, 0o600);
 }
 
-export async function removeToken(options: ConfigOptions = {}): Promise<void> {
+export async function removeCredentials(
+  options: ConfigOptions = {},
+): Promise<{ appTokensRemoved: number }> {
   const config = await readConfig(options);
-  if (baseUrl(options) === PRODUCTION_BASE_URL) {
+  const selectedBaseUrl = baseUrl(options);
+  let appTokensRemoved = 0;
+  if (selectedBaseUrl === PRODUCTION_BASE_URL) {
     delete config.token;
-  } else if (config.tokens) {
-    delete config.tokens[baseUrl(options)];
+  }
+  if (config.tokens) {
+    delete config.tokens[selectedBaseUrl];
+    if (Object.keys(config.tokens).length === 0) delete config.tokens;
+  }
+  if (config.appTokens) {
+    config.appTokens = Object.fromEntries(
+      Object.entries(config.appTokens).filter(([key]) => {
+        const remove =
+          key.startsWith(`${selectedBaseUrl}|`) ||
+          (selectedBaseUrl === PRODUCTION_BASE_URL && !key.includes('|'));
+        if (remove) appTokensRemoved += 1;
+        return !remove;
+      }),
+    );
+    if (Object.keys(config.appTokens).length === 0) delete config.appTokens;
   }
   if (Object.keys(config).length === 0) {
     await rm(configPath(options), { force: true });
-    return;
+    return { appTokensRemoved };
   }
   await writeConfig(config, options);
+  return { appTokensRemoved };
 }
 
 function baseUrl(options: ConfigOptions): string {

@@ -2,9 +2,15 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { runCommand } from './commands.js';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
 describe('runCommand', () => {
   test('updates from a project directory with optimistic concurrency', async () => {
@@ -251,6 +257,57 @@ describe('runCommand', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  test.each([
+    {
+      name: 'an anonymous request',
+      options: { body: '{"module":"export const manifest = {}"}', yes: true },
+      token: undefined,
+    },
+    {
+      name: 'a pairing request',
+      options: {
+        body: '{"module":"export const manifest = {}","pair":true}',
+        yes: true,
+      },
+      token: 'chrm_user_test',
+    },
+  ])(
+    'refuses raw create-app for $name before it can mint a credential',
+    async ({ options, token }) => {
+      const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+      vi.stubEnv('XDG_CONFIG_HOME', directory);
+      vi.stubEnv('CHARMING_TOKEN', '');
+      vi.stubEnv('BUILDY_USER_TOKEN', '');
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      await expect(
+        runCommand({
+          baseUrl: 'https://preview.example',
+          command: ['api', 'request', 'create-app'],
+          fetchImpl,
+          options,
+          token,
+        }),
+      ).rejects.toThrow('Run `charming apps create`');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+
+  test('allows authenticated raw create-app without pairing', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'app-1' }));
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['api', 'request', 'create-app'],
+        fetchImpl,
+        options: { body: '{"module":"export const manifest = {}"}', yes: true },
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toEqual({ id: 'app-1' });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   test('allows a delete dry run without confirmation', async () => {
     await expect(
       runCommand({
@@ -321,20 +378,233 @@ describe('runCommand', () => {
     );
   });
 
-  test('redacts credentials from generated API output', async () => {
+  test.each(['create-token', 'poll-pairing', 'start-pairing'])(
+    'refuses raw %s requests before they can mint a hidden credential',
+    async (operationId) => {
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      await expect(
+        runCommand({
+          baseUrl: 'https://charm.ing',
+          command: ['api', 'request', operationId],
+          fetchImpl,
+          options: {},
+          token: 'bld_user_caller',
+        }),
+      ).rejects.toThrow('Run `charming auth login`');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each([
+    ['create-token', undefined],
+    ['poll-pairing', '{"device_code":"chrm_pair_private"}'],
+    ['start-pairing', undefined],
+  ])('allows a raw %s dry run without making a request', async (operationId, body) => {
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['api', 'request', operationId],
+        fetchImpl,
+        options: { ...(body === undefined ? {} : { body }), 'dry-run': true },
+      }),
+    ).resolves.toEqual(expect.objectContaining({ dryRun: true, method: 'POST' }));
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('saves a device-login token after a pending poll is approved', async () => {
+    vi.useFakeTimers();
+    const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+    vi.stubEnv('XDG_CONFIG_HOME', directory);
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(Response.json({ token: 'bld_user_secret', ok: true }));
+      .mockResolvedValueOnce(pairingStartResponse())
+      .mockResolvedValueOnce(Response.json({ status: 'pending' }))
+      .mockResolvedValueOnce(Response.json({ status: 'approved', token: 'chrm_user_saved-token' }));
 
-    const result = await runCommand({
+    const login = runCommand({
       baseUrl: 'https://charm.ing',
-      command: ['api', 'request', 'create-token'],
+      command: ['auth', 'login'],
       fetchImpl,
-      options: {},
-      token: 'bld_user_caller',
+      options: { 'no-open': true },
     });
+    await vi.advanceTimersByTimeAsync(2_000);
 
-    expect(result).toEqual({ ok: true, token: '[redacted]' });
+    await expect(login).resolves.toEqual({ authenticated: true });
+    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
+      token: 'chrm_user_saved-token',
+    });
+  });
+
+  test('stores a device-login token under its non-production origin', async () => {
+    vi.useFakeTimers();
+    const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+    vi.stubEnv('XDG_CONFIG_HOME', directory);
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(pairingStartResponse('https://preview.example'))
+      .mockResolvedValueOnce(
+        Response.json({ status: 'approved', token: 'chrm_user_preview-token' }),
+      );
+
+    const login = runCommand({
+      baseUrl: 'https://preview.example',
+      command: ['auth', 'login'],
+      fetchImpl,
+      options: { 'no-open': true },
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(login).resolves.toEqual({ authenticated: true });
+    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
+      tokens: { 'https://preview.example': 'chrm_user_preview-token' },
+    });
+  });
+
+  test.each([
+    [{ status: 'expired' }, 'Pairing code expired'],
+    [
+      { status: 'approved', already_delivered: true },
+      'Pairing token was already delivered and cannot be shown again',
+    ],
+    [{ status: 'unexpected' }, 'Charming returned an invalid pairing response'],
+    [{ status: 'approved' }, 'Charming returned an invalid pairing response'],
+  ])('rejects a terminal device-login response %#', async (pollResponse, message) => {
+    vi.useFakeTimers();
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(pairingStartResponse())
+      .mockResolvedValueOnce(Response.json(pollResponse));
+
+    const login = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['auth', 'login'],
+      fetchImpl,
+      options: { 'no-open': true },
+    });
+    const rejection = expect(login).rejects.toThrow(message);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+  });
+
+  test('rejects an invalid device-login start response without polling', async () => {
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        expires_in: 600,
+        user_code: 'CHRM-ABC234',
+        verification_url: 'https://charm.ing/pair',
+      }),
+    );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['auth', 'login'],
+        fetchImpl,
+        options: { 'no-open': true },
+      }),
+    ).rejects.toThrow('Charming returned an invalid pairing response');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  test.each([
+    ['user_code', ''],
+    ['verification_url', ''],
+    ['expires_in', 0],
+    ['expires_in', '600'],
+    ['polling_interval', 0],
+    ['polling_interval', -1],
+    ['verification_url_complete', ''],
+    ['verification_url_complete', 42],
+  ])('rejects an invalid pairing-start %s without polling', async (field, value) => {
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 600, 1, { [field]: value }));
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['auth', 'login'],
+        fetchImpl,
+        options: { 'no-open': true },
+      }),
+    ).rejects.toThrow('Charming returned an invalid pairing response');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  test('uses a valid complete verification URL', async () => {
+    vi.useFakeTimers();
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        pairingStartResponse('https://charm.ing', 600, 1, {
+          verification_url_complete: 'https://charm.ing/pair?code=CHRM-ABC234',
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ status: 'expired' }));
+
+    const login = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['auth', 'login'],
+      fetchImpl,
+      options: { 'no-open': true },
+    });
+    const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+    expect(stderr).toHaveBeenCalledWith(
+      expect.stringContaining('https://charm.ing/pair?code=CHRM-ABC234'),
+    );
+  });
+
+  test('stops device login at its deadline without a late poll', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 1, 5));
+
+    const login = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['auth', 'login'],
+      fetchImpl,
+      options: { 'no-open': true },
+    });
+    const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await rejection;
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  test('caps device login at ten minutes without a late poll', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 3_600, 3_600));
+
+    const login = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['auth', 'login'],
+      fetchImpl,
+      options: { 'no-open': true },
+    });
+    const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.advanceTimersByTimeAsync(600_000);
+
+    await rejection;
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   test('uploads a generated multipart operation without setting a JSON content type', async () => {
@@ -389,6 +659,73 @@ describe('runCommand', () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  test('logout removes all credentials for the selected origin only', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+    const configDirectory = join(directory, 'charming');
+    const configPath = join(configDirectory, 'config.json');
+    await mkdir(configDirectory);
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        appTokens: {
+          'https://preview.example|preview-app': 'preview-app-token',
+          'https://other.example|other-app': 'other-app-token',
+          'https://charm.ing|production-app': 'production-app-token',
+        },
+        token: 'production-user-token',
+        tokens: {
+          'https://other.example': 'other-user-token',
+          'https://preview.example': 'preview-user-token',
+        },
+      }),
+    );
+    vi.stubEnv('XDG_CONFIG_HOME', directory);
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://preview.example',
+        command: ['auth', 'logout'],
+        options: {},
+      }),
+    ).resolves.toEqual({ appTokensRemoved: 1, authenticated: false });
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
+      appTokens: {
+        'https://other.example|other-app': 'other-app-token',
+        'https://charm.ing|production-app': 'production-app-token',
+      },
+      token: 'production-user-token',
+      tokens: { 'https://other.example': 'other-user-token' },
+    });
+  });
+
+  test('logout removes app credentials when no user credential is saved', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+    const configDirectory = join(directory, 'charming');
+    const configPath = join(configDirectory, 'config.json');
+    await mkdir(configDirectory);
+    await writeFile(
+      configPath,
+      JSON.stringify({
+        appTokens: {
+          'https://preview.example|preview-app': 'preview-app-token',
+          'https://other.example|other-app': 'other-app-token',
+        },
+      }),
+    );
+    vi.stubEnv('XDG_CONFIG_HOME', directory);
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://preview.example',
+        command: ['auth', 'logout'],
+        options: {},
+      }),
+    ).resolves.toEqual({ appTokensRemoved: 1, authenticated: false });
+    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
+      appTokens: { 'https://other.example|other-app': 'other-app-token' },
+    });
   });
 
   test('does not report a server failure as an invalid credential', async () => {
@@ -470,4 +807,20 @@ async function appDirectory(): Promise<string> {
   await writeFile(join(directory, 'ui.js'), 'new ui');
   await writeFile(join(directory, 'styles.css'), 'new css');
   return directory;
+}
+
+function pairingStartResponse(
+  origin = 'https://charm.ing',
+  expiresIn = 600,
+  pollingInterval = 1,
+  overrides: Record<string, unknown> = {},
+): Response {
+  return Response.json({
+    device_code: 'chrm_pair_device-code',
+    expires_in: expiresIn,
+    polling_interval: pollingInterval,
+    user_code: 'CHRM-ABC234',
+    verification_url: `${origin}/pair`,
+    ...overrides,
+  });
 }

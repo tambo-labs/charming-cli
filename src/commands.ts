@@ -6,7 +6,7 @@ import { type OptionValue, stringOption, stringOptions } from './args.js';
 import {
   loadAppToken,
   loadToken,
-  removeToken,
+  removeCredentials,
   resolveToken,
   saveAppToken,
   saveToken,
@@ -35,6 +35,7 @@ const GLOBAL_OPTIONS = ['base-url', 'token'] as const;
 // Operations that upsert by a caller-supplied id and silently overwrite an existing
 // row in place, so they need the same --yes consent as a DELETE.
 const REPLACES_IN_PLACE = new Set(['create-app']);
+const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
 const COMMANDS: Record<string, CommandDefinition> = {
   'agent-context': command('charming agent-context', 1),
   'apps call': command(
@@ -110,7 +111,10 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
     }
     const resolved = await resolveToken({ baseUrl: context.baseUrl });
     const activeSource = resolved.source;
-    if (!activeSource) return { authenticated: false };
+    if (!activeSource) {
+      const removed = await removeCredentials({ baseUrl: context.baseUrl });
+      return { ...removed, authenticated: false };
+    }
     if (activeSource !== 'config') {
       throw new Error(`Cannot log out while ${activeSource} is set. Unset it and try again.`);
     }
@@ -119,8 +123,8 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
         'Cannot log out while a legacy credential exists at ~/.buildy/user-token. Remove it and try again.',
       );
     }
-    await removeToken({ baseUrl: context.baseUrl });
-    return { authenticated: false };
+    const removed = await removeCredentials({ baseUrl: context.baseUrl });
+    return { ...removed, authenticated: false };
   }
   if (action === 'status') {
     const resolved = context.token
@@ -148,10 +152,12 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
     polling_interval?: number;
     user_code?: string;
     verification_url?: string;
-    verification_url_complete?: string;
+    verification_url_complete?: unknown;
   };
-  if (!started.device_code || !started.user_code || !started.verification_url) {
-    throw new Error('Charming returned an invalid pairing response');
+  if (!validPairingStart(started)) {
+    throw new Error(
+      'Charming returned an invalid pairing response. Run `charming auth login` again.',
+    );
   }
 
   const url = started.verification_url_complete ?? started.verification_url;
@@ -164,10 +170,13 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
   );
   if (context.options['no-open'] !== true) openUrl(url, context.baseUrl);
 
-  const deadline = Date.now() + (started.expires_in ?? 600) * 1_000;
+  const deadline = Date.now() + Math.min(started.expires_in ?? 600, 600) * 1_000;
   const interval = Math.max(started.polling_interval ?? 5, 1) * 1_000;
-  while (Date.now() < deadline) {
-    await wait(interval);
+  while (true) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await wait(Math.min(interval, remaining));
+    if (Date.now() >= deadline) break;
     const polled = (
       await client.request('POST', '/api/pair/poll', {
         body: { device_code: started.device_code },
@@ -175,13 +184,23 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
     ).data as { already_delivered?: boolean; status?: string; token?: string };
     if (polled.status === 'pending') continue;
     if (polled.status === 'expired') throw new Error('Pairing code expired. Run auth login again.');
-    if (polled.token) {
+    if (polled.status !== 'approved') {
+      throw new Error(
+        'Charming returned an invalid pairing response. Run `charming auth login` again.',
+      );
+    }
+    if (typeof polled.token === 'string' && polled.token.length > 0) {
       await saveToken(polled.token, { baseUrl: context.baseUrl });
       return { authenticated: true };
     }
     if (polled.already_delivered) {
-      throw new Error('Pairing token was already delivered and cannot be shown again.');
+      throw new Error(
+        'Pairing token was already delivered and cannot be shown again. Run `charming auth login` again.',
+      );
     }
+    throw new Error(
+      'Charming returned an invalid pairing response. Run `charming auth login` again.',
+    );
   }
   throw new Error('Pairing code expired. Run auth login again.');
 }
@@ -360,6 +379,11 @@ async function runApi(
   if (!operation) throw new Error(`Unknown OpenAPI operation: ${operationId}`);
   if (action === 'describe') return operation;
   if (action !== 'request') throw new Error('Usage: charming api list|describe|request');
+  if (HIDDEN_CREDENTIAL_OPERATIONS.has(operation.id) && context.options['dry-run'] !== true) {
+    throw new Error(
+      `Raw ${operation.id} requests cannot show the credential safely. Run \`charming auth login\` instead.`,
+    );
+  }
   if (operation.streaming) {
     throw new Error(
       `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
@@ -372,16 +396,6 @@ async function runApi(
   ) {
     throw new Error('Deletion requires --yes. Use --dry-run to preview it.');
   }
-  if (
-    REPLACES_IN_PLACE.has(operation.id) &&
-    context.options['dry-run'] !== true &&
-    context.options.yes !== true
-  ) {
-    throw new Error(
-      'This operation may overwrite an existing app with the same manifest id. Use --yes or --dry-run.',
-    );
-  }
-
   const supplied = new Map(
     stringOptions(context.options, 'param').map((entry) => {
       const separator = entry.indexOf('=');
@@ -440,6 +454,23 @@ async function runApi(
     (supplied.get('id')
       ? await loadAppToken(supplied.get('id')!, { baseUrl: context.baseUrl })
       : undefined);
+  if (
+    operation.id === 'create-app' &&
+    (!isUserToken(token) ||
+      (body !== null &&
+        typeof body === 'object' &&
+        !Array.isArray(body) &&
+        (body as Record<string, unknown>).pair === true))
+  ) {
+    throw new Error(
+      'Raw create-app cannot save anonymous or pairing credentials safely. Run `charming apps create` instead.',
+    );
+  }
+  if (REPLACES_IN_PLACE.has(operation.id) && context.options.yes !== true) {
+    throw new Error(
+      'This operation may overwrite an existing app with the same manifest id. Use --yes or --dry-run.',
+    );
+  }
   const rawBody =
     operation.requestBody?.mediaType === 'multipart/form-data' && file
       ? await multipartBody(body, file)
@@ -675,6 +706,42 @@ function openUrl(url: string, baseUrl: string): void {
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function validPairingStart(started: {
+  device_code?: string;
+  expires_in?: number;
+  polling_interval?: number;
+  user_code?: string;
+  verification_url?: string;
+  verification_url_complete?: unknown;
+}): started is {
+  device_code: string;
+  expires_in?: number;
+  polling_interval?: number;
+  user_code: string;
+  verification_url: string;
+  verification_url_complete?: string;
+} {
+  return (
+    typeof started.device_code === 'string' &&
+    started.device_code.length > 0 &&
+    typeof started.user_code === 'string' &&
+    started.user_code.length > 0 &&
+    typeof started.verification_url === 'string' &&
+    started.verification_url.length > 0 &&
+    (started.verification_url_complete === undefined ||
+      (typeof started.verification_url_complete === 'string' &&
+        started.verification_url_complete.length > 0)) &&
+    (started.expires_in === undefined ||
+      (Number.isFinite(started.expires_in) && started.expires_in > 0)) &&
+    (started.polling_interval === undefined ||
+      (Number.isFinite(started.polling_interval) && started.polling_interval > 0))
+  );
+}
+
+function isUserToken(token: string | undefined): boolean {
+  return token?.startsWith('chrm_user_') === true || token?.startsWith('bld_user_') === true;
 }
 
 export const CLI_VERSION = '0.1.0';

@@ -32,6 +32,8 @@ Use `charming` to create and manage apps hosted by Charming. It saves credential
 
 Run mutations with `--dry-run` first. Signed-in creates and deletions require `--yes`; pass it only after the user approves that action.
 
+`charming auth logout` removes the user credential and every app credential for the selected origin. Unclaimed apps that relied on those app credentials become unreachable.
+
 Read JSON results from stdout. Login instructions and JSON errors use stderr. Branch on `error.kind`. Follow `error.recovery` when present. Never print tokens or `device_code` values. Show `user_code` only during login.
 
 ## Platform API fallback

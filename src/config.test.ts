@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
-import { loadAppToken, loadToken, resolveToken, saveToken } from './config.js';
+import { loadAppToken, loadToken, removeCredentials, resolveToken, saveToken } from './config.js';
 
 describe('token config', () => {
   test('prefers CHARMING_TOKEN over the saved token', async () => {
@@ -96,5 +96,28 @@ describe('token config', () => {
     await expect(loadToken({ configDir: directory, env: {} })).rejects.toThrow(
       `Invalid JSON in ${join(directory, 'config.json')}`,
     );
+  });
+
+  test('removes current and legacy app credentials for the production origin', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-cli-'));
+    await writeFile(
+      join(directory, 'config.json'),
+      JSON.stringify({
+        appTokens: {
+          'legacy-app': 'legacy-production-token',
+          'https://charm.ing|current-app': 'current-production-token',
+          'https://preview.example|preview-app': 'preview-token',
+        },
+        token: 'production-user-token',
+        tokens: { 'https://preview.example': 'preview-user-token' },
+      }),
+    );
+
+    await removeCredentials({ configDir: directory, env: {} });
+
+    expect(JSON.parse(await readFile(join(directory, 'config.json'), 'utf8'))).toEqual({
+      appTokens: { 'https://preview.example|preview-app': 'preview-token' },
+      tokens: { 'https://preview.example': 'preview-user-token' },
+    });
   });
 });
