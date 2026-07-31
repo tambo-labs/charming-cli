@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible Charming CLI problem.
+title: 'bug: '
+labels: [bug]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include the command and sanitized output. Never include tokens or user data.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CLI version
+      description: Run `charming --version`.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Operating system and Node.js version
+    validations:
+      required: true

@@ -1,72 +1,56 @@
 # Charming CLI
 
-Build and manage hosted personal apps from a terminal or coding agent.
+Build and manage personal apps hosted by [Charming](https://charm.ing) from a terminal or coding agent.
 
-## Local install
+## Install from source
 
-This MVP is local-only. It requires Bun and Node.js 22 or newer. From the Charming monorepo:
+The first public package has not been published yet. Until then:
 
 ```bash
+git clone https://github.com/tambo-labs/charming-cli.git
+cd charming-cli
 bun install
-bun run cli:gen
-bun run --cwd packages/cli build
-cd packages/cli && bun link
+bun run build
+bun link
 charming doctor
 ```
 
-For repo-local use without linking:
-
-```bash
-bun run charming -- --help
-```
-
-Remove the global link with `cd packages/cli && bun unlink`.
+Remove the link with `bun unlink`.
 
 ## First app
 
-Authenticate once:
-
 ```bash
 charming auth login --no-open
+charming apps create examples/hello --dry-run
+charming apps create examples/hello --yes
 ```
 
-Create the included example:
-
-```bash
-charming apps create packages/cli/examples/hello --yes
-```
-
-The JSON result includes the app ID and URL. Use the ID to inspect its operations:
-
-```bash
-charming apps describe <APP_ID>
-charming apps call <APP_ID> hello --input '{"name":"Ada"}'
-```
-
-Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Mutations accept `--dry-run`. Live deletions and authenticated creates require `--yes`. An authenticated create can replace an app with the same manifest ID.
-
-## Contract sync
-
-The OpenAPI file defines the platform API operations:
-
-```bash
-bun run cli:gen
-bun run cli:check
-bun run --cwd packages/cli test:coverage
-bun run --cwd packages/cli typecheck
-bun run --cwd packages/cli build
-```
-
-Run `cli:gen` after `apps/docs/openapi.fallback.json` changes. CI runs `cli:check` and fails if the generated file differs.
+Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions and signed-in creates require `--yes`.
 
 ## Environment
 
-- `CHARMING_TOKEN`: user token override.
-- `CHARMING_BASE_URL`: API origin override for local or preview servers.
-- `XDG_CONFIG_HOME`: changes the config root.
+- `CHARMING_TOKEN`: user-token override.
+- `CHARMING_BASE_URL`: API origin override.
+- `XDG_CONFIG_HOME`: config-directory override.
 
-The CLI stores credentials at `$XDG_CONFIG_HOME/charming/config.json`, or `~/.config/charming/config.json`, with mode `0600`. It sends `CHARMING_TOKEN`, `BUILDY_USER_TOKEN`, and old unscoped credentials only to `https://charm.ing`. Other origins need a credential saved for that origin or an explicit `--token`.
+The CLI stores credentials in `$XDG_CONFIG_HOME/charming/config.json`, or `~/.config/charming/config.json`, with user-only permissions.
+
+## Development
+
+```bash
+bun install
+bun run openapi:gen
+bun run check
+```
+
+`openapi.json` is a snapshot of the Charming OpenAPI contract. `src/generated/operations.ts` is generated from it with the pinned Hey API version. Do not edit the generated file.
+
+An hourly GitHub workflow checks the live Charming OpenAPI document. When the contract changes, it updates the snapshot and generated catalog and opens a pull request. `UPSTREAM.json` records the source URL and contract digest.
 
 ## Agent skill
 
-The portable skill lives at `skills/charming/SKILL.md`.
+The portable skill lives at `skills/charming-cli/SKILL.md`.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Report security issues as described in [SECURITY.md](./SECURITY.md).

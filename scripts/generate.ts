@@ -48,7 +48,7 @@ type RawSpec = {
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = resolve(scriptDirectory, '..');
-const inputPath = resolve(packageDirectory, '../../apps/docs/openapi.fallback.json');
+const inputPath = resolve(packageDirectory, 'openapi.json');
 const outputPath = resolve(packageDirectory, 'src/generated/operations.ts');
 const httpMethods = ['delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'trace'] as const;
 const temporaryOutput = await mkdtemp(join(tmpdir(), 'charming-cli-hey-api-'));
@@ -77,7 +77,7 @@ try {
   if (operations.length === 0) throw new Error('Hey API did not return any OpenAPI operations.');
 
   operations.sort((left, right) => left.id.localeCompare(right.id));
-  const source = `// Generated from apps/docs/openapi.fallback.json by @hey-api/openapi-ts. Run \`bun run cli:gen\`.\nexport const generatedOperations = ${JSON.stringify(
+  const source = `// Generated from openapi.json by @hey-api/openapi-ts. Run \`bun run openapi:gen\`.\nexport const generatedOperations = ${JSON.stringify(
     operations,
     null,
     2,
@@ -86,7 +86,7 @@ try {
   if (process.argv.includes('--check')) {
     const current = await readFile(outputPath, 'utf8').catch(() => '');
     if (current !== source) {
-      console.error('Charming CLI operation catalog is stale. Run `bun run cli:gen`.');
+      console.error('Charming CLI operation catalog is stale. Run `bun run openapi:gen`.');
       process.exitCode = 1;
     }
   } else {

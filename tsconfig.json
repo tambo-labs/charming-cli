@@ -1,6 +1,21 @@
 {
-  "extends": "@repo/tsconfig/base.json",
   "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "resolvePackageJsonImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
     "types": ["node"],
     "allowImportingTsExtensions": false,
     "noEmit": true

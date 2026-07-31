@@ -1,4 +1,4 @@
-// Generated from apps/docs/openapi.fallback.json by @hey-api/openapi-ts. Run `bun run cli:gen`.
+// Generated from openapi.json by @hey-api/openapi-ts. Run `bun run openapi:gen`.
 export const generatedOperations = [
   {
     "id": "approve-pairing",

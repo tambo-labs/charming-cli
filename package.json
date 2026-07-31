@@ -1,10 +1,17 @@
 {
   "name": "@usecharming/cli",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Build and manage apps hosted by Charming.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tambo-labs/charming-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tambo-labs/charming-cli/issues"
+  },
+  "homepage": "https://github.com/tambo-labs/charming-cli#readme",
   "bin": {
     "charming": "./bin/run.js"
   },
@@ -13,10 +20,14 @@
     "dist",
     "examples",
     "provenance.json",
+    "UPSTREAM.json",
     "skills"
   ],
   "scripts": {
     "build": "bun node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "check": "bun run openapi:check && bun run test && bun run typecheck && bun run build",
+    "openapi:gen": "bun scripts/generate.ts",
+    "openapi:check": "bun scripts/generate.ts --check",
     "prepack": "bun run build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -25,7 +36,6 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
-    "@repo/tsconfig": "workspace:*",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.6",
     "typescript": "6.0.3",

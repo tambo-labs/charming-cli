@@ -1,10 +1,10 @@
 {
   "apiName": "Charming",
   "cliName": "charming",
-  "apiSource": "../../apps/docs/openapi.fallback.json",
+  "apiSource": "./openapi.json",
   "apiLiveUrl": "https://charm.ing/.well-known/openapi.json",
   "generator": "./scripts/generate.ts",
-  "generatedArtifacts": ["./src/generated/operations.ts"],
+  "generatedArtifacts": ["./src/generated/operations.ts", "./UPSTREAM.json"],
   "handWrittenOverlays": ["auth", "apps", "doctor", "agent-context"],
   "sources": [
     {
