@@ -1,0 +1,37 @@
+{
+  "name": "@usecharming/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Build and manage apps hosted by Charming.",
+  "license": "MIT",
+  "bin": {
+    "charming": "./bin/run.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "examples",
+    "provenance.json",
+    "skills"
+  ],
+  "scripts": {
+    "build": "bun node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "prepack": "bun run build",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "bun node_modules/typescript/bin/tsc --noEmit && bun node_modules/typescript/bin/tsc -p tsconfig.scripts.json",
+    "lint": "bun run typecheck"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@repo/tsconfig": "workspace:*",
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^4.1.6",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

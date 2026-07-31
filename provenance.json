@@ -1,0 +1,27 @@
+{
+  "apiName": "Charming",
+  "cliName": "charming",
+  "apiSource": "../../apps/docs/openapi.fallback.json",
+  "apiLiveUrl": "https://charm.ing/.well-known/openapi.json",
+  "generator": "./scripts/generate.ts",
+  "generatedArtifacts": ["./src/generated/operations.ts"],
+  "handWrittenOverlays": ["auth", "apps", "doctor", "agent-context"],
+  "sources": [
+    {
+      "name": "@hey-api/openapi-ts",
+      "version": "0.99.0",
+      "license": "MIT",
+      "url": "https://github.com/hey-api/hey-api"
+    },
+    {
+      "name": "OpenAI CLI Creator",
+      "license": "Apache-2.0",
+      "url": "https://github.com/openai/skills/tree/main/skills/.curated/cli-creator"
+    },
+    {
+      "name": "CLI Printing Press",
+      "license": "MIT",
+      "url": "https://github.com/mvanhorn/cli-printing-press"
+    }
+  ]
+}
