@@ -300,6 +300,11 @@ async function runApps(
       timeoutMs: 2_000,
     });
     const source = validSource(current.data as SourceResponse);
+    if (!current.etag) {
+      throw new Error(
+        'Charming did not return an ETag for this app source; refusing to update without optimistic concurrency. Retry. If it still fails, run `charming doctor` and check that `--base-url` points to Charming.',
+      );
+    }
     const body = {
       module: local.module,
       ui: local.ui ?? source.ui ?? undefined,
@@ -308,7 +313,7 @@ async function runApps(
     return (
       await client.request('PUT', `/app/${encodeURIComponent(appId)}`, {
         body,
-        headers: current.etag ? { 'If-Match': current.etag } : undefined,
+        headers: { 'If-Match': current.etag },
       })
     ).data;
   }

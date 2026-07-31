@@ -37,6 +37,33 @@ describe('runCommand', () => {
     );
   });
 
+  test('refuses to update when the source response has no ETag', async () => {
+    const directory = await appDirectory();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'old', ui: 'old ui', styles: 'old css' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'app-1', revision: 4 }));
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['apps', 'update', 'app-1', directory],
+        fetchImpl,
+        options: {},
+        token: 'bld_user_test',
+      }),
+    ).rejects.toThrow(
+      'Charming did not return an ETag for this app source; refusing to update without optimistic concurrency. Retry. If it still fails, run `charming doctor` and check that `--base-url` points to Charming.',
+    );
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://charm.ing/app/app-1/source',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   test('dry-runs a generated mutation without making a request', async () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
