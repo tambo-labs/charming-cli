@@ -27,6 +27,8 @@ charming apps create examples/hello --yes
 
 Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions and signed-in creates require `--yes`.
 
+Command help and input validation come from [oclif](https://oclif.io). Run `charming <topic> <command> --help` to see the generated usage and flags for any command, or `charming --help` for the full command list.
+
 ## Environment
 
 - `CHARMING_TOKEN`: user-token override.

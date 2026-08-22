@@ -4,7 +4,34 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { runCommand } from './commands.js';
+import {
+  agentContext,
+  redactSecrets,
+  runApi,
+  runApps,
+  runAuth,
+  runDoctor,
+  type CommandContext,
+} from './commands.js';
+
+async function runCommand(context: CommandContext & { command: string[] }): Promise<unknown> {
+  const [topic, action, ...positionals] = context.command;
+  const result =
+    topic === 'auth'
+      ? await runAuth(action, context)
+      : topic === 'apps'
+        ? await runApps(action, positionals, context)
+        : topic === 'api'
+          ? await runApi(action, positionals, context)
+          : topic === 'doctor'
+            ? await runDoctor(context)
+            : topic === 'agent-context'
+              ? agentContext(context.baseUrl)
+              : (() => {
+                  throw new Error(`Unknown command: ${context.command.join(' ') || '(none)'}`);
+                })();
+  return redactSecrets(result);
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -188,6 +215,156 @@ describe('runCommand', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
+  test('includes an app description on create when --description is set', async () => {
+    const directory = await appDirectory();
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'app-1' }));
+
+    await runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'create', directory],
+      fetchImpl,
+      options: { yes: true, description: 'A place to jot things down.' },
+      token: 'chrm_user_test',
+    });
+
+    const init = fetchImpl.mock.calls[0]?.[1];
+    const body = JSON.parse(init?.body as string);
+    expect(body.description).toBe('A place to jot things down.');
+  });
+
+  test('omits description from the create body when --description is not set', async () => {
+    const directory = await appDirectory();
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'app-1' }));
+
+    await runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'create', directory],
+      fetchImpl,
+      options: { yes: true },
+      token: 'chrm_user_test',
+    });
+
+    const init = fetchImpl.mock.calls[0]?.[1];
+    const body = JSON.parse(init?.body as string);
+    expect(body).not.toHaveProperty('description');
+  });
+
+  test('renames an app', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({ ok: true, appName: 'new-name', previousAppName: 'old-name' }),
+      );
+
+    const result = await runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'rename', 'app-1', 'new-name'],
+      fetchImpl,
+      options: {},
+      token: 'chrm_user_test',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://charm.ing/account/apps/app-1/name',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(JSON.parse(init?.body as string)).toEqual({ app_name: 'new-name' });
+    expect(result).toEqual({ ok: true, appName: 'new-name', previousAppName: 'old-name' });
+  });
+
+  test('dry-runs a rename without making a request', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    const result = await runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'rename', 'app-1', 'new-name'],
+      fetchImpl,
+      options: { 'dry-run': true },
+      token: 'chrm_user_test',
+    });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      dryRun: true,
+      method: 'POST',
+      path: '/account/apps/app-1/name',
+      body: { app_name: 'new-name' },
+    });
+  });
+
+  test('surfaces the flat { reason, message } envelope a rename failure returns', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        { ok: false, reason: 'reserved_name', message: 'That name is reserved.' },
+        {
+          status: 400,
+        },
+      ),
+    );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charm.ing',
+        command: ['apps', 'rename', 'app-1', 'admin'],
+        fetchImpl,
+        options: {},
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toMatchObject({ kind: 'reserved_name', message: 'That name is reserved.' });
+  });
+
+  test('gives the source route more headroom than the default read timeout', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          (init as RequestInit).signal?.addEventListener('abort', () => {
+            const error = new Error('This operation was aborted');
+            error.name = 'AbortError';
+            reject(error);
+          });
+        }),
+    );
+    vi.useFakeTimers();
+
+    const pending = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'source', 'app-1'],
+      fetchImpl,
+      options: {},
+      token: 'chrm_app_test',
+    });
+    const assertion = expect(pending).rejects.toMatchObject({ kind: 'timeout', timeoutMs: 10_000 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
+  });
+
+  test('--timeout overrides the default for a request', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          (init as RequestInit).signal?.addEventListener('abort', () => {
+            const error = new Error('This operation was aborted');
+            error.name = 'AbortError';
+            reject(error);
+          });
+        }),
+    );
+    vi.useFakeTimers();
+
+    const pending = runCommand({
+      baseUrl: 'https://charm.ing',
+      command: ['apps', 'list'],
+      fetchImpl,
+      options: {},
+      timeoutMs: 500,
+      token: 'chrm_user_test',
+    });
+    const assertion = expect(pending).rejects.toMatchObject({ kind: 'timeout', timeoutMs: 500 });
+    await vi.advanceTimersByTimeAsync(500);
+    await assertion;
+  });
+
   test('describes an app before calling one of its operations', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
@@ -320,21 +497,6 @@ describe('runCommand', () => {
       method: 'DELETE',
       path: '/app/app-1',
     });
-  });
-
-  test('rejects unknown options before making a request', async () => {
-    const fetchImpl = vi.fn<typeof fetch>();
-
-    await expect(
-      runCommand({
-        baseUrl: 'https://charm.ing',
-        command: ['apps', 'list'],
-        fetchImpl,
-        options: { limt: '1' },
-        token: 'bld_user_test',
-      }),
-    ).rejects.toThrow('Unknown option --limt');
-    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   test('describes generated request and response schemas', async () => {

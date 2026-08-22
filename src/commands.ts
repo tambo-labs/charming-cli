@@ -15,71 +15,31 @@ import { findOperation, operations } from './contract.js';
 import { readAppBundle, readJsonValue, writeAppBundle } from './files.js';
 import { ApiError, CharmingClient, isOpenableUrl } from './http.js';
 
-type CommandDefinition = {
-  maxPositionals: number;
-  minPositionals: number;
-  options: readonly string[];
-  usage: string;
-  words: number;
-};
-
-type CommandContext = {
+export type CommandContext = {
   baseUrl: string;
-  command: string[];
   fetchImpl?: typeof fetch;
   options: Record<string, OptionValue>;
+  timeoutMs?: number;
   token?: string;
 };
 
-const GLOBAL_OPTIONS = ['base-url', 'token'] as const;
+// Per-route default timeouts. `source` returns a full app bundle (module, ui,
+// styles) — bigger than the other reads — so it gets more headroom than the
+// 2s used for small reads like list/describe. `--timeout <ms>` overrides any
+// of these for a single invocation.
+const READ_TIMEOUT_MS = 2_000;
+const SOURCE_READ_TIMEOUT_MS = 10_000;
+const MUTATE_TIMEOUT_MS = 10_000;
+const CALL_TIMEOUT_MS = 30_000;
+
+function timeoutFor(context: CommandContext, defaultMs: number): number {
+  return context.timeoutMs ?? defaultMs;
+}
+
 // Operations that upsert by a caller-supplied id and silently overwrite an existing
 // row in place, so they need the same --yes consent as a DELETE.
 const REPLACES_IN_PLACE = new Set(['create-app']);
 const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
-const COMMANDS: Record<string, CommandDefinition> = {
-  'agent-context': command('charming agent-context', 1),
-  'apps call': command(
-    'charming apps call <APP_ID> <OPERATION> [--input JSON|@FILE] [--dry-run]',
-    2,
-    2,
-    2,
-    ['input', 'dry-run'],
-  ),
-  'apps create': command(
-    'charming apps create [DIR] [--module FILE] [--ui FILE] [--styles FILE] [--dry-run] [--yes]',
-    2,
-    0,
-    1,
-    ['module', 'ui', 'styles', 'dry-run', 'yes'],
-  ),
-  'apps delete': command('charming apps delete <APP_ID> --yes', 2, 1, 1, ['yes', 'dry-run']),
-  'apps describe': command('charming apps describe <APP_ID>', 2, 1, 1),
-  'apps list': command('charming apps list [--limit N] [--cursor CURSOR]', 2, 0, 0, [
-    'limit',
-    'cursor',
-  ]),
-  'apps source': command('charming apps source <APP_ID> [--out DIR]', 2, 1, 1, ['out']),
-  'apps update': command(
-    'charming apps update <APP_ID> [DIR] [--module FILE] [--ui FILE] [--styles FILE] [--dry-run]',
-    2,
-    1,
-    2,
-    ['module', 'ui', 'styles', 'dry-run'],
-  ),
-  'api describe': command('charming api describe <OPERATION_ID>', 2, 1, 1),
-  'api list': command('charming api list', 2),
-  'api request': command(
-    'charming api request <OPERATION_ID> [--param NAME=VALUE] [--body JSON|@FILE] [--file PATH] [--header NAME=VALUE] [--dry-run] [--yes]',
-    2,
-    1,
-    1,
-    ['param', 'body', 'file', 'header', 'dry-run', 'yes'],
-  ),
-  'auth login': command('charming auth login [--no-open]', 2, 0, 0, ['no-open']),
-  'auth logout': command('charming auth logout', 2),
-  'auth status': command('charming auth status', 2),
-  doctor: command('charming doctor', 1),
-};
 
 type SourceResponse = {
   source?: {
@@ -89,22 +49,10 @@ type SourceResponse = {
   };
 };
 
-export async function runCommand(context: CommandContext): Promise<unknown> {
-  return redactSecrets(await dispatchCommand(context));
-}
-
-async function dispatchCommand(context: CommandContext): Promise<unknown> {
-  assertCommandShape(context);
-  const [group, action, ...positionals] = context.command;
-  if (group === 'auth') return runAuth(action, context);
-  if (group === 'apps') return runApps(action, positionals, context);
-  if (group === 'api') return runApi(action, positionals, context);
-  if (group === 'doctor') return runDoctor(context);
-  if (group === 'agent-context') return agentContext(context.baseUrl);
-  throw new Error(`Unknown command: ${context.command.join(' ') || '(none)'}`);
-}
-
-async function runAuth(action: string | undefined, context: CommandContext): Promise<unknown> {
+export async function runAuth(
+  action: string | undefined,
+  context: CommandContext,
+): Promise<unknown> {
   if (action === 'logout') {
     if (context.token) {
       throw new Error('Cannot log out while --token is set. Remove it and try again.');
@@ -133,7 +81,9 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
     const token = resolved.token;
     if (!token) return { authenticated: false };
     const client = clientFor(context, token);
-    await client.request('GET', '/app?limit=1', { timeoutMs: 2_000 });
+    await client.request('GET', '/app?limit=1', {
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+    });
     return {
       authenticated: true,
       source: resolved.source,
@@ -205,7 +155,7 @@ async function runAuth(action: string | undefined, context: CommandContext): Pro
   throw new Error('Pairing code expired. Run auth login again.');
 }
 
-async function runApps(
+export async function runApps(
   action: string | undefined,
   positionals: string[],
   context: CommandContext,
@@ -218,14 +168,19 @@ async function runApps(
     if (limit) query.set('limit', limit);
     if (cursor) query.set('cursor', cursor);
     const suffix = query.size > 0 ? `?${query}` : '';
-    return (await clientFor(context, token).request('GET', `/app${suffix}`, { timeoutMs: 2_000 }))
-      .data;
+    return (
+      await clientFor(context, token).request('GET', `/app${suffix}`, {
+        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+      })
+    ).data;
   }
 
   if (action === 'create') {
     const token = context.token ?? (await loadToken({ baseUrl: context.baseUrl }));
     const bundle = await readBundle(positionals[0], context.options);
     const body: Record<string, unknown> = { ...bundle };
+    const description = stringOption(context.options, 'description');
+    if (description !== undefined) body.description = description;
     if (!token) {
       body.pair = true;
       body.label = `Charming CLI ${CLI_VERSION}`;
@@ -238,7 +193,12 @@ async function runApps(
         'Authenticated create may overwrite an app with the same manifest id. Use --yes or --dry-run.',
       );
     }
-    const data = (await clientFor(context, token).request('POST', '/app', { body })).data as {
+    const data = (
+      await clientFor(context, token).request('POST', '/app', {
+        body,
+        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+      })
+    ).data as {
       id?: string;
       token?: string;
       [key: string]: unknown;
@@ -287,13 +247,24 @@ async function runApps(
     };
   }
 
+  if (action === 'rename' && context.options['dry-run'] === true) {
+    const name = positionals[1];
+    if (!name) throw new Error('Usage: charming apps rename <APP_ID> <NAME>');
+    return {
+      dryRun: true,
+      method: 'POST',
+      path: `/account/apps/${encodeURIComponent(appId)}/name`,
+      body: { app_name: name },
+    };
+  }
+
   const token = await tokenForApp(context, appId);
   const client = clientFor(context, token);
 
   if (action === 'describe') {
     return (
       await client.request('GET', `/app/${encodeURIComponent(appId)}/agent.json`, {
-        timeoutMs: 2_000,
+        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
       })
     ).data;
   }
@@ -301,7 +272,7 @@ async function runApps(
   if (action === 'source') {
     const data = (
       await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
-        timeoutMs: 2_000,
+        timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
       })
     ).data as SourceResponse;
     const outputDirectory = stringOption(context.options, 'out');
@@ -316,7 +287,7 @@ async function runApps(
   if (action === 'update') {
     const local = await readBundle(positionals[1], context.options);
     const current = await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
-      timeoutMs: 2_000,
+      timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
     });
     const source = validSource(current.data as SourceResponse);
     if (!current.etag) {
@@ -333,6 +304,7 @@ async function runApps(
       await client.request('PUT', `/app/${encodeURIComponent(appId)}`, {
         body,
         headers: { 'If-Match': current.etag },
+        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
       })
     ).data;
   }
@@ -346,19 +318,36 @@ async function runApps(
     return (
       await client.request('POST', path, {
         body,
-        timeoutMs: 30_000,
+        timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
       })
     ).data;
   }
 
-  if (action === 'delete') {
-    return (await client.request('DELETE', `/app/${encodeURIComponent(appId)}`)).data;
+  if (action === 'rename') {
+    const name = positionals[1];
+    if (!name) throw new Error('Usage: charming apps rename <APP_ID> <NAME>');
+    const userToken = await requireUserToken(context);
+    return (
+      await clientFor(context, userToken).request(
+        'POST',
+        `/account/apps/${encodeURIComponent(appId)}/name`,
+        { body: { app_name: name }, timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS) },
+      )
+    ).data;
   }
 
-  throw new Error('Usage: charming apps list|create|source|update|call|delete');
+  if (action === 'delete') {
+    return (
+      await client.request('DELETE', `/app/${encodeURIComponent(appId)}`, {
+        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+      })
+    ).data;
+  }
+
+  throw new Error('Usage: charming apps list|create|source|update|call|delete|rename');
 }
 
-async function runApi(
+export async function runApi(
   action: string | undefined,
   positionals: string[],
   context: CommandContext,
@@ -489,12 +478,12 @@ async function runApi(
         }),
       ),
       rawBody,
-      timeoutMs: operation.timeoutMs,
+      timeoutMs: timeoutFor(context, operation.timeoutMs),
     })
   ).data;
 }
 
-function agentContext(baseUrl: string): unknown {
+export function agentContext(baseUrl: string): unknown {
   return {
     schemaVersion: 1,
     cliVersion: CLI_VERSION,
@@ -512,7 +501,7 @@ function agentContext(baseUrl: string): unknown {
     },
     commands: {
       auth: ['login', 'status', 'logout'],
-      apps: ['list', 'create', 'describe', 'source', 'update', 'call', 'delete'],
+      apps: ['list', 'create', 'describe', 'source', 'update', 'call', 'delete', 'rename'],
       generatedApiOperations: operations.length,
       generatedApiIndex: 'charming api list',
     },
@@ -524,12 +513,12 @@ function agentContext(baseUrl: string): unknown {
   };
 }
 
-async function runDoctor(context: CommandContext): Promise<unknown> {
+export async function runDoctor(context: CommandContext): Promise<unknown> {
   const token = context.token ?? (await loadToken({ baseUrl: context.baseUrl }));
   let spec;
   try {
     spec = await clientFor(context).request('GET', '/.well-known/openapi.json', {
-      timeoutMs: 2_000,
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
     });
   } catch (error) {
     if (error instanceof ApiError) throw error;
@@ -542,7 +531,9 @@ async function runDoctor(context: CommandContext): Promise<unknown> {
   let auth: 'invalid' | 'missing' | 'ok' = 'missing';
   if (token) {
     try {
-      await clientFor(context, token).request('GET', '/app?limit=1', { timeoutMs: 2_000 });
+      await clientFor(context, token).request('GET', '/app?limit=1', {
+        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+      });
       auth = 'ok';
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
@@ -745,33 +736,3 @@ function isUserToken(token: string | undefined): boolean {
 }
 
 export const CLI_VERSION = '0.1.0';
-
-function command(
-  usage: string,
-  words: number,
-  minPositionals = 0,
-  maxPositionals = 0,
-  options: readonly string[] = [],
-): CommandDefinition {
-  return { maxPositionals, minPositionals, options, usage, words };
-}
-
-function assertCommandShape(context: CommandContext): void {
-  const key =
-    context.command[0] === 'doctor' || context.command[0] === 'agent-context'
-      ? context.command[0]
-      : context.command.slice(0, 2).join(' ');
-  const definition = COMMANDS[key];
-  if (!definition) throw new Error(`Unknown command: ${context.command.join(' ') || '(none)'}`);
-
-  const positionals = context.command.length - definition.words;
-  if (positionals < definition.minPositionals || positionals > definition.maxPositionals) {
-    throw new Error(`Usage: ${definition.usage}`);
-  }
-
-  const allowed = new Set([...GLOBAL_OPTIONS, ...definition.options]);
-  const unknown = Object.keys(context.options).find((option) => !allowed.has(option));
-  if (unknown) {
-    throw new Error(`Unknown option --${unknown}. Usage: ${definition.usage}`);
-  }
-}
