@@ -7,7 +7,7 @@ Build and manage personal apps hosted by [Charming](https://charm.ing) from a te
 Not published yet. Once it is, the plan is:
 
 ```bash
-npm install -g @usecharming/charming-cli
+npm install -g usecharming
 # or
 brew install tambo-labs/tap/charming
 ```

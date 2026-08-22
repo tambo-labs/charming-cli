@@ -1,5 +1,5 @@
 {
-  "name": "@usecharming/charming-cli",
+  "name": "usecharming",
   "version": "0.1.0",
   "type": "module",
   "description": "Build and manage apps hosted by Charming.",
@@ -24,7 +24,6 @@
     "skills"
   ],
   "publishConfig": {
-    "access": "public",
     "provenance": true
   },
   "keywords": ["charming", "cli", "oclif", "mcp", "agent", "personal-software"],
