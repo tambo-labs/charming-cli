@@ -2,9 +2,17 @@
 
 Build and manage personal apps hosted by [Charming](https://charm.ing) from a terminal or coding agent.
 
-## Install from source
+## Install
 
-The first public package has not been published yet. Until then:
+Not published yet. Once it is, the plan is:
+
+```bash
+npm install -g @usecharming/charming-cli
+# or
+brew install tambo-labs/tap/charming
+```
+
+Until then, install from source:
 
 ```bash
 git clone https://github.com/tambo-labs/charming-cli.git
