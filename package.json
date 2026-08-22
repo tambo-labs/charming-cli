@@ -1,5 +1,5 @@
 {
-  "name": "@usecharming/cli",
+  "name": "usecharming",
   "version": "0.1.0",
   "type": "module",
   "description": "Build and manage apps hosted by Charming.",
@@ -23,13 +23,18 @@
     "UPSTREAM.json",
     "skills"
   ],
+  "publishConfig": {
+    "provenance": true
+  },
+  "keywords": ["charming", "cli", "oclif", "mcp", "agent", "personal-software"],
   "scripts": {
     "build": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json",
     "build:test": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json --sourceMap false --declarationMap false",
+    "build:tsc": "rm -rf dist && node node_modules/typescript/bin/tsc -p tsconfig.build.json --sourceMap false --declarationMap false",
     "check": "bun run openapi:check && bun run test && bun run typecheck && bun run build",
     "openapi:gen": "bun scripts/generate.ts",
     "openapi:check": "bun scripts/generate.ts --check",
-    "prepack": "bun run build",
+    "prepack": "npm run build:tsc",
     "test": "bun run build:test && vitest run",
     "test:coverage": "bun run build:test && vitest run --coverage",
     "typecheck": "bun node_modules/typescript/bin/tsc --noEmit && bun node_modules/typescript/bin/tsc -p tsconfig.scripts.json",
