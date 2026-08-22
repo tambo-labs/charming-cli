@@ -2,7 +2,7 @@ type Dependencies = { buildImpl?: () => void | Promise<void>; fetchImpl?: typeof
 
 type Runtime = Dependencies & { exitCode?: number };
 
-const runtimeKey = Symbol.for('@usecharming/cli-runtime');
+const runtimeKey = Symbol.for('@usecharming/charming-cli-runtime');
 
 export function currentDependencies(): Dependencies {
   return currentRuntime();

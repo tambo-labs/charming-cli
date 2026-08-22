@@ -1,5 +1,5 @@
 {
-  "name": "@usecharming/cli",
+  "name": "@usecharming/charming-cli",
   "version": "0.1.0",
   "type": "module",
   "description": "Build and manage apps hosted by Charming.",
