@@ -18,6 +18,12 @@ type ErrorBody = {
     reason?: string;
     recovery?: unknown;
   };
+  // A handful of internal routes (e.g. `/account/apps/:id/name`) reply with a
+  // flat `{ ok: false, reason, message }` envelope instead of the standard
+  // `{ error: { kind, message } }` one from `jsonError`. Fall back to these so
+  // the CLI still surfaces a real reason instead of a generic HTTP-status message.
+  message?: string;
+  reason?: string;
 };
 
 export class ApiError extends Error {
@@ -27,13 +33,34 @@ export class ApiError extends Error {
   readonly status: number;
 
   constructor(status: number, body: unknown) {
-    const error = (body as ErrorBody | null)?.error;
-    super(error?.message ?? `Charming API request failed with HTTP ${status}`);
+    const parsed = body as ErrorBody | null;
+    const error = parsed?.error;
+    super(
+      error?.message ??
+        (typeof parsed?.message === 'string' ? parsed.message : undefined) ??
+        `Charming API request failed with HTTP ${status}`,
+    );
     this.name = 'ApiError';
     this.status = status;
-    this.kind = error?.kind ?? 'http_error';
+    this.kind = error?.kind ?? (typeof parsed?.reason === 'string' ? parsed.reason : 'http_error');
     this.recovery = error?.recovery;
     this.body = body;
+  }
+}
+
+export const DEFAULT_TIMEOUT_MS = 10_000;
+
+export class TimeoutError extends Error {
+  readonly kind = 'timeout';
+  readonly status = 0;
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(
+      `Request timed out after ${timeoutMs}ms. Increase it with --timeout <ms>, e.g. --timeout ${timeoutMs * 2}.`,
+    );
+    this.name = 'TimeoutError';
+    this.timeoutMs = timeoutMs;
   }
 }
 
@@ -54,7 +81,8 @@ export class CharmingClient {
     options: RequestOptions = {},
   ): Promise<{ data: unknown; etag: string | null; status: number }> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10_000);
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
@@ -73,6 +101,9 @@ export class CharmingClient {
         text.length === 0 ? null : parseResponse(text, response.headers.get('content-type'));
       if (!response.ok) throw new ApiError(response.status, data);
       return { data, etag: response.headers.get('etag'), status: response.status };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw new TimeoutError(timeoutMs);
+      throw error;
     } finally {
       clearTimeout(timeout);
     }

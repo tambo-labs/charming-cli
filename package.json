@@ -24,22 +24,33 @@
     "skills"
   ],
   "scripts": {
-    "build": "bun node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "build:test": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json --sourceMap false --declarationMap false",
     "check": "bun run openapi:check && bun run test && bun run typecheck && bun run build",
     "openapi:gen": "bun scripts/generate.ts",
     "openapi:check": "bun scripts/generate.ts --check",
     "prepack": "bun run build",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "bun run build:test && vitest run",
+    "test:coverage": "bun run build:test && vitest run --coverage",
     "typecheck": "bun node_modules/typescript/bin/tsc --noEmit && bun node_modules/typescript/bin/tsc -p tsconfig.scripts.json",
     "lint": "bun run typecheck"
   },
+  "dependencies": {
+    "@oclif/core": "4.13.5"
+  },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
+    "@oclif/test": "4.1.22",
     "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.11"
+  },
+  "oclif": {
+    "bin": "charming",
+    "commands": "./dist/commands",
+    "dirname": "charming",
+    "topicSeparator": " "
   },
   "engines": {
     "node": ">=22"

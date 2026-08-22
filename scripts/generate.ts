@@ -1,9 +1,23 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createClient, definePluginConfig, type IR } from '@hey-api/openapi-ts';
+
+import { findParityIssues, formatParityIssues, type CatalogOperation } from './cli-parity.js';
+
+// Hand-written commands that wrap a single OpenAPI operation with a friendlier
+// surface than `charming api request`. Every operation is already reachable
+// generically, so only these get checked for field-level drift (e.g.
+// `--description` missing from `apps create` while the server already took a
+// `description` body field) — that generalizes the exact bug that caused
+// issue #4655, instead of re-litigating operation-level reachability that
+// always trivially holds.
+const FRIENDLY_COMMANDS: Record<string, string> = {
+  'create-app': 'src/commands/apps/create.ts',
+  'update-app': 'src/commands/apps/update.ts',
+};
 
 type RawParameter = {
   description?: string;
@@ -82,6 +96,16 @@ try {
     null,
     2,
   )} as const;\n`;
+
+  const parityIssues = findParityIssues(
+    operations,
+    await friendlyCommandFlags(packageDirectory),
+    await loadParityAllowlist(packageDirectory),
+  );
+  if (parityIssues.length > 0) {
+    console.error(formatParityIssues(parityIssues));
+    process.exitCode = 1;
+  }
 
   if (process.argv.includes('--check')) {
     const current = await readFile(outputPath, 'utf8').catch(() => '');
@@ -246,6 +270,33 @@ function resolveSchema(
 
   return Object.fromEntries(
     Object.entries(schema).map(([key, item]) => [key, resolveSchema(item, resolveReference, seen)]),
+  );
+}
+
+async function friendlyCommandFlags(root: string): Promise<Record<string, ReadonlySet<string>>> {
+  const entries = await Promise.all(
+    Object.entries(FRIENDLY_COMMANDS).map(async ([operationId, modulePath]) => {
+      const imported = (await import(pathToFileURL(resolve(root, modulePath)).href)) as {
+        default: { flags?: Record<string, unknown> };
+      };
+      const flagNames = Object.keys(imported.default.flags ?? {}).map((name) =>
+        name.replaceAll('-', '_'),
+      );
+      return [operationId, new Set(flagNames)] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function loadParityAllowlist(root: string): Promise<Record<string, ReadonlySet<string>>> {
+  const raw = JSON.parse(
+    await readFile(join(root, 'scripts', 'cli-parity-allowlist.json'), 'utf8'),
+  ) as Record<string, Record<string, string>>;
+  return Object.fromEntries(
+    Object.entries(raw).map(([operationId, reasons]) => [
+      operationId,
+      new Set(Object.keys(reasons)),
+    ]),
   );
 }
 

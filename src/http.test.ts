@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { CharmingClient, isOpenableUrl } from './http.js';
+import { CharmingClient, isOpenableUrl, TimeoutError } from './http.js';
 
 describe('CharmingClient', () => {
   test('sends bearer auth and JSON bodies', async () => {
@@ -75,6 +75,49 @@ describe('CharmingClient', () => {
     expect(
       () => new CharmingClient({ baseUrl: 'http://preview.example', fetchImpl: vi.fn() }),
     ).toThrow('The API origin must use HTTPS');
+  });
+
+  test('falls back to a flat { reason, message } error envelope when there is no error.kind', async () => {
+    const client = new CharmingClient({
+      baseUrl: 'https://charm.ing',
+      fetchImpl: async () =>
+        Response.json(
+          { ok: false, reason: 'reserved_name', message: 'That name is reserved.' },
+          {
+            status: 400,
+          },
+        ),
+    });
+
+    await expect(client.request('POST', '/account/apps/app-1/name')).rejects.toEqual(
+      expect.objectContaining({
+        kind: 'reserved_name',
+        message: 'That name is reserved.',
+        status: 400,
+      }),
+    );
+  });
+
+  test('turns an aborted request into a TimeoutError naming the timeout used', async () => {
+    const client = new CharmingClient({
+      baseUrl: 'https://charm.ing',
+      fetchImpl: (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit).signal;
+          signal?.addEventListener('abort', () => {
+            const error = new Error('This operation was aborted');
+            error.name = 'AbortError';
+            reject(error);
+          });
+        }),
+    });
+
+    const error = await client.request('GET', '/app/abc/source', { timeoutMs: 5 }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(TimeoutError);
+    expect(error.kind).toBe('timeout');
+    expect(error.message).toContain('5ms');
+    expect(error.message).toContain('--timeout');
   });
 });
 
