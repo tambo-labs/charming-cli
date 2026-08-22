@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/tambo-labs/charming-cli#readme",
   "bin": {
-    "charming": "./bin/run.js"
+    "charming": "bin/run.js"
   },
   "files": [
     "bin",
