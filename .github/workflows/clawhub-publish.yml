@@ -10,6 +10,11 @@ name: ClawHub publish
 # errors on a real publish without a token), so this uses CLAWHUB_TOKEN,
 # a token from `clawhub login` + `clawhub token`, scoped to the tambo-labs
 # publisher.
+#
+# id-token: write is required even though ClawHub itself doesn't use OIDC:
+# the reusable workflow verifies its own source via GitHub OIDC claims
+# before running, and a reusable-workflow job's permissions can't exceed
+# what the caller grants.
 
 on:
   pull_request:
@@ -22,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   dry-run:
