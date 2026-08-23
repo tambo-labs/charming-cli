@@ -1,0 +1,41 @@
+name: ClawHub publish
+
+# Keeps clawhub.ai's charming-cli skill listing pointed at the version in
+# skills/charming-cli/SKILL.md. Uses ClawHub's own reusable workflow
+# (openclaw/clawhub/.github/workflows/skill-publish.yml), which fingerprints
+# the skill folder and no-ops when content is unchanged — safe to run on
+# every release even if the skill itself didn't change.
+#
+# Skills have no OIDC/trusted-publisher option yet (the reusable workflow
+# errors on a real publish without a token), so this uses CLAWHUB_TOKEN,
+# a token from `clawhub login` + `clawhub token`, scoped to the tambo-labs
+# publisher.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - skills/**
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0.23.3
+    with:
+      owner: tambo-labs
+      dry_run: true
+
+  publish:
+    if: github.event_name != 'pull_request'
+    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0.23.3
+    with:
+      owner: tambo-labs
+      dry_run: false
+    secrets:
+      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
