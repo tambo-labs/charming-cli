@@ -8,6 +8,11 @@ metadata:
     requires:
       bins:
         - charming
+    install:
+      - kind: node
+        package: usecharming
+        bins:
+          - charming
 ---
 
 # Charming CLI
