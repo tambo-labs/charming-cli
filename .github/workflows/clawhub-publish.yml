@@ -16,6 +16,12 @@ name: ClawHub publish
 # Skills have no OIDC/trusted-publisher option yet, so this uses
 # CLAWHUB_TOKEN, a token from `clawhub login` + `clawhub token`, scoped to
 # the charming publisher (clawhub.ai/settings?view=organizations).
+#
+# IMPORTANT: merging a PR to main does NOT publish anything here — only
+# `pull_request` (dry-run, no token) or `release: published` (real sync)
+# trigger a run, and nothing on main fires a release event by itself. A
+# skills/** change sits unpublished on ClawHub until someone tags a
+# release. See "Releasing" in CONTRIBUTING.md.
 
 on:
   pull_request:
