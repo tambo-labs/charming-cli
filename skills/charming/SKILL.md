@@ -17,7 +17,7 @@ metadata:
 
 # Charming CLI
 
-Charming is a hosting platform for personal apps you and your agent build, update, and use together. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming`.
+Charming is a hosting platform for personal apps you and your agent build, update, and use together. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming@0.1.1` (check [npm](https://www.npmjs.com/package/usecharming) for the latest version).
 
 Use `charming` to create and manage apps hosted by Charming. It saves credentials, prevents stale updates, and prints JSON errors.
 
