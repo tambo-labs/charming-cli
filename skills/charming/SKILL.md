@@ -17,7 +17,7 @@ metadata:
 
 # Charming CLI
 
-Charming is a hosting platform for personal apps you and your agent build, update, and use together. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming`.
+Charming is a hosting platform for personal apps you and your agent build, update, and use together. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming@0.1.1` (check [npm](https://www.npmjs.com/package/usecharming) for the latest version).
 
 Charming hosts small single-purpose personal apps. You write two files, push them with `charming`, and the user gets a real URL with real storage that any agent — including this one, later — can keep editing.
 
@@ -28,8 +28,6 @@ An app is a directory:
 - `styles.css` — optional. Overrides only.
 
 Do not free-hand the skeleton. Copy `templates/crud`, then change the data model.
-
-> > > > > > > 111dce1 (Teach the skill to build apps, not just drive the CLI)
 
 ## Start
 
