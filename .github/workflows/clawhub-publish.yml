@@ -1,20 +1,20 @@
 name: ClawHub publish
 
 # Keeps clawhub.ai's charming-cli skill listing pointed at the version in
-# skills/charming-cli/SKILL.md. Uses ClawHub's own reusable workflow
-# (openclaw/clawhub/.github/workflows/skill-publish.yml), which fingerprints
-# the skill folder and no-ops when content is unchanged — safe to run on
+# skills/charming-cli/SKILL.md. `clawhub skill sync` fingerprints skill
+# folders and only publishes new or changed ones, so it's safe to run on
 # every release even if the skill itself didn't change.
 #
-# Skills have no OIDC/trusted-publisher option yet (the reusable workflow
-# errors on a real publish without a token), so this uses CLAWHUB_TOKEN,
-# a token from `clawhub login` + `clawhub token`, scoped to the tambo-labs
-# publisher.
+# This repo requires every `uses:` action pinned to a full commit SHA
+# (org policy: sha_pinning_required). ClawHub's own reusable workflow
+# (openclaw/clawhub/.github/workflows/skill-publish.yml) fails that check —
+# it calls actions/checkout and actions/upload-artifact by tag internally,
+# which we don't control — so this calls the clawhub CLI directly instead
+# of using their reusable workflow.
 #
-# id-token: write is required even though ClawHub itself doesn't use OIDC:
-# the reusable workflow verifies its own source via GitHub OIDC claims
-# before running, and a reusable-workflow job's permissions can't exceed
-# what the caller grants.
+# Skills have no OIDC/trusted-publisher option yet, so this uses
+# CLAWHUB_TOKEN, a token from `clawhub login` + `clawhub token`, scoped to
+# the tambo-labs publisher.
 
 on:
   pull_request:
@@ -27,21 +27,30 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   dry-run:
     if: github.event_name == 'pull_request'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0.23.3
-    with:
-      owner: tambo-labs
-      dry_run: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: 22
+
+      - run: npx --yes clawhub@0.23.3 skill sync --root skills --owner tambo-labs --dry-run --json
 
   publish:
     if: github.event_name != 'pull_request'
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@87ca030c30f3cfb78ab15c8e66b5ff1469c8f9c8 # v0.23.3
-    with:
-      owner: tambo-labs
-      dry_run: false
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: 22
+
+      - run: npx --yes clawhub@0.23.3 skill sync --root skills --owner tambo-labs --all
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
