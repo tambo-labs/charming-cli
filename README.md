@@ -4,15 +4,13 @@ Build and manage personal apps hosted by [Charming](https://charm.ing) from a te
 
 ## Install
 
-Not published yet. Once it is, the plan is:
-
 ```bash
 npm install -g usecharming
 # or
 brew install tambo-labs/tap/charming
 ```
 
-Until then, install from source:
+Or install from source:
 
 ```bash
 git clone https://github.com/tambo-labs/charming-cli.git

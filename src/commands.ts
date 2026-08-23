@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { type OptionValue, stringOption, stringOptions } from './args.js';
 import {
@@ -735,4 +737,9 @@ function isUserToken(token: string | undefined): boolean {
   return token?.startsWith('chrm_user_') === true || token?.startsWith('bld_user_') === true;
 }
 
-export const CLI_VERSION = '0.1.0';
+// Read once from package.json rather than a hardcoded literal, which drifted
+// stale (0.1.0) against the real published version within one release —
+// this mislabeled agent-context output and every pairing token minted since.
+export const CLI_VERSION: string = JSON.parse(
+  readFileSync(resolve(dirname(dirname(fileURLToPath(import.meta.url))), 'package.json'), 'utf8'),
+).version;

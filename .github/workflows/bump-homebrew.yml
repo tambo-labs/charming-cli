@@ -1,9 +1,11 @@
 name: Bump Homebrew formula
 
 # Keeps tambo-labs/homebrew-tap's charming.rb pointed at the latest
-# published npm tarball. Triggers off this repo's own GitHub Release
-# (created by release.yml), so it only ever points at a version that
-# already published successfully.
+# published npm tarball. Called directly by release.yml as a job
+# (workflow_call) right after a successful npm publish, not left to
+# trigger off `release: published` — GitHub doesn't let events from
+# the default GITHUB_TOKEN (which creates that release) trigger other
+# workflows, so that path silently never ran.
 #
 # Uses HOMEBREW_TAP_TOKEN, a fine-grained PAT scoped to just
 # tambo-labs/homebrew-tap with Contents: read/write — not the
@@ -12,13 +14,21 @@ name: Bump Homebrew formula
 # disabled and has never run).
 
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        description: Version to bump the formula to (no leading v, e.g. 0.1.2)
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_TOKEN:
+        required: true
   workflow_dispatch:
     inputs:
       version:
         description: Version to bump the formula to (no leading v, e.g. 0.1.2)
         required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,21 +37,27 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve version
-        id: version
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
-          version="${{ inputs.version }}"
-          if [ -z "$version" ]; then
-            version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be a bare semver like 0.1.2, got: $VERSION" >&2
+            exit 1
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_ENV"
 
       - name: Download tarball and compute sha256
         id: tarball
+        env:
+          VERSION: ${{ env.version }}
         run: |
-          version="${{ steps.version.outputs.version }}"
-          url="https://registry.npmjs.org/usecharming/-/usecharming-${version}.tgz"
-          curl -sL -o package.tgz "$url"
+          url="https://registry.npmjs.org/usecharming/-/usecharming-${VERSION}.tgz"
+          curl -fsSL -o package.tgz "$url"
+          if ! tar -tzf package.tgz >/dev/null; then
+            echo "::error::downloaded file is not a valid tarball — $url likely 404'd" >&2
+            exit 1
+          fi
           sha256=$(shasum -a 256 package.tgz | cut -d' ' -f1)
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
@@ -54,12 +70,19 @@ jobs:
 
       - name: Update formula
         working-directory: homebrew-tap
+        env:
+          URL: ${{ steps.tarball.outputs.url }}
+          SHA256: ${{ steps.tarball.outputs.sha256 }}
         run: |
-          version="${{ steps.version.outputs.version }}"
-          url="${{ steps.tarball.outputs.url }}"
-          sha256="${{ steps.tarball.outputs.sha256 }}"
-          sed -i "s#^  url \".*\"#  url \"${url}\"#" Formula/charming.rb
-          sed -i "s#^  sha256 \".*\"#  sha256 \"${sha256}\"#" Formula/charming.rb
+          sed -i "s#^  url \".*\"#  url \"${URL}\"#" Formula/charming.rb
+          sed -i "s#^  sha256 \".*\"#  sha256 \"${SHA256}\"#" Formula/charming.rb
+          # Assert the rewrite actually took, not just that *something* changed —
+          # a formatting drift that makes the sed anchors stop matching would
+          # otherwise leave the formula untouched while still reporting success.
+          if ! grep -qF "$URL" Formula/charming.rb || ! grep -qF "$SHA256" Formula/charming.rb; then
+            echo "::error::sed rewrite didn't take — check Formula/charming.rb's url/sha256 line format" >&2
+            exit 1
+          fi
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_ENV"
           else
@@ -69,29 +92,29 @@ jobs:
       - if: env.changed == 'true'
         name: Commit and push
         working-directory: homebrew-tap
+        env:
+          VERSION: ${{ env.version }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          version="${{ steps.version.outputs.version }}"
           git config user.name "charming-cli-release[bot]"
           git config user.email "charming-cli-release[bot]@users.noreply.github.com"
-          git switch -C "bump/charming-${version}"
+          git switch -C "bump/charming-${VERSION}"
           git add Formula/charming.rb
-          git commit -m "charming ${version}"
-          git push --force origin "bump/charming-${version}"
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          git commit -m "charming ${VERSION}"
+          git push --force origin "bump/charming-${VERSION}"
 
       - if: env.changed == 'true'
         name: Open PR
         working-directory: homebrew-tap
+        env:
+          VERSION: ${{ env.version }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          version="${{ steps.version.outputs.version }}"
-          count=$(gh pr list --repo tambo-labs/homebrew-tap --head "bump/charming-${version}" --state open --json number --jq length)
+          count=$(gh pr list --repo tambo-labs/homebrew-tap --head "bump/charming-${VERSION}" --state open --json number --jq length)
           if [ "$count" -eq 0 ]; then
             gh pr create --repo tambo-labs/homebrew-tap \
               --base main \
-              --head "bump/charming-${version}" \
-              --title "charming ${version}" \
-              --body "Bumps the charming formula to ${version}, matching the npm release."
+              --head "bump/charming-${VERSION}" \
+              --title "charming ${VERSION}" \
+              --body "Bumps the charming formula to ${VERSION}, matching the npm release."
           fi
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

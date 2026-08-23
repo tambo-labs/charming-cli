@@ -1,4 +1,4 @@
-const globalFlags = new Set(['--base-url', '--token']);
+const globalFlags = new Set(['--base-url', '--token', '--timeout']);
 
 export function canonicalizeGlobalFlags(argv: string[]): string[] {
   const command: string[] = [];
