@@ -59,7 +59,7 @@ An hourly GitHub workflow checks the live Charming OpenAPI document. When the co
 
 ## Agent skill
 
-The portable skill lives at `skills/charming-cli/SKILL.md`.
+The portable skill lives at `skills/charming/SKILL.md`.
 
 ## Contributing
 

@@ -1,9 +1,10 @@
 name: ClawHub publish
 
-# Keeps clawhub.ai's charming-cli skill listing pointed at the version in
-# skills/charming-cli/SKILL.md. `clawhub skill sync` fingerprints skill
-# folders and only publishes new or changed ones, so it's safe to run on
-# every release even if the skill itself didn't change.
+# Keeps clawhub.ai's charming skill listing pointed at the version in
+# skills/charming/SKILL.md. `clawhub sync` fingerprints skill folders
+# (deriving the slug from the folder name) and only publishes new or
+# changed ones, so it's safe to run on every release even if the skill
+# itself didn't change.
 #
 # This repo requires every `uses:` action pinned to a full commit SHA
 # (org policy: sha_pinning_required). ClawHub's own reusable workflow
@@ -14,7 +15,7 @@ name: ClawHub publish
 #
 # Skills have no OIDC/trusted-publisher option yet, so this uses
 # CLAWHUB_TOKEN, a token from `clawhub login` + `clawhub token`, scoped to
-# the tambo-labs publisher.
+# the charming publisher (clawhub.ai/settings?view=organizations).
 
 on:
   pull_request:
@@ -39,7 +40,7 @@ jobs:
         with:
           node-version: 22
 
-      - run: npx --yes clawhub@0.23.3 sync --owner tambo-labs --dry-run --json
+      - run: npx --yes clawhub@0.23.3 sync --owner charming --dry-run --json
 
   publish:
     if: github.event_name != 'pull_request'
@@ -51,6 +52,6 @@ jobs:
         with:
           node-version: 22
 
-      - run: npx --yes clawhub@0.23.3 sync --owner tambo-labs --all
+      - run: npx --yes clawhub@0.23.3 sync --owner charming --all
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}

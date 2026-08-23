@@ -1,5 +1,5 @@
 ---
-name: charming-cli
+name: charming
 description: Build, inspect, update, and call hosted personal apps with the Charming CLI. Use when a user wants to create or manage an interactive personal app hosted by Charming.
 license: MIT
 compatibility: Requires the charming CLI, Node.js 22 or newer, and network access to charm.ing.
