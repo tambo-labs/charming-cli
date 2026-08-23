@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: 22
 
-      - run: npx --yes clawhub@0.23.3 skill sync --root skills --owner tambo-labs --dry-run --json
+      - run: npx --yes clawhub@0.23.3 sync --owner tambo-labs --dry-run --json
 
   publish:
     if: github.event_name != 'pull_request'
@@ -51,6 +51,6 @@ jobs:
         with:
           node-version: 22
 
-      - run: npx --yes clawhub@0.23.3 skill sync --root skills --owner tambo-labs --all
+      - run: npx --yes clawhub@0.23.3 sync --owner tambo-labs --all
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
