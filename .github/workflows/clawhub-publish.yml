@@ -1,0 +1,57 @@
+name: ClawHub publish
+
+# Keeps clawhub.ai's charming skill listing pointed at the version in
+# skills/charming/SKILL.md. `clawhub sync` fingerprints skill folders
+# (deriving the slug from the folder name) and only publishes new or
+# changed ones, so it's safe to run on every release even if the skill
+# itself didn't change.
+#
+# This repo requires every `uses:` action pinned to a full commit SHA
+# (org policy: sha_pinning_required). ClawHub's own reusable workflow
+# (openclaw/clawhub/.github/workflows/skill-publish.yml) fails that check —
+# it calls actions/checkout and actions/upload-artifact by tag internally,
+# which we don't control — so this calls the clawhub CLI directly instead
+# of using their reusable workflow.
+#
+# Skills have no OIDC/trusted-publisher option yet, so this uses
+# CLAWHUB_TOKEN, a token from `clawhub login` + `clawhub token`, scoped to
+# the charming publisher (clawhub.ai/settings?view=organizations).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - skills/**
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: 22
+
+      - run: npx --yes clawhub@0.23.3 sync --owner charming --dry-run --json
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+        with:
+          node-version: 22
+
+      - run: npx --yes clawhub@0.23.3 sync --owner charming --all
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
