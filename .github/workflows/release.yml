@@ -9,6 +9,13 @@ name: Release
 #
 # A tag alone doesn't publish: `bun run check` (the same gate ci.yml
 # runs) must pass, and the tag must match package.json's version.
+#
+# bump-homebrew and clawhub-publish are called directly as jobs
+# (workflow_call), not left to trigger off `release: published`.
+# GitHub does not let events created by the default GITHUB_TOKEN
+# (like the `gh release create` below) trigger other workflows —
+# that path silently never fired, and Homebrew/ClawHub stayed on the
+# old version forever with everything upstream showing green.
 
 on:
   push:
@@ -23,8 +30,14 @@ jobs:
     permissions:
       contents: write # create the GitHub Release
       id-token: write # npm trusted publishing (OIDC)
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -65,3 +78,15 @@ jobs:
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}
+
+  bump-homebrew:
+    needs: release
+    uses: ./.github/workflows/bump-homebrew.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
+
+  clawhub-publish:
+    needs: release
+    uses: ./.github/workflows/clawhub-publish.yml
+    secrets: inherit

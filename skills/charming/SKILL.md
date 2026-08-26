@@ -32,7 +32,7 @@ Do not free-hand the skeleton. Copy `templates/crud`, then change the data model
 ## Start
 
 1. `charming auth status`. If `"authenticated": false`, run `charming auth login --no-open` and give the user the approval URL and code.
-2. Copy the CRUD template into a working directory: `cp -r "$(npm root -g)/usecharming/templates/crud" ./my-app` Change `manifest.id`, `manifest.meta.name`, the storage key, and the `window.charming.api("<id>")` argument in `ui.js` to match.
+2. Copy the CRUD template into a working directory: `cp -r "$(npm root -g)/usecharming/skills/charming/templates/crud" ./my-app` Change `manifest.id`, `manifest.meta.name`, the storage key, and the `window.charming.api("<id>")` argument in `ui.js` to match.
 3. `charming apps create ./my-app --description "<one line>" --dry-run`
 4. `charming apps create ./my-app --description "<one line>" --yes`
 5. Smoke-test the backend before you claim it works: `charming apps call <app-id> list --input '{}'`

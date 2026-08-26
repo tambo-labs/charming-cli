@@ -22,4 +22,13 @@ describe('canonicalizeGlobalFlags', () => {
       '--token=chrm_user_test',
     ]);
   });
+
+  test('moves a prefix --timeout after the discovered command, like --base-url and --token', () => {
+    expect(canonicalizeGlobalFlags(['--timeout', '5000', 'apps', 'list'])).toEqual([
+      'apps',
+      'list',
+      '--timeout',
+      '5000',
+    ]);
+  });
 });
