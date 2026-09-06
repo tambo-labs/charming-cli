@@ -503,6 +503,172 @@ export const generatedOperations = [
     "usage": "charming api request create-app-secret --param id=VALUE --body @body.json"
   },
   {
+    "id": "create-routine",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/routines",
+    "summary": "Schedule a Routine on an app",
+    "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a 3-per-app / 25-per-user cap.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "op",
+          "interval"
+        ],
+        "properties": {
+          "op": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "op": "string",
+        "interval": "hourly"
+      }
+    },
+    "response": {
+      "description": "Routine created.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "routine"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "routine": {
+            "type": "object",
+            "description": "A declared op scheduled to run on a timer. The op is invoked with empty input, so it must declare no required input fields.",
+            "required": [
+              "id",
+              "app_id",
+              "op",
+              "interval",
+              "enabled",
+              "disabled_reason",
+              "next_run_at",
+              "last_run_at",
+              "last_outcome",
+              "last_error",
+              "consecutive_failures"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Public id, `routine_<uuid>` form."
+              },
+              "app_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "op": {
+                "type": "string"
+              },
+              "interval": {
+                "type": "string",
+                "enum": [
+                  "hourly",
+                  "daily",
+                  "weekly"
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "disabled_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "owner",
+                  "auto",
+                  null
+                ]
+              },
+              "next_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "`null` while the Routine is disabled — the underlying schedule is preserved and reappears here once re-enabled, with no recomputation."
+              },
+              "last_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "last_outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_error": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "consecutive_failures": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request create-routine --param appId=VALUE --body @body.json"
+  },
+  {
     "id": "create-token",
     "method": "POST",
     "path": "/api/token",
@@ -721,6 +887,34 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request delete-app-secret --param id=VALUE --param name=VALUE"
+  },
+  {
+    "id": "delete-routine",
+    "method": "DELETE",
+    "path": "/api/v1/routines/{routineId}",
+    "summary": "Delete a Routine",
+    "description": "Session-gated; requires `app:write` on the routine's app. Stops and removes the Routine.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "routineId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Routine deleted."
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request delete-routine --param routineId=VALUE"
   },
   {
     "id": "describe-app",
@@ -1977,6 +2171,137 @@ export const generatedOperations = [
     "usage": "charming api request list-apps"
   },
   {
+    "id": "list-routines",
+    "method": "GET",
+    "path": "/api/v1/routines",
+    "summary": "List the caller's Routines",
+    "description": "Session-gated. Lists every Routine on an app the caller personally owns.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "The caller's Routines.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "routines"
+        ],
+        "description": "The caller's Routines.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "routines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A declared op scheduled to run on a timer. The op is invoked with empty input, so it must declare no required input fields.",
+              "required": [
+                "id",
+                "app_id",
+                "op",
+                "interval",
+                "enabled",
+                "disabled_reason",
+                "next_run_at",
+                "last_run_at",
+                "last_outcome",
+                "last_error",
+                "consecutive_failures"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Public id, `routine_<uuid>` form."
+                },
+                "app_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "op": {
+                  "type": "string"
+                },
+                "interval": {
+                  "type": "string",
+                  "enum": [
+                    "hourly",
+                    "daily",
+                    "weekly"
+                  ]
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "disabled_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "owner",
+                    "auto",
+                    null
+                  ]
+                },
+                "next_run_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time",
+                  "description": "`null` while the Routine is disabled — the underlying schedule is preserved and reappears here once re-enabled, with no recomputation."
+                },
+                "last_run_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "last_outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "last_error": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "kind",
+                    "message"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "consecutive_failures": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-routines"
+  },
+  {
     "id": "list-tokens",
     "method": "GET",
     "path": "/api/token",
@@ -3124,6 +3449,165 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-app --param id=VALUE --body @body.json"
+  },
+  {
+    "id": "update-routine",
+    "method": "PATCH",
+    "path": "/api/v1/routines/{routineId}",
+    "summary": "Update a Routine's interval or enabled state",
+    "description": "Session-gated; requires `app:write` on the routine's app. Re-enable is `{enabled: true}` — not a separate action. Re-enabling resets the consecutive-failure counter.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "routineId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "interval": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "minProperties": 1,
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Routine updated.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "routine"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "routine": {
+            "type": "object",
+            "description": "A declared op scheduled to run on a timer. The op is invoked with empty input, so it must declare no required input fields.",
+            "required": [
+              "id",
+              "app_id",
+              "op",
+              "interval",
+              "enabled",
+              "disabled_reason",
+              "next_run_at",
+              "last_run_at",
+              "last_outcome",
+              "last_error",
+              "consecutive_failures"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Public id, `routine_<uuid>` form."
+              },
+              "app_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "op": {
+                "type": "string"
+              },
+              "interval": {
+                "type": "string",
+                "enum": [
+                  "hourly",
+                  "daily",
+                  "weekly"
+                ]
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "disabled_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "owner",
+                  "auto",
+                  null
+                ]
+              },
+              "next_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "`null` while the Routine is disabled — the underlying schedule is preserved and reappears here once re-enabled, with no recomputation."
+              },
+              "last_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "last_outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_error": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "consecutive_failures": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-routine --param routineId=VALUE --body @body.json"
   },
   {
     "id": "upload-app-asset",

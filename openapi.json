@@ -1949,6 +1949,140 @@
             }
           }
         }
+      },
+      "Routine": {
+        "type": "object",
+        "description": "A declared op scheduled to run on a timer. The op is invoked with empty input, so it must declare no required input fields.",
+        "required": [
+          "id",
+          "app_id",
+          "op",
+          "interval",
+          "enabled",
+          "disabled_reason",
+          "next_run_at",
+          "last_run_at",
+          "last_outcome",
+          "last_error",
+          "consecutive_failures"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Public id, `routine_<uuid>` form."
+          },
+          "app_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "op": {
+            "type": "string"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "disabled_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "owner",
+              "auto",
+              null
+            ]
+          },
+          "next_run_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "`null` while the Routine is disabled — the underlying schedule is preserved and reappears here once re-enabled, with no recomputation."
+          },
+          "last_run_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "kind",
+              "message"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "consecutive_failures": {
+            "type": "integer"
+          }
+        }
+      },
+      "RoutineResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "routine"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "routine": {
+            "$ref": "#/components/schemas/Routine"
+          }
+        }
+      },
+      "RoutineListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "routines"
+        ],
+        "description": "The caller's Routines.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "routines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Routine"
+            }
+          }
+        }
       }
     }
   },
@@ -5284,6 +5418,287 @@
           },
           "404": {
             "description": "Token not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routines": {
+      "get": {
+        "operationId": "list-routines",
+        "summary": "List the caller's Routines",
+        "description": "Session-gated. Lists every Routine on an app the caller personally owns.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's Routines.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/routines": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "create-routine",
+        "summary": "Schedule a Routine on an app",
+        "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a 3-per-app / 25-per-user cap.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "op",
+                  "interval"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string"
+                  },
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "daily",
+                      "weekly"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Routine created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, app id, or the op has required input.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage this app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or the op is not declared on it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Routine already exists for this (app, op) pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-app or per-user Routine cap reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routines/{routineId}": {
+      "parameters": [
+        {
+          "name": "routineId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "update-routine",
+        "summary": "Update a Routine's interval or enabled state",
+        "description": "Session-gated; requires `app:write` on the routine's app. Re-enable is `{enabled: true}` — not a separate action. Re-enabling resets the consecutive-failure counter.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "interval": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "daily",
+                      "weekly"
+                    ]
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "minProperties": 1,
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Routine updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Routine not found, or the caller lacks `app:write` on its app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete-routine",
+        "summary": "Delete a Routine",
+        "description": "Session-gated; requires `app:write` on the routine's app. Stops and removes the Routine.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Routine deleted."
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Routine not found, or the caller lacks `app:write` on its app.",
             "content": {
               "application/json": {
                 "schema": {
