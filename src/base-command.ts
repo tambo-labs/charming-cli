@@ -1,6 +1,7 @@
 import { Command, Flags, type Interfaces } from '@oclif/core';
 
 import { type CommandContext, redactSecrets } from './commands.js';
+import { PRODUCTION_BASE_URL } from './config.js';
 import { ApiError, TimeoutError } from './http.js';
 import { currentDependencies, setExitCode } from './runtime.js';
 
@@ -23,7 +24,7 @@ export abstract class CharmingCommand extends Command {
       baseUrl:
         typeof baseUrl === 'string'
           ? baseUrl
-          : (process.env.CHARMING_BASE_URL ?? 'https://charm.ing'),
+          : (process.env.CHARMING_BASE_URL ?? PRODUCTION_BASE_URL),
       fetchImpl: currentDependencies().fetchImpl,
       options: options as CommandContext['options'],
       timeoutMs: parseTimeoutFlag(timeout),

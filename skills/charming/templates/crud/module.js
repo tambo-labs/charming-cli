@@ -19,6 +19,15 @@ async function readItems(env) {
   return raw.map(normalize);
 }
 
+function idInputSchema() {
+  return {
+    type: 'object',
+    required: ['id'],
+    properties: { id: { type: 'string' } },
+    additionalProperties: false,
+  };
+}
+
 export const routes = [
   {
     op: 'list',
@@ -46,12 +55,7 @@ export const routes = [
   {
     op: 'toggle',
     method: 'POST',
-    inputSchema: {
-      type: 'object',
-      required: ['id'],
-      properties: { id: { type: 'string' } },
-      additionalProperties: false,
-    },
+    inputSchema: idInputSchema(),
     handler: async (input, { env }) => {
       const items = await readItems(env);
       const next = items.map((item) =>
@@ -64,12 +68,7 @@ export const routes = [
   {
     op: 'remove',
     method: 'POST',
-    inputSchema: {
-      type: 'object',
-      required: ['id'],
-      properties: { id: { type: 'string' } },
-      additionalProperties: false,
-    },
+    inputSchema: idInputSchema(),
     handler: async (input, { env }) => {
       const items = await readItems(env);
       const next = items.filter((item) => item.id !== input.id);

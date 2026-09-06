@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
+import { fetchThatWaitsForAbort } from '../test-helpers.js';
 import {
   agentContext,
   redactSecrets,
@@ -168,6 +169,9 @@ describe('runCommand', () => {
   });
 
   test('emits machine-readable agent context', async () => {
+    const packageVersion = JSON.parse(
+      await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
+    ).version;
     const result = await runCommand({
       baseUrl: 'https://charm.ing',
       command: ['agent-context'],
@@ -177,6 +181,7 @@ describe('runCommand', () => {
     expect(result).toEqual(
       expect.objectContaining({
         auth: expect.objectContaining({ tokenKinds: ['chrm_user_*', 'chrm_app_*'] }),
+        cliVersion: packageVersion,
         schemaVersion: 1,
         safety: expect.objectContaining({ sourceUpdatesUseEtag: true }),
       }),
@@ -315,16 +320,7 @@ describe('runCommand', () => {
   });
 
   test('gives the source route more headroom than the default read timeout', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
-      (_url, init) =>
-        new Promise((_resolve, reject) => {
-          (init as RequestInit).signal?.addEventListener('abort', () => {
-            const error = new Error('This operation was aborted');
-            error.name = 'AbortError';
-            reject(error);
-          });
-        }),
-    );
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(fetchThatWaitsForAbort);
     vi.useFakeTimers();
 
     const pending = runCommand({
@@ -340,16 +336,7 @@ describe('runCommand', () => {
   });
 
   test('--timeout overrides the default for a request', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
-      (_url, init) =>
-        new Promise((_resolve, reject) => {
-          (init as RequestInit).signal?.addEventListener('abort', () => {
-            const error = new Error('This operation was aborted');
-            error.name = 'AbortError';
-            reject(error);
-          });
-        }),
-    );
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(fetchThatWaitsForAbort);
     vi.useFakeTimers();
 
     const pending = runCommand({

@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createClient, definePluginConfig, type IR } from '@hey-api/openapi-ts';
 
 import { findParityIssues, formatParityIssues, type CatalogOperation } from './cli-parity.js';
+import { syncOpenApiInput } from './openapi-input.js';
 
 // Hand-written commands that wrap a single OpenAPI operation with a friendlier
 // surface than `charming api request`. Every operation is already reachable
@@ -62,7 +63,20 @@ type RawSpec = {
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = resolve(scriptDirectory, '..');
-const inputPath = resolve(packageDirectory, 'openapi.json');
+const snapshotPath = resolve(packageDirectory, 'openapi.json');
+const inputArgumentIndex = process.argv.indexOf('--input');
+const inputArgument = inputArgumentIndex === -1 ? undefined : process.argv[inputArgumentIndex + 1];
+if (inputArgumentIndex !== -1 && (!inputArgument || inputArgument.startsWith('--'))) {
+  throw new Error('--input requires a path.');
+}
+const inputPath = inputArgument ? resolve(process.cwd(), inputArgument) : snapshotPath;
+const check = process.argv.includes('--check');
+await syncOpenApiInput({
+  inputPath,
+  snapshotPath,
+  upstreamPath: resolve(packageDirectory, 'UPSTREAM.json'),
+  check,
+});
 const outputPath = resolve(packageDirectory, 'src/generated/operations.ts');
 const httpMethods = ['delete', 'get', 'head', 'options', 'patch', 'post', 'put', 'trace'] as const;
 const temporaryOutput = await mkdtemp(join(tmpdir(), 'charming-cli-hey-api-'));
@@ -107,7 +121,7 @@ try {
     process.exitCode = 1;
   }
 
-  if (process.argv.includes('--check')) {
+  if (check) {
     const current = await readFile(outputPath, 'utf8').catch(() => '');
     if (current !== source) {
       console.error('Charming CLI operation catalog is stale. Run `bun run openapi:gen`.');

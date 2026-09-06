@@ -18,10 +18,7 @@ async function refresh() {
   render();
 }
 
-// #toast and #app-content are built once. render() only ever touches
-// #app-content — a full #app replacement on every refresh (including the
-// 4s poll below) would otherwise wipe half-typed input and cut the undo
-// toast's own display window short every time it fires.
+// The stable shell keeps the toast and active input intact across refreshes.
 function ensureShell() {
   if (shellReady) return;
   const app = document.querySelector('#app');
@@ -38,8 +35,6 @@ function render() {
   ensureShell();
   const content = document.querySelector('#app-content');
 
-  // A background refresh (onStateChange or the 4s poll) shouldn't wipe
-  // whatever the user is mid-typing into #add-input.
   const input = content.querySelector('#add-input');
   const preserved =
     document.activeElement === input
@@ -144,8 +139,8 @@ function showUndoToast(removedItem) {
   setTimeout(() => toast.classList.add('hidden'), 6000);
 }
 
-refresh();
+void refresh();
 
-// Live updates when another surface (or agent) changes the data.
+// Refresh from agent or peer changes without replacing the stable shell.
 window.charming.onStateChange?.(() => refresh());
 setInterval(refresh, 4000);

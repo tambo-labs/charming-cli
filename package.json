@@ -48,11 +48,11 @@
     "lint": "bun run typecheck"
   },
   "dependencies": {
-    "@oclif/core": "4.13.5"
+    "@oclif/core": "4.14.0"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
-    "@oclif/test": "4.1.22",
+    "@oclif/test": "4.2.0",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.11",
     "typescript": "6.0.3",

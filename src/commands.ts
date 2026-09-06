@@ -38,6 +38,18 @@ function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
 }
 
+function requireDeletionConsent(context: CommandContext): void {
+  if (context.options['dry-run'] !== true && context.options.yes !== true) {
+    throw new Error('Deletion requires --yes. Use --dry-run to preview it.');
+  }
+}
+
+function parseAssignment(entry: string, option: 'header' | 'param'): [string, string] {
+  const separator = entry.indexOf('=');
+  if (separator < 1) throw new Error(`Invalid --${option} ${entry}; expected NAME=VALUE`);
+  return [entry.slice(0, separator), entry.slice(separator + 1)];
+}
+
 // Operations that upsert by a caller-supplied id and silently overwrite an existing
 // row in place, so they need the same --yes consent as a DELETE.
 const REPLACES_IN_PLACE = new Set(['create-app']);
@@ -213,9 +225,7 @@ export async function runApps(
   const appId = positionals[0];
   if (!appId) throw new Error(`Usage: charming apps ${action ?? '<command>'} <APP_ID>`);
 
-  if (action === 'delete' && context.options['dry-run'] !== true && context.options.yes !== true) {
-    throw new Error('Deletion requires --yes. Use --dry-run to preview it.');
-  }
+  if (action === 'delete') requireDeletionConsent(context);
 
   if (action === 'update' && context.options['dry-run'] === true) {
     const local = await readBundle(positionals[1], context.options);
@@ -380,19 +390,9 @@ export async function runApi(
       `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
     );
   }
-  if (
-    operation.method === 'DELETE' &&
-    context.options['dry-run'] !== true &&
-    context.options.yes !== true
-  ) {
-    throw new Error('Deletion requires --yes. Use --dry-run to preview it.');
-  }
+  if (operation.method === 'DELETE') requireDeletionConsent(context);
   const supplied = new Map(
-    stringOptions(context.options, 'param').map((entry) => {
-      const separator = entry.indexOf('=');
-      if (separator < 1) throw new Error(`Invalid --param ${entry}; expected NAME=VALUE`);
-      return [entry.slice(0, separator), entry.slice(separator + 1)];
-    }),
+    stringOptions(context.options, 'param').map((entry) => parseAssignment(entry, 'param')),
   );
   const parameterNames = new Set(operation.parameters.map((parameter) => parameter.name));
   const unknownParameter = [...supplied.keys()].find((name) => !parameterNames.has(name));
@@ -473,11 +473,7 @@ export async function runApi(
         [
           ...Object.entries(parameterHeaders).map(([name, value]) => `${name}=${value}`),
           ...stringOptions(context.options, 'header'),
-        ].map((entry) => {
-          const separator = entry.indexOf('=');
-          if (separator < 1) throw new Error(`Invalid --header ${entry}; expected NAME=VALUE`);
-          return [entry.slice(0, separator), entry.slice(separator + 1)];
-        }),
+        ].map((entry) => parseAssignment(entry, 'header')),
       ),
       rawBody,
       timeoutMs: timeoutFor(context, operation.timeoutMs),
@@ -737,9 +733,19 @@ function isUserToken(token: string | undefined): boolean {
   return token?.startsWith('chrm_user_') === true || token?.startsWith('bld_user_') === true;
 }
 
-// Read once from package.json rather than a hardcoded literal, which drifted
-// stale (0.1.0) against the real published version within one release —
-// this mislabeled agent-context output and every pairing token minted since.
-export const CLI_VERSION: string = JSON.parse(
-  readFileSync(resolve(dirname(dirname(fileURLToPath(import.meta.url))), 'package.json'), 'utf8'),
-).version;
+export const CLI_VERSION = readCliVersion();
+
+function readCliVersion(): string {
+  const packageJson: unknown = JSON.parse(
+    readFileSync(resolve(dirname(dirname(fileURLToPath(import.meta.url))), 'package.json'), 'utf8'),
+  );
+  if (
+    typeof packageJson !== 'object' ||
+    packageJson === null ||
+    !('version' in packageJson) ||
+    typeof packageJson.version !== 'string'
+  ) {
+    throw new Error('package.json does not contain a string version.');
+  }
+  return packageJson.version;
+}

@@ -1,17 +1,10 @@
 name: Bump Homebrew formula
 
 # Keeps tambo-labs/homebrew-tap's charming.rb pointed at the latest
-# published npm tarball. Called directly by release.yml as a job
-# (workflow_call) right after a successful npm publish, not left to
-# trigger off `release: published` — GitHub doesn't let events from
-# the default GITHUB_TOKEN (which creates that release) trigger other
-# workflows, so that path silently never ran.
+# published npm tarball. release.yml calls this workflow after npm publish.
 #
 # Uses HOMEBREW_TAP_TOKEN, a fine-grained PAT scoped to just
-# tambo-labs/homebrew-tap with Contents: read/write — not the
-# CLI_SYNC_APP_ID app used elsewhere in this repo, since that app was
-# never actually installed (see sync-openapi.yml, which has been
-# disabled and has never run).
+# tambo-labs/homebrew-tap with Contents: read/write.
 
 on:
   workflow_call:
@@ -55,7 +48,7 @@ jobs:
           url="https://registry.npmjs.org/usecharming/-/usecharming-${VERSION}.tgz"
           curl -fsSL -o package.tgz "$url"
           if ! tar -tzf package.tgz >/dev/null; then
-            echo "::error::downloaded file is not a valid tarball — $url likely 404'd" >&2
+            echo "::error::downloaded file is not a valid tarball: $url" >&2
             exit 1
           fi
           sha256=$(shasum -a 256 package.tgz | cut -d' ' -f1)
@@ -76,11 +69,8 @@ jobs:
         run: |
           sed -i "s#^  url \".*\"#  url \"${URL}\"#" Formula/charming.rb
           sed -i "s#^  sha256 \".*\"#  sha256 \"${SHA256}\"#" Formula/charming.rb
-          # Assert the rewrite actually took, not just that *something* changed —
-          # a formatting drift that makes the sed anchors stop matching would
-          # otherwise leave the formula untouched while still reporting success.
           if ! grep -qF "$URL" Formula/charming.rb || ! grep -qF "$SHA256" Formula/charming.rb; then
-            echo "::error::sed rewrite didn't take — check Formula/charming.rb's url/sha256 line format" >&2
+            echo "::error::Formula/charming.rb did not accept the url and sha256 update" >&2
             exit 1
           fi
           if git diff --quiet; then

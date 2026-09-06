@@ -55,8 +55,8 @@ export const generatedOperations = [
     "id": "call-app-operation",
     "method": "POST",
     "path": "/app/{id}/api/{operation}",
-    "summary": "Call an operation defined inside the app's `fetch` handler",
-    "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. App authors should follow the `{ ok, value | error }` JSON contract. The in-page UI uses `renderToken` automatically via the runtime closure — direct callers should use `appToken` or `userToken`.",
+    "summary": "Call a declared app route or its unmatched-request fallback",
+    "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. A declared route handler returns exactly its `outputSchema` value without adding a transport envelope unless those fields belong to the schema; Charming validates it and wraps HTTP success as `{ ok: true, value }`. `window.charming.api` uses `renderToken` and unwraps that envelope, so in-page callers receive the value directly. If no declared route matches, the optional `default.fetch` handles the request and its `Response` passes through unchanged; without that fallback, Charming returns a 404. Direct callers should use `appToken` or `userToken`.",
     "parameters": [
       {
         "description": "",
@@ -81,14 +81,16 @@ export const generatedOperations = [
       "mediaType": "application/json",
       "required": false,
       "schema": {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Input defined by the selected app operation. Fetch the app-specific `/app/{id}/openapi.json` document for its typed schema before generating a function input."
       }
     },
     "response": {
-      "description": "Whatever the app returns. The conventional shape is `{ ok, value }`.",
+      "description": "A declared route returns `{ ok: true, value }`, where `value` matches its `outputSchema`. A custom unmatched-request fallback response passes through unchanged.",
       "schema": {
         "type": "object",
-        "description": "Pass-through body returned by the app’s `fetch` / route handler. Apps SHOULD follow the `{ ok: true, value }` / `{ ok: false, error: { kind, message } }` envelope, but the shape is author-defined.",
+        "description": "Declared route success uses `{ ok: true, value }`; the route handler returns exactly the `outputSchema` value and does not add a transport envelope unless those fields belong to the schema. The open object schema also permits the author-defined body from an unmatched request handled by `default.fetch`.",
         "additionalProperties": true
       }
     },
@@ -176,6 +178,45 @@ export const generatedOperations = [
     "usage": "charming api request claim-app --param id=VALUE --body @body.json"
   },
   {
+    "id": "clear-app-icon",
+    "method": "DELETE",
+    "path": "/app/{id}/icon",
+    "summary": "Clear the icon and fall back to the default icon",
+    "description": "Owner-only. Sets `icon` to `null` so the SVG / PNG renderers fall back to the default icon. Idempotent.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Icon cleared.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "icon"
+        ],
+        "properties": {
+          "icon": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request clear-app-icon --param id=VALUE"
+  },
+  {
     "id": "create-app",
     "method": "POST",
     "path": "/app",
@@ -193,7 +234,7 @@ export const generatedOperations = [
         "properties": {
           "module": {
             "type": "string",
-            "description": "ES module source. Must export a literal canonical `manifest` and a `routes` array. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler."
+            "description": "ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler."
           },
           "ui": {
             "type": "string",
@@ -202,6 +243,10 @@ export const generatedOperations = [
           "styles": {
             "type": "string",
             "description": "Optional CSS injected alongside `ui`."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional app description, shown to the owner and to callers who read it back."
           },
           "pair": {
             "type": "boolean",
@@ -287,7 +332,7 @@ export const generatedOperations = [
             "anyOf": [
               {
                 "type": "object",
-                "description": "Optional home-screen / favicon icon. The server composes a colored rounded-square PNG/SVG from `emoji + bg` — NOT a list of image URLs like a W3C web manifest. Omit it to get the default brick. If `emoji` or `bg` is invalid the whole icon is silently coerced to the default and the create/update response carries a `warnings[]` entry.",
+                "description": "Optional home-screen / favicon icon. The server composes a colored rounded-square PNG/SVG from `emoji + bg` — NOT a list of image URLs like a W3C web manifest. Omit it to get the default icon. If `emoji` or `bg` is invalid the whole icon is silently dropped (stored as unset, so the default renders) and the create/update response carries a `warnings[]` entry. This warn-and-drop contract is the `manifest.icon` publish path only (`PUT /app/{id}` and its create counterpart) — `PUT /app/{id}/icon` uses the stricter `IconStrict` schema instead.",
                 "required": [
                   "emoji",
                   "bg"
@@ -1006,7 +1051,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/app/{id}/agent.json",
     "summary": "Get an app's agent description without changing the app",
-    "description": "Side-effect-free sibling of the page gate: no auto-claim, no token mint, no cookie, no mutating telemetry. A public or remixable app returns the full descriptor to anyone, with `operations[].input`/`output`/`examples` gated on `app:read` (owner, accepted share grant, team membership, or a bearer token) — an anonymous caller sees discovery-level operation fields only. A private app returns the full descriptor only to a caller who already holds `app:read`; everyone else — including an unclaimed app's claim-cookie holder, which grants `app:run` but never `app:read` — gets the minimal stub (`AppDescriptorStub`). Reachable via both the `/app/{id}` UUID form and the `/{handle}/{app-name}` friendly form (byte-identical `id` + `canonical_url`), and advertised from the served page's `<link rel=\"alternate\" type=\"application/json\">` and matching `Link:` HTTP header.",
+    "description": "Side-effect-free sibling of the page gate: no auto-claim, no token mint, no cookie, no mutating telemetry. A public App or listed Template returns the full descriptor to anyone, with `operations[].input`/`output`/`examples` gated on `app:read` (owner, accepted share grant, team membership, or a bearer token) — an anonymous caller sees discovery-level operation fields only. An enabled-unlisted Template remains private without `app:read`, as does any other private App. Those callers — including an unclaimed app's claim-cookie holder, which grants `app:run` but never `app:read` — get the minimal stub (`AppDescriptorStub`). Reachable via both the `/app/{id}` UUID form and the `/{handle}/{app-name}` friendly form (byte-identical `id` + `canonical_url`), and advertised from the served page's `<link rel=\"alternate\" type=\"application/json\">` and matching `Link:` HTTP header.",
     "parameters": [
       {
         "description": "",
@@ -1532,7 +1577,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/.well-known/oauth-authorization-server",
     "summary": "OAuth/MCP discovery metadata (delegated to better-auth)",
-    "description": "Returns the RFC 8414 authorization-server metadata document for the Charming auth surface. Consumed by MCP clients during the OAuth handshake. The base payload shape is owned by better-auth; Charming splices a WorkOS-style `agent_auth` extension block carrying `register_uri` (`/api/pair/start`), `claim_uri` (`/app/{id}/claim`), `revocation_uri` (`/api/token/{id}`), `skill` (`https://usecharming.com/auth.md`), `identity_types_supported` (`[\"anonymous\"]`), and an `anonymous` sibling block.",
+    "description": "Returns the RFC 8414 authorization-server metadata document for the Charming auth surface. Consumed by MCP clients during the OAuth handshake. The base payload shape is owned by better-auth; Charming splices a WorkOS-style `agent_auth` extension block carrying `register_uri` (`/api/pair/start`), `claim_uri` (`/app/{id}/claim`), `revocation_uri` (`/api/token/{id}`), `skill` (`https://charm.ing/docs/technical-reference/authentication.md`), `identity_types_supported` (`[\"anonymous\"]`), and an `anonymous` sibling block with `credential_types_supported` (`[\"api_key\"]`).",
     "parameters": [],
     "requestBody": null,
     "response": {
@@ -1548,11 +1593,31 @@ export const generatedOperations = [
     "usage": "charming api request get-oauth-authorization-server"
   },
   {
+    "id": "get-oauth-authorization-server-mcp-chatgpt",
+    "method": "GET",
+    "path": "/.well-known/oauth-authorization-server/mcp/chatgpt",
+    "summary": "OAuth authorization-server metadata for the ChatGPT MCP surface",
+    "description": "Returns the RFC 8414 authorization-server metadata for the `/mcp/chatgpt` surface, at the path-inserted well-known URL a client derives from an issuer carrying that path. Reached only when that surface's protected-resource document names the surface as its own authorization server, which `CHARMING__SERVER__CHATGPT_AUTH_PROXY_ADVERTISED` decides. The same switch decides whether this document is served, so the pointer and its target appear together: while it is off nothing names this URL and asking for it answers 404. Differs from the origin-wide document in `issuer`, which claims the surface, and in `authorization_endpoint`, which names the `usecharming.com` login proxy while the switch is on. Token, registration, and JWKS endpoints stay on this origin.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "OAuth authorization-server discovery JSON scoped to /mcp/chatgpt.",
+      "schema": {
+        "type": "object",
+        "description": "RFC 8414 authorization-server metadata (issuer, authorization_endpoint, token_endpoint, jwks_uri, …) plus the Charming `agent_auth` extension. Base schema is delegated to better-auth; `issuer` and `authorization_endpoint` are overridden."
+      }
+    },
+    "security": [],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-oauth-authorization-server-mcp-chatgpt"
+  },
+  {
     "id": "get-oauth-protected-resource",
     "method": "GET",
     "path": "/.well-known/oauth-protected-resource",
     "summary": "OAuth protected-resource metadata (delegated to better-auth)",
-    "description": "Returns the RFC 9728 protected-resource metadata for the Charming API origin. Pointed at by the `WWW-Authenticate` header MCP returns on 401s so clients can discover the matching authorization server.",
+    "description": "Returns the RFC 9728 protected-resource metadata for the Charming API origin. Read by clients that treat the origin as the protected resource; a client asking about one MCP surface reads the path-scoped document under this path instead, which is what that surface names in its 401 `WWW-Authenticate` header.",
     "parameters": [],
     "requestBody": null,
     "response": {
@@ -1566,6 +1631,66 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request get-oauth-protected-resource"
+  },
+  {
+    "id": "get-oauth-protected-resource-mcp",
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource/mcp",
+    "summary": "OAuth protected-resource metadata for the default MCP surface",
+    "description": "Returns the RFC 9728 path-scoped protected-resource metadata for the `/mcp` MCP surface, which is what its `WWW-Authenticate` challenge names on a 401. Identical to the origin-wide document except that `resource` names `/mcp` on this origin rather than the origin itself, so a client can check the document answers for the endpoint it called.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "OAuth protected-resource discovery JSON scoped to /mcp.",
+      "schema": {
+        "type": "object",
+        "description": "RFC 9728 protected-resource metadata (resource, authorization_servers, scopes_supported, …). Schema is delegated to better-auth; only `resource` is overridden."
+      }
+    },
+    "security": [],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-oauth-protected-resource-mcp"
+  },
+  {
+    "id": "get-oauth-protected-resource-mcp-chatgpt",
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource/mcp/chatgpt",
+    "summary": "OAuth protected-resource metadata for the ChatGPT MCP surface",
+    "description": "Returns the RFC 9728 path-scoped protected-resource metadata for the `/mcp/chatgpt` MCP surface, which is what its `WWW-Authenticate` challenge names on a 401. `resource` names `/mcp/chatgpt` on this origin rather than the origin itself, so a client can check the document answers for the endpoint it called. `authorization_servers` names the surface too while `CHARMING__SERVER__CHATGPT_AUTH_PROXY_ADVERTISED` is on, which is what sends this surface's clients to their own authorization-server document; otherwise it matches the origin-wide document.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "OAuth protected-resource discovery JSON scoped to /mcp/chatgpt.",
+      "schema": {
+        "type": "object",
+        "description": "RFC 9728 protected-resource metadata (resource, authorization_servers, scopes_supported, …). Schema is delegated to better-auth; only `resource` is overridden."
+      }
+    },
+    "security": [],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-oauth-protected-resource-mcp-chatgpt"
+  },
+  {
+    "id": "get-oauth-protected-resource-mcp-inline",
+    "method": "GET",
+    "path": "/.well-known/oauth-protected-resource/mcp/inline",
+    "summary": "OAuth protected-resource metadata for the inline MCP surface",
+    "description": "Returns the RFC 9728 path-scoped protected-resource metadata for the `/mcp/inline` MCP surface, which is what its `WWW-Authenticate` challenge names on a 401. Identical to the origin-wide document except that `resource` names `/mcp/inline` on this origin rather than the origin itself, so a client can check the document answers for the endpoint it called.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "OAuth protected-resource discovery JSON scoped to /mcp/inline.",
+      "schema": {
+        "type": "object",
+        "description": "RFC 9728 protected-resource metadata (resource, authorization_servers, scopes_supported, …). Schema is delegated to better-auth; only `resource` is overridden."
+      }
+    },
+    "security": [],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-oauth-protected-resource-mcp-inline"
   },
   {
     "id": "get-openapi-spec",
@@ -2288,11 +2413,94 @@ export const generatedOperations = [
     "usage": "charming api request revoke-token --param id=VALUE"
   },
   {
+    "id": "set-app-icon",
+    "method": "PUT",
+    "path": "/app/{id}/icon",
+    "summary": "Set the home-screen / favicon icon (emoji + bg)",
+    "description": "Owner-only. Replaces the icon as a unit — both `emoji` and `bg` are required; there is no partial / PATCH semantics. Stricter than `PUT /app/{id}`: invalid `emoji` or `bg` is rejected with 400 `invalid_icon` rather than silently dropped and folded into `warnings[]` (that warn-and-drop contract is for agent publishes, where a typo must never fail). Last-writer-wins with a near-simultaneous agent publish; the rendered icon SVG / PNG caches revalidate on next read via their content-derived ETag.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "description": "Home-screen / favicon icon for `PUT /app/{id}/icon`. Same shape as `Icon`, but validated strictly: an invalid `emoji` or `bg` is rejected with 400 `invalid_icon` rather than silently dropped (the dashboard icon picker needs a hard rejection; `Icon`'s warn-and-drop contract is for agent publishes, where a typo must never fail).",
+        "required": [
+          "emoji",
+          "bg"
+        ],
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "description": "A single emoji, rendered centered (e.g. `⚽`). Must contain at least one grapheme, or the request is rejected with 400 `invalid_icon`. A value with more than one grapheme (e.g. `⚽⚾`) is accepted, not rejected — only the first grapheme renders and the rest are silently dropped, the same truncation `Icon.emoji` discloses (`Extra glyphs are dropped.`); this endpoint is strict about invalid input, not about single-glyph input."
+          },
+          "bg": {
+            "type": "string",
+            "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+            "description": "Background color as a hex string (`#rgb`, `#rrggbb`, or `#rrggbbaa`). Named colors (`\"green\"`), `rgb()`/`hsl()`, and image URLs are rejected."
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "emoji": "string",
+        "bg": "string"
+      }
+    },
+    "response": {
+      "description": "Icon updated; the response echoes the normalized icon.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "icon"
+        ],
+        "properties": {
+          "icon": {
+            "type": "object",
+            "description": "Home-screen / favicon icon for `PUT /app/{id}/icon`. Same shape as `Icon`, but validated strictly: an invalid `emoji` or `bg` is rejected with 400 `invalid_icon` rather than silently dropped (the dashboard icon picker needs a hard rejection; `Icon`'s warn-and-drop contract is for agent publishes, where a typo must never fail).",
+            "required": [
+              "emoji",
+              "bg"
+            ],
+            "properties": {
+              "emoji": {
+                "type": "string",
+                "description": "A single emoji, rendered centered (e.g. `⚽`). Must contain at least one grapheme, or the request is rejected with 400 `invalid_icon`. A value with more than one grapheme (e.g. `⚽⚾`) is accepted, not rejected — only the first grapheme renders and the rest are silently dropped, the same truncation `Icon.emoji` discloses (`Extra glyphs are dropped.`); this endpoint is strict about invalid input, not about single-glyph input."
+              },
+              "bg": {
+                "type": "string",
+                "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$",
+                "description": "Background color as a hex string (`#rgb`, `#rrggbb`, or `#rrggbbaa`). Named colors (`\"green\"`), `rgb()`/`hsl()`, and image URLs are rejected."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request set-app-icon --param id=VALUE --body @body.json"
+  },
+  {
     "id": "set-app-public",
     "method": "PUT",
     "path": "/app/{id}/public",
     "summary": "Toggle whether anyone can open the app with no login",
-    "description": "Owner-only. When `public: true`, anyone opening `/app/{id}` with no login is granted read+run against the app's SHARED owner-scope storage — every anonymous visitor reads and writes the SAME data pool (no per-visitor isolation), so anyone with the URL can overwrite or wipe the data. Use it for a totally-open surface (a poll, an RSVP list); for per-person access that requires login, share with the `end-user` role instead. When `public: false`, the URL requires login again; data already written by anonymous visitors is retained. Idempotent: a repeated call with the current state is a no-op.",
+    "description": "Owner-only. When `public: true`, anyone with the URL can open the live hosted App Viewer with no login and receives Viewer access (`app:read` only). Public visitors can read App data but cannot run mutating operations or edit source. Template and Listed are separate settings. When `public: false`, anonymous visitors can no longer open the hosted App. Existing App data is retained. Idempotent calls are no-ops.",
     "parameters": [
       {
         "description": "",
@@ -2340,7 +2548,7 @@ export const generatedOperations = [
               "string",
               "null"
             ],
-            "description": "Public URL when `public: true` (friendly `/{handle}/{app-name}` form when available, `/app/{id}` otherwise). Anyone can open it with no login and read+write the shared data. `null` when `public: false`."
+            "description": "Public URL when `public: true` (friendly `/{handle}/{app-name}` form when available, `/app/{id}` otherwise). Anyone can open the live hosted App Viewer with no login and read its data, but cannot change data or source. `null` when `public: false`."
           }
         }
       }
@@ -2356,8 +2564,8 @@ export const generatedOperations = [
     "id": "set-app-remixable",
     "method": "PUT",
     "path": "/app/{id}/remixable",
-    "summary": "Toggle whether visitors auto-fork their own copy of the app",
-    "description": "Owner-only. When `remixable: true`, any visitor (signed in or anonymous) opening `/app/{id}` is auto-forked into a fresh editable copy. When `remixable: false`, the share URL stops auto-forking; existing remixes (independent anon rows) are unaffected. Idempotent: a repeated call with the current state is a no-op.",
+    "summary": "Toggle Template copying and public listing",
+    "description": "Owner-only legacy state surface. When `remixable: true`, people who already hold `app:read` on the source App can create an independent copy. `listed: true` also grants public discovery and copying without granting access to the live source App or its data. Listed always implies Template. When `remixable: false`, copying stops for new users, existing copies are unaffected, and Listed is cleared. `listed` is a patch: `true` publishes, `false` unpublishes, and omitting it preserves the current Listed state. This route cannot edit listing metadata; use `/api/v1/apps/{appId}/template-listing` for the title, summary, Markdown detail, category, cover, and gallery. Idempotent calls are no-ops.",
     "parameters": [
       {
         "description": "",
@@ -2380,6 +2588,10 @@ export const generatedOperations = [
         "properties": {
           "remixable": {
             "type": "boolean"
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Whether to also list the app in the public template directory. `true` lists it, `false` unlists it. Omit to leave the current listed state untouched. Only applies when `remixable: true`."
           }
         }
       },
@@ -2393,9 +2605,10 @@ export const generatedOperations = [
         "type": "object",
         "required": [
           "remixable",
-          "public_url"
+          "public_url",
+          "listed"
         ],
-        "description": "New remixable state plus the shareable URL when remixable is true.",
+        "description": "New remixable/listed state plus the shareable URL when remixable is true.",
         "properties": {
           "remixable": {
             "type": "boolean"
@@ -2406,6 +2619,10 @@ export const generatedOperations = [
               "null"
             ],
             "description": "Shareable URL when `remixable: true` (friendly `/{handle}/{app-name}` form when available, `/app/{id}` otherwise); `null` when `remixable: false`."
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Whether the app is listed in the public template directory, reflecting the actual resulting state — not necessarily the request's `listed` field, since an omitted `listed` leaves the prior state unchanged. A listed app is always also `remixable: true`; always `false` when `remixable: false`."
           }
         }
       }
@@ -2422,7 +2639,7 @@ export const generatedOperations = [
     "method": "PUT",
     "path": "/app/{id}/starter-prompt",
     "summary": "Set or clear the authored chat-with-app starter prompt",
-    "description": "Owner-only. When non-null, the authored text leads the prompt body for the \"Open in Claude / Open in ChatGPT / Copy prompt\" control-panel actions, and the app's name, description, URL (and, for unclaimed apps, an access token) are appended automatically at render time. Write a generic getting-started instruction — do NOT embed the app's URL, or every remixer's deeplink would point at the template instead of their own copy. Pass `null` (or an empty string) to clear and revert to the generic default. Idempotent: a repeated call with the same value is a no-op.",
+    "description": "Owner-only. When non-null, the authored text leads the prompt body for the \"Open in Claude / Open in ChatGPT / Copy prompt\" control-panel actions, and the app's name, description, URL (and, for unclaimed apps, an access token) are appended automatically at render time. Write a generic getting-started instruction — do NOT embed the app's URL, or every copy's deeplink would point at the template instead of their own copy. Pass `null` (or an empty string) to clear and revert to the generic default. Idempotent: a repeated call with the same value is a no-op.",
     "parameters": [
       {
         "description": "",
@@ -2760,7 +2977,8 @@ export const generatedOperations = [
         ],
         "properties": {
           "module": {
-            "type": "string"
+            "type": "string",
+            "description": "Replacement ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler."
           },
           "ui": {
             "type": "string"
@@ -2853,7 +3071,7 @@ export const generatedOperations = [
             "anyOf": [
               {
                 "type": "object",
-                "description": "Optional home-screen / favicon icon. The server composes a colored rounded-square PNG/SVG from `emoji + bg` — NOT a list of image URLs like a W3C web manifest. Omit it to get the default brick. If `emoji` or `bg` is invalid the whole icon is silently coerced to the default and the create/update response carries a `warnings[]` entry.",
+                "description": "Optional home-screen / favicon icon. The server composes a colored rounded-square PNG/SVG from `emoji + bg` — NOT a list of image URLs like a W3C web manifest. Omit it to get the default icon. If `emoji` or `bg` is invalid the whole icon is silently dropped (stored as unset, so the default renders) and the create/update response carries a `warnings[]` entry. This warn-and-drop contract is the `manifest.icon` publish path only (`PUT /app/{id}` and its create counterpart) — `PUT /app/{id}/icon` uses the stricter `IconStrict` schema instead.",
                 "required": [
                   "emoji",
                   "bg"

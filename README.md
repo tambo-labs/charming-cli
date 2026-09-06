@@ -10,7 +10,7 @@ npm install -g usecharming
 brew install tambo-labs/tap/charming
 ```
 
-Or install from source:
+To install from source:
 
 ```bash
 git clone https://github.com/tambo-labs/charming-cli.git
@@ -45,15 +45,17 @@ The CLI stores credentials in `$XDG_CONFIG_HOME/charming/config.json`, or `~/.co
 
 ## Development
 
+The source of truth is [`packages/cli` in the Charming monorepo](https://github.com/tambo-ai/charming/tree/main/packages/cli). This public repository is a generated mirror. Source pull requests opened here cannot be merged because the next mirror run replaces the full tree.
+
 ```bash
+git clone https://github.com/tambo-ai/charming.git
+cd charming
 bun install
-bun run openapi:gen
-bun run check
+bun run cli:gen
+bun run --filter usecharming check
 ```
 
-`openapi.json` is a snapshot of the Charming OpenAPI contract. `src/generated/operations.ts` is generated from it with the pinned Hey API version. Do not edit the generated file.
-
-An hourly GitHub workflow checks the live Charming OpenAPI document. When the contract changes, it updates the snapshot and generated catalog and opens a pull request. `UPSTREAM.json` records the source URL and contract digest.
+`openapi.json` is synced from the monorepo's committed OpenAPI contract. `src/generated/operations.ts` is generated from it with the pinned Hey API version. Do not edit either generated file in the public mirror. `UPSTREAM.json` records the source URL and contract digest.
 
 ## Agent skill
 

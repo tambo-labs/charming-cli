@@ -21,7 +21,7 @@ type Config = {
   tokens?: Record<string, string>;
 };
 
-const PRODUCTION_BASE_URL = 'https://charm.ing';
+export const PRODUCTION_BASE_URL = 'https://charm.ing';
 
 function defaultConfigDirectory(env: NodeJS.ProcessEnv): string {
   return env.XDG_CONFIG_HOME

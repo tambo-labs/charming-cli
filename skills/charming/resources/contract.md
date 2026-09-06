@@ -74,6 +74,6 @@ Charming renders one protected control outside the generated app frame — a bro
 
 ## Storage caps and route mechanics
 
-- `env.storage.put(key, value)` has a per-value cap in the low single-digit megabytes; there is no total cap. Large blobs belong in `charming:storage/blob@1.0` if the app needs it, not repeated KV puts.
+- `env.storage.put(key, value)` caps one value in the low single-digit megabytes, and the whole store two orders of magnitude above that. An oversized value fails with `stored_value_too_large`, a full store with `storage_full`. Large blobs belong in `charming:storage/blob@1.0` if the app needs it, not repeated KV puts.
 - `routes[].method` defaults to `POST`, `path` defaults to `/api/<op>`, input defaults to a closed empty-object schema, and `public` defaults to `true`. Set `annotations` explicitly whenever a default doesn't fit — Charming never infers them from the HTTP method.
 - `default.fetch` is an unmatched-request fallback only; it adds no discoverable route metadata. Its signature is `{ fetch(request, env, ctx) { ... } }` — the second argument is the environment itself, not the third.

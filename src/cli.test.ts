@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { captureOutput, runCommand as runOclifCommand } from '@oclif/test';
 import { describe, expect, test, vi } from 'vitest';
 
+import { fetchThatWaitsForAbort } from '../test-helpers.js';
 import { main } from './cli.js';
 
 describe('main', () => {
@@ -205,16 +206,7 @@ describe('main', () => {
   });
 
   test('maps an aborted request to the timeout error kind and exit code', async () => {
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
-      (_url, init) =>
-        new Promise((_resolve, reject) => {
-          (init as RequestInit).signal?.addEventListener('abort', () => {
-            const error = new Error('This operation was aborted');
-            error.name = 'AbortError';
-            reject(error);
-          });
-        }),
-    );
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(fetchThatWaitsForAbort);
 
     const result = await captureOutput(() =>
       main(['apps', 'list', '--timeout', '5', '--token', 'chrm_user_test'], { fetchImpl }),

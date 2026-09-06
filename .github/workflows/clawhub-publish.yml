@@ -1,15 +1,7 @@
 name: ClawHub publish
 
 # Keeps clawhub.ai's charming skill listing in sync with skills/charming/.
-# `clawhub sync` fingerprints the skill folder's actual content and only
-# publishes when it changed, bumping the registry's own patch version —
-# there's no version field in SKILL.md itself to point at. That makes it
-# safe to call on every release even if the skill didn't change.
-#
-# Called directly by release.yml as a job (workflow_call) rather than
-# relying on `release: published` — GitHub doesn't let events from the
-# default GITHUB_TOKEN (which creates that release) trigger other
-# workflows, so that path silently never ran.
+# `clawhub sync` fingerprints the folder and publishes only changes.
 #
 # This repo requires every `uses:` action pinned to a full commit SHA
 # (org policy: sha_pinning_required). ClawHub's own reusable workflow
@@ -20,10 +12,7 @@ name: ClawHub publish
 #
 # Skills have no OIDC/trusted-publisher option yet, so this uses
 # CLAWHUB_TOKEN, a token from `clawhub login` + `clawhub token`, scoped to
-# the charming publisher (clawhub.ai/settings?view=organizations). The PR
-# dry-run below has no token, so it resolves the registry state
-# unauthenticated — it verifies the sync command runs cleanly against the
-# real skill content, not that the real publish's auth/ownership works.
+# the charming publisher (clawhub.ai/settings?view=organizations).
 
 on:
   pull_request:
@@ -48,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
 
@@ -60,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
 

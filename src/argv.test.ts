@@ -23,7 +23,7 @@ describe('canonicalizeGlobalFlags', () => {
     ]);
   });
 
-  test('moves a prefix --timeout after the discovered command, like --base-url and --token', () => {
+  test('moves a prefix --timeout after the discovered command', () => {
     expect(canonicalizeGlobalFlags(['--timeout', '5000', 'apps', 'list'])).toEqual([
       'apps',
       'list',

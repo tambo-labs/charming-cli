@@ -1,4 +1,4 @@
 {
-  "source": "https://charm.ing/.well-known/openapi.json",
-  "sha256": "3d1a1da912c7fe6087293b3db3ec2cea4aee1a3e8ae4823cb487e2e9fde05850"
+  "source": "https://github.com/tambo-ai/charming/blob/main/apps/docs/openapi.fallback.json",
+  "sha256": "6c7ecb0717111dd6af3a478dd013802231ccb1f3bca92c0ea8db28963c128aa2"
 }

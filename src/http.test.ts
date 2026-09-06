@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 
+import { fetchThatWaitsForAbort } from '../test-helpers.js';
 import { CharmingClient, isOpenableUrl, TimeoutError } from './http.js';
 
 describe('CharmingClient', () => {
@@ -101,15 +102,7 @@ describe('CharmingClient', () => {
   test('turns an aborted request into a TimeoutError naming the timeout used', async () => {
     const client = new CharmingClient({
       baseUrl: 'https://charm.ing',
-      fetchImpl: (_url, init) =>
-        new Promise((_resolve, reject) => {
-          const signal = (init as RequestInit).signal;
-          signal?.addEventListener('abort', () => {
-            const error = new Error('This operation was aborted');
-            error.name = 'AbortError';
-            reject(error);
-          });
-        }),
+      fetchImpl: fetchThatWaitsForAbort,
     });
 
     const error = await client.request('GET', '/app/abc/source', { timeoutMs: 5 }).catch((e) => e);

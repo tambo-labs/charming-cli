@@ -4,18 +4,13 @@ name: Release
 # (OIDC) instead of a long-lived NPM_TOKEN secret — the trusted publisher
 # must be configured on npmjs.com for this repo + this workflow file
 # before the first run (npmjs.com -> usecharming package -> Settings ->
-# Trusted Publisher). Requires npm CLI >= 11.5.1, hence the explicit
-# `npm install -g npm@latest` below.
+# Trusted Publisher). npm is pinned because this job can request the
+# trusted-publishing OIDC token.
 #
 # A tag alone doesn't publish: `bun run check` (the same gate ci.yml
 # runs) must pass, and the tag must match package.json's version.
-#
-# bump-homebrew and clawhub-publish are called directly as jobs
-# (workflow_call), not left to trigger off `release: published`.
-# GitHub does not let events created by the default GITHUB_TOKEN
-# (like the `gh release create` below) trigger other workflows —
-# that path silently never fired, and Homebrew/ClawHub stayed on the
-# old version forever with everything upstream showing green.
+# Follow-up channels run as reusable jobs because a release created by
+# GITHUB_TOKEN does not trigger another workflow.
 
 on:
   push:
@@ -41,14 +36,14 @@ jobs:
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.0
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v6.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@12.0.2
 
       - run: bun install --frozen-lockfile
 

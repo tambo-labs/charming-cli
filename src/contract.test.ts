@@ -21,7 +21,7 @@ describe('generated operation catalog', () => {
   });
 
   test('preserves operation count, timeouts, event auth, and the closed create schema', () => {
-    expect(operations).toHaveLength(40);
+    expect(operations).toHaveLength(46);
     expect(findOperation('call-app-operation')).toEqual(
       expect.objectContaining({ timeoutMs: 30_000 }),
     );
