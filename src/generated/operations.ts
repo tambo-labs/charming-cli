@@ -2388,7 +2388,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Strong validator `\"<N>\"` returned by a fresh GET /source, where N is its revision.",
+        "description": "Validator `\"<N>\"` returned by a fresh GET /source, where N is its revision. The weak form `W/\"<N>\"` is accepted too, so a client can pass back the ETag verbatim even when a CDN rewrote it in transit.",
         "in": "header",
         "name": "If-Match",
         "required": true,
@@ -3283,7 +3283,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Optional strong validator `\"<N>\"` from a fresh GET /app/:id/source. N carries the server revision, and the PUT succeeds only when it still matches.",
+        "description": "Optional validator `\"<N>\"` from a fresh GET /app/:id/source. N carries the server revision, and the PUT succeeds only when it still matches. The weak form `W/\"<N>\"` is accepted too, so a client can pass back the ETag verbatim even when a CDN rewrote it in transit.",
         "in": "header",
         "name": "If-Match",
         "required": false,
