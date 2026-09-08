@@ -135,6 +135,12 @@ Charming apps should look like one product, not one generated page.
 - Fill the viewport. Don't wrap the whole app in a narrow `max-w-*` box, and don't default every app to heading + input + button + empty list.
 - No tiny all-caps tracked eyebrows, no empty settings pages, no fake account fields — they read as generated.
 
+## Mobile
+
+Apps are shared by link, usually into a chat, so a large share of first opens are on a phone.
+
+- Keep `input`, `select`, and `textarea` `font-size` at 16px or above on small screens. iOS Safari auto-zooms a focused field under 16px and does not zoom back out. The CRUD template scopes this with a `@media (max-width: 640px)` rule in `styles.css` rather than shrinking desktop type, and needs `!important` there — a Tailwind text-size utility (`text-sm`, ...) is a class selector and outranks a plain element selector on specificity, so without it the rule silently loses. Never fix the zoom with `maximum-scale=1, user-scalable=no`; that disables pinch-zoom for everyone.
+
 ## Patterns that keep biting
 
 - **Undo-toast deletes** beat confirm dialogs (which no-op here): delete immediately, show "Removed · Undo" for ~6s, and have Undo call a `restore` op that upserts by id. The CRUD template includes this.

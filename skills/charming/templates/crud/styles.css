@@ -3,3 +3,18 @@ body {
   margin: 0;
   min-height: 100%;
 }
+
+/* iOS Safari auto-zooms a focused input/select/textarea under 16px and does
+   not zoom back out. Scoped to small screens so desktop type scale (text-sm
+   etc.) is untouched. !important is required here: Tailwind's own font-size
+   utilities (text-sm, text-xs, ...) are class selectors, which outrank a
+   plain element selector on specificity alone regardless of source order —
+   without it this rule is silently a no-op against any input/select/textarea
+   that carries one of those classes, including the one in this template. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

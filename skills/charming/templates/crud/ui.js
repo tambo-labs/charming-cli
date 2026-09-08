@@ -46,7 +46,7 @@ function render() {
       <h1 class="text-lg font-semibold text-stone-900">My App</h1>
       <p class="text-sm text-stone-500">${items.length} item${items.length === 1 ? '' : 's'}</p>
     </header>
-    <main class="px-6 py-6 max-w-2xl mx-auto">
+    <main class="px-6 py-6">
       <form id="add-form" class="flex gap-2 mb-6">
         <input
           id="add-input"
