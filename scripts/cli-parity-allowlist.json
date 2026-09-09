@@ -1,7 +1,8 @@
 {
   "create-app": {
     "pair": "Set automatically by `apps create` based on whether an auth token is present; not a user-facing flag.",
-    "label": "Only meaningful together with `pair`; set automatically alongside it."
+    "label": "Only meaningful together with `pair`; set automatically alongside it.",
+    "migrate_contract": "Explicit ESM migration also needs If-Match and Idempotency-Key; use `charming api request create-app --body --header` for this workflow."
   },
   "update-app": {
     "migrate_contract": "One-way legacy-schema migration; rare enough to leave on `charming api request update-app --body`."

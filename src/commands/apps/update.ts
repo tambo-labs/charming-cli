@@ -12,6 +12,7 @@ export default class AppsUpdate extends CharmingCommand {
   static override description = 'Update an app with optimistic concurrency.';
 
   static override flags = {
+    description: Flags.string({ description: 'App description.' }),
     'dry-run': Flags.boolean({ description: 'Print the request without sending it.' }),
     module: Flags.string({ description: 'Module source file.' }),
     styles: Flags.string({ description: 'Stylesheet file.' }),

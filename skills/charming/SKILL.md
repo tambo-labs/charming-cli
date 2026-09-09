@@ -63,6 +63,12 @@ Read JSON results from stdout. Login instructions and JSON errors use stderr. Br
 
 `charming auth logout` removes the user credential and every app credential for the selected origin. Unclaimed apps that relied on those app credentials become unreachable.
 
+## ESM authoring
+
+The workflow and template below use the existing contract. Selected authenticated authors can use [npm and platform imports](https://charm.ing/docs/guides/npm-and-platform-imports.md) through the generated `charming api request` commands. Inspect `create-app` or `update-app` with `charming api describe`; pass the JSON body with `--body @build.json`, `Idempotency-Key` with `--header`, and the desired-source `If-Match` for an existing destination. Use a dry run before sending. Migration also needs `migrate_contract: true`.
+
+HTTP 202 means accepted. Poll `get-app-build` with `--param buildId=<id>` until `published`; use `cancel-app-build` with the same parameter to cancel. Keep the original body, revision, and key for an exact retry. `apps create` and `apps update` do not supply the required ESM request key.
+
 ## The module
 
 ```js

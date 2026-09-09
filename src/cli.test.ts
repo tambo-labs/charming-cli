@@ -24,6 +24,53 @@ describe('main', () => {
     expect(output.stderr).toBe('');
   });
 
+  test('includes the update description in a dry run', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-update-description-'));
+    await writeFile(join(directory, 'module.js'), 'export default {};');
+    const output = await runBinary([
+      'apps',
+      'update',
+      'app-1',
+      directory,
+      '--description',
+      'Updated notes.',
+      '--dry-run',
+    ]);
+    expect(JSON.parse(output.stdout).body.description).toBe('Updated notes.');
+    expect(output.stderr).toBe('');
+  });
+
+  test('sends the update description with the source revision', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-update-description-'));
+    await writeFile(join(directory, 'module.js'), 'export default {};');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'old' } }, { headers: { ETag: '"4"' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: 'app-1', revision: 5 }));
+    const output = await captureOutput(() =>
+      main(
+        [
+          'apps',
+          'update',
+          'app-1',
+          directory,
+          '--description',
+          'Updated notes.',
+          '--token',
+          'chrm_user_test',
+        ],
+        { fetchImpl },
+      ),
+    );
+    expect(output.result).toBe(0);
+    const request = fetchImpl.mock.calls[1]?.[1];
+    if (typeof request?.body !== 'string') throw new Error('Expected a JSON request body.');
+    expect(JSON.parse(request.body).description).toBe('Updated notes.');
+    expect(new Headers(request?.headers).get('If-Match')).toBe('"4"');
+  });
+
   test('redacts secrets embedded in API errors', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json(

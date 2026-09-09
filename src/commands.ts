@@ -233,7 +233,7 @@ export async function runApps(
       dryRun: true,
       method: 'PUT',
       path: `/app/${encodeURIComponent(appId)}`,
-      body: local,
+      body: { ...local, description: stringOption(context.options, 'description') },
       note: 'A live update first reads the current source and sends its ETag with the write.',
     };
   }
@@ -311,6 +311,7 @@ export async function runApps(
       module: local.module,
       ui: local.ui ?? source.ui ?? undefined,
       styles: local.styles ?? source.styles ?? undefined,
+      description: stringOption(context.options, 'description'),
     };
     return (
       await client.request('PUT', `/app/${encodeURIComponent(appId)}`, {

@@ -164,6 +164,18 @@
                   "forbidden_template_edit",
                   "invalid_if_match",
                   "precondition_required",
+                  "expected_revision_required",
+                  "idempotency_key_required",
+                  "idempotency_conflict",
+                  "contract_not_enabled",
+                  "app_build_capacity",
+                  "app_build_failed",
+                  "app_build_expired",
+                  "app_build_authority_lost",
+                  "app_build_unavailable",
+                  "app_build_unsupported",
+                  "version_history_unavailable",
+                  "version_not_restorable",
                   "revision_mismatch",
                   "invalid_revision",
                   "candidate_effects_unsupported",
@@ -639,6 +651,353 @@
           }
         }
       },
+      "EsmManifest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "https://charm.ing/schema/app-manifest/2026-09-05.json",
+        "type": "object",
+        "required": [
+          "$schema",
+          "id",
+          "meta"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "$schema": {
+            "const": "https://charm.ing/schema/app-manifest/2026-09-05.json"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+          },
+          "meta": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "icon": {
+                "type": "object",
+                "required": [
+                  "emoji",
+                  "bg"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "emoji": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "bg": {
+                    "type": "string",
+                    "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+                  }
+                }
+              }
+            }
+          },
+          "dependencies": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "server": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "format": "npm-package-name"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "format": "npm-semver-range"
+                }
+              },
+              "client": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "format": "npm-package-name"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "format": "npm-semver-range"
+                }
+              }
+            }
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "browser": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "img-src": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^https://[^/?#@*]+$"
+                    }
+                  }
+                }
+              },
+              "server": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "fetch": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^https://[^/?#@*]+$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "AppBuildResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "buildId",
+          "intent",
+          "state",
+          "sourceEtag",
+          "statusUrl",
+          "attempts",
+          "acceptedAt",
+          "updatedAt",
+          "finishedAt",
+          "elapsedMs",
+          "lockState",
+          "inputDigest",
+          "queueDeadline",
+          "deadline",
+          "inspectionExpiresAt",
+          "idempotencyExpiresAt"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "buildId": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "migrate",
+              "restore",
+              "copy"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "resolving",
+              "building",
+              "validating",
+              "published",
+              "failed",
+              "superseded",
+              "canceled",
+              "expired"
+            ]
+          },
+          "sourceEtag": {
+            "type": "string"
+          },
+          "statusUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "retryAfterSeconds": {
+            "type": "integer"
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Published app source revision. Present only after successful publication."
+          },
+          "desiredRevision": {
+            "type": "integer"
+          },
+          "activeRevision": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "elapsedMs": {
+            "type": "integer"
+          },
+          "lockState": {
+            "type": "string",
+            "enum": [
+              "locked",
+              "unresolved"
+            ]
+          },
+          "inputDigest": {
+            "type": "string"
+          },
+          "lockDigest": {
+            "type": "string"
+          },
+          "resolvedDependencies": {
+            "type": "object",
+            "required": [
+              "server",
+              "client"
+            ],
+            "properties": {
+              "server": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "client": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "queueDeadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inspectionExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "idempotencyExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "module",
+              "ui",
+              "styles",
+              "description"
+            ],
+            "properties": {
+              "module": {
+                "type": "string"
+              },
+              "ui": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "styles": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "kind",
+              "message",
+              "retryable"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "target": {
+                "type": "string"
+              },
+              "specifier": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              },
+              "column": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "AppBuildPage": {
+        "type": "string",
+        "description": "Authenticated browser build progress or terminal result page."
+      },
       "AppCreateBody": {
         "type": "object",
         "required": [
@@ -647,28 +1006,41 @@
         "properties": {
           "module": {
             "type": "string",
-            "description": "ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler."
+            "description": "Server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Existing contracts publish synchronously; the explicit https://charm.ing/schema/app-manifest/2026-09-05.json contract requires an enabled authenticated user and accepts a background build."
           },
           "ui": {
-            "type": "string",
-            "description": "Optional inline JS program (classic script, not a module). Populates `#app`."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional browser source populating #app. A classic script for the existing contract; an ES module for the explicit ESM contract. ESM bare imports must match manifest.dependencies.client."
           },
           "styles": {
-            "type": "string",
-            "description": "Optional CSS injected alongside `ui`."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional CSS injected alongside ui."
           },
           "description": {
-            "type": "string",
-            "description": "Optional app description, shown to the owner and to callers who read it back."
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional app description, shown to the owner and to callers who read it back. For ESM POST upserts, omission preserves the desired description."
+          },
+          "migrate_contract": {
+            "type": "boolean",
+            "description": "ESM POST only: true explicitly migrates an existing same-owner manifest.id target. Supply its desired revision in If-Match. The existing app remains active until the build publishes."
           },
           "pair": {
             "type": "boolean",
-            "description": "Anonymous POST only — silently ignored on authenticated upserts. When true, server mints a bound device_code alongside the app token; user-claim auto-approves the pairing and the agent ends up with both an app token and a `chrm_user_*`."
+            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; user-claim auto-approves the pairing and the agent ends up with both an app token and a `chrm_user_*`."
           },
           "label": {
             "type": "string",
             "maxLength": 80,
-            "description": "Anonymous POST only — silently ignored on authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
+            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
           }
         },
         "additionalProperties": false
@@ -681,17 +1053,32 @@
         "properties": {
           "module": {
             "type": "string",
-            "description": "Replacement ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler."
+            "description": "Replacement server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Keep the stored contract’s exact schema. ESM source is statically checked and built after acceptance."
           },
           "ui": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ESM browser module: omit to preserve desired UI, pass null to clear. Existing-contract PUT retains replacement semantics."
           },
           "styles": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ESM: omit to preserve desired styles, pass null to clear."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit to preserve the desired description; pass null to clear."
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "Required as true when replacing stored legacy source with a complete valid canonical manifest and routes array. Migration is one-way."
+            "description": "Required as true when changing a stored contract. ESM migration requires the explicit ESM schema, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
           }
         },
         "additionalProperties": false
@@ -1267,8 +1654,11 @@
           "$schema": {
             "type": "string",
             "format": "uri",
-            "const": "https://charm.ing/schema/app-manifest/2026-07-31.json",
-            "description": "Exact dated schema URL for canonical and migrated apps. Legacy source responses omit this field."
+            "enum": [
+              "https://charm.ing/schema/app-manifest/2026-07-31.json",
+              "https://charm.ing/schema/app-manifest/2026-09-05.json"
+            ],
+            "description": "Exact dated schema URL for canonical or ESM source. Legacy source responses omit this field."
           },
           "capabilities": {
             "$ref": "#/components/schemas/Manifest/properties/capabilities"
@@ -1318,6 +1708,20 @@
             "properties": {
               "$schema": {
                 "const": "https://charm.ing/schema/app-manifest/2026-07-31.json"
+              },
+              "manifestVersion": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "title": "ESM app source",
+            "required": [
+              "$schema"
+            ],
+            "properties": {
+              "$schema": {
+                "const": "https://charm.ing/schema/app-manifest/2026-09-05.json"
               },
               "manifestVersion": {
                 "type": "null"
@@ -2086,16 +2490,273 @@
       }
     }
   },
+  "x-charming-app-build-policy": {
+    "version": "app-build-v1",
+    "concurrency": 2,
+    "actorConcurrency": 1,
+    "pendingLimit": 16,
+    "actorPendingLimit": 3,
+    "queueMs": 600000,
+    "attemptMs": 600000,
+    "totalMs": 1200000,
+    "leaseMs": 30000,
+    "heartbeatMs": 10000,
+    "retryBackoffMs": 10000,
+    "attempts": 2,
+    "pollMs": 2000,
+    "inspectionMs": 604800000,
+    "idempotencyMs": 2592000000
+  },
   "paths": {
+    "/api/v1/app-builds/{buildId}": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "buildId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "include_source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current build operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          },
+          "303": {
+            "description": "Browser navigation to the actual published app URL.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid source inclusion query.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User authentication required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found or inaccessible.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-app-build",
+        "summary": "Read an app build and its accepted source",
+        "description": "Read progress or the retained terminal result using current user source access. Set include_source=true to inspect the exact accepted input. Only published means the app is live. Status remains available after authoring cohort removal. Accept: text/html renders progress and terminal results; pending pages refresh this status resource and published pages redirect to the actual app URL.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app-builds/{buildId}/cancel": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "buildId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current build operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          },
+          "303": {
+            "description": "Browser navigation to the actual published app URL.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User authentication required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cookie-backed mutations must come from the Charming origin.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Build not found or inaccessible.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildPage"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "cancel-app-build",
+        "summary": "Cancel a pending app build",
+        "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Cancellation remains available after authoring cohort removal. Browser form submissions render the terminal result as HTML.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
     "/app": {
       "post": {
         "operationId": "create-app",
-        "summary": "Create an app (anonymous or authenticated upsert)",
-        "description": "Anonymous callers get a fresh app row with a `chrm_app_*` token in the response. Authenticated callers (`chrm_user_*` or session) upsert by `(userId, manifestId)` — second POSTs with the same `manifest.id` overwrite the existing row in place and the response includes the same `id`. Use `PUT /app/{id}` for deliberate updates against a known id. Pass `pair: true` to mint a bound device_code in the same call.",
+        "summary": "Create an app or accept an ESM app build",
+        "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/2026-09-05.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields.",
         "security": [
           {},
           {
             "userToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            },
+            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Desired-source revision in double quotes for an ESM upsert or migration. Read GET /app/{id}/source first."
           }
         ],
         "requestBody": {
@@ -2119,8 +2780,119 @@
               }
             }
           },
+          "202": {
+            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Authorized build status URL."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds before polling a pending build."
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Identity of this operation’s immutable source input."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
+                }
+              }
+            }
+          },
           "400": {
-            "description": "Invalid module / ui / unexpected body keys / capability_denied. See `error.kind`.",
+            "description": "Invalid source syntax, body, or required ESM idempotency key. See error.kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "ESM creation requires a valid user credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ESM authoring is not enabled for this caller (contract_not_enabled).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency conflict or frozen manifest identity conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The desired source revision changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Source exceeds the contract limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Manifest, import/dependency mismatch, or explicit migration validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "A required desired-source revision is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Build capacity is full (app_build_capacity). Retry-After gives the retry delay.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2198,7 +2970,7 @@
       "put": {
         "operationId": "update-app",
         "summary": "Update an existing app",
-        "description": "Storage survives updates. Optional `If-Match: \"<N>\"` carries revision N from a fresh GET /source response or ETag and gates the write with optimistic concurrency. When present and stale, the response is 412 with the current ETag. Omitting `If-Match` keeps unguarded PUT semantics.",
+        "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. ESM saves require Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Omitting ui/styles preserves desired values only for ESM; null clears. Successful builds publish automatically; later saves supersede pending builds.",
         "security": [
           {
             "appToken": []
@@ -2209,13 +2981,25 @@
         ],
         "parameters": [
           {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            },
+            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+          },
+          {
             "name": "If-Match",
             "in": "header",
             "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Optional validator `\"<N>\"` from a fresh GET /app/:id/source. N carries the server revision, and the PUT succeeds only when it still matches. The weak form `W/\"<N>\"` is accepted too, so a client can pass back the ETag verbatim even when a CDN rewrote it in transit."
+            "description": "Validator \"<N>\" for revision N from desired GET /app/:id/source. Required for ESM saves and migrations; optional for existing-contract PUT. The weak form W/\"<N>\" is also accepted so clients can return the response ETag verbatim."
           }
         ],
         "requestBody": {
@@ -2243,6 +3027,37 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AppUpdateResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Authorized build status URL."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds before polling a pending build."
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Identity of this operation’s immutable source input."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
                 }
               }
             }
@@ -2287,6 +3102,16 @@
               }
             }
           },
+          "409": {
+            "description": "Idempotency or manifest identity conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "412": {
             "description": "If-Match did not match the current server revision; response carries the current ETag.",
             "headers": {
@@ -2297,6 +3122,46 @@
                 }
               }
             },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Source exceeds the contract limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid manifest, import/dependency mismatch, or required explicit migration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "ESM saves require desired-source If-Match.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Build capacity is full; retry after the returned delay.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2776,7 +3641,7 @@
       "get": {
         "operationId": "get-app-source",
         "summary": "Read the exact persisted source for an app",
-        "description": "Returns the stored `module`, `ui`, and `styles` exactly as persisted, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
+        "description": "Returns the desired authored `module`, `ui`, and `styles` exactly as persisted, including pending or failed ESM edits, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
         "security": [
           {
             "appToken": []
@@ -2839,7 +3704,7 @@
       "patch": {
         "operationId": "patch-app-source",
         "summary": "Apply exact-string find/replace edits to the persisted source",
-        "description": "Applies an `edits[]` array to the stored `module` / `ui` / `styles` buckets. Each edit names a `bucket`, an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
+        "description": "Applies an edits[] array to desired module/ui/styles. ESM saves require Idempotency-Key, return 202, and preserve active output until publication. An exact request-key replay returns the original operation before stale revision or edit matching checks. Each edit names a `bucket`, an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
         "security": [
           {
             "appToken": []
@@ -2849,6 +3714,18 @@
           }
         ],
         "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128,
+              "pattern": "^[!-~]+$"
+            },
+            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+          },
           {
             "name": "If-Match",
             "in": "header",
@@ -2868,7 +3745,12 @@
                 "required": [
                   "edits"
                 ],
+                "additionalProperties": false,
                 "properties": {
+                  "migrate_contract": {
+                    "type": "boolean",
+                    "description": "Explicitly migrate when the edited source selects a new contract. ESM requires the exact schema, a request key and If-Match."
+                  },
                   "edits": {
                     "type": "array",
                     "minItems": 1,
@@ -2948,6 +3830,37 @@
               }
             }
           },
+          "202": {
+            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Authorized build status URL."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds before polling a pending build."
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Identity of this operation’s immutable source input."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Body malformed (missing edits, invalid bucket, malformed If-Match).",
             "content": {
@@ -2989,7 +3902,7 @@
             }
           },
           "409": {
-            "description": "An old_string matched more than once; refine or set replace_all.",
+            "description": "Idempotency conflict, or old_string matched more than once; refine or set replace_all.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3027,7 +3940,7 @@
             }
           },
           "422": {
-            "description": "An old_string was not found in the named bucket.",
+            "description": "Edit match failed, source/import validation failed, or explicit migration is required.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3038,6 +3951,16 @@
           },
           "428": {
             "description": "If-Match header required; GET /source for the fresh revision and ETag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Build capacity is full; retry after the returned delay.",
             "content": {
               "application/json": {
                 "schema": {
