@@ -1406,7 +1406,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/app/{id}/activity",
     "summary": "Read the app's durable runtime-failure events",
-    "description": "Owner-only. Returns the app's own `api_proxy_result`, `diag_report` (runtime JS errors, CSP violations), and `contract_validation` events from durable storage — use this after publishing to learn what broke at runtime. Unlike `GET /app/{id}/diag` (in-memory ring buffer, lost on deploy), these rows survive deploys. Requires the app token or the owner's user token; render tokens and claim cookies are rejected. Not to be confused with `GET /app/{id}/events`, the live-state SSE stream.",
+    "description": "Owner-only. Returns the app's own `api_proxy_result`, `image_proxy_result` (external image failures), `diag_report` (runtime JS errors, CSP violations), `contract_validation`, `app_load_error`, and `render_token_revoked` events from durable storage — use this after publishing to learn what broke at runtime. Unlike `GET /app/{id}/diag` (in-memory ring buffer, lost on deploy), these rows survive deploys. Requires the app token or the owner's user token; render tokens and claim cookies are rejected. Not to be confused with `GET /app/{id}/events`, the live-state SSE stream.",
     "parameters": [
       {
         "description": "",
@@ -1418,7 +1418,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Comma-separated subset of `api_proxy_result,diag_report,contract_validation`. Unknown kinds are a 400.",
+        "description": "Comma-separated subset of `api_proxy_result,image_proxy_result,diag_report,contract_validation,app_load_error,render_token_revoked`. Unknown kinds are a 400.",
         "in": "query",
         "name": "kinds",
         "required": false,
@@ -1491,8 +1491,11 @@ export const generatedOperations = [
                       "type": "string",
                       "enum": [
                         "api_proxy_result",
+                        "image_proxy_result",
                         "diag_report",
-                        "contract_validation"
+                        "contract_validation",
+                        "app_load_error",
+                        "render_token_revoked"
                       ]
                     },
                     "revision": {
