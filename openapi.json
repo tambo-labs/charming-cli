@@ -206,6 +206,7 @@
                   "already_member",
                   "grantee_not_found",
                   "invite_cap_reached",
+                  "invite_sender_blocked",
                   "read_only",
                   "handle_taken",
                   "invalid_handle",
