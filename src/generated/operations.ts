@@ -796,7 +796,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/apps/{appId}/routines",
     "summary": "Schedule a Routine on an app",
-    "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a 3-per-app / 25-per-user cap.",
+    "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a 3-per-app / 25-per-owner cap.",
     "parameters": [
       {
         "description": "",
