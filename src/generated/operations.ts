@@ -2756,9 +2756,10 @@ export const generatedOperations = [
         "type": "object",
         "required": [
           "ok",
-          "routines"
+          "routines",
+          "limits"
         ],
-        "description": "The caller's Routines.",
+        "description": "The caller's Routines, and the Routine ceilings their plan allows.",
         "properties": {
           "ok": {
             "type": "boolean",
@@ -2860,6 +2861,22 @@ export const generatedOperations = [
                 "consecutive_failures": {
                   "type": "integer"
                 }
+              }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "description": "The caller's own Routine ceilings, resolved from their plan. Read these rather than assuming a tier: a client that hardcodes the free numbers disables its create control for a paying owner the server would allow.",
+            "required": [
+              "routines_per_app",
+              "routines_per_owner"
+            ],
+            "properties": {
+              "routines_per_app": {
+                "type": "integer"
+              },
+              "routines_per_owner": {
+                "type": "integer"
               }
             }
           }
