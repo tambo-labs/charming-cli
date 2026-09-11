@@ -6405,7 +6405,7 @@
       "post": {
         "operationId": "create-routine",
         "summary": "Schedule a Routine on an app",
-        "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a 3-per-app / 25-per-owner cap.",
+        "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a per-app and a per-owner cap. Both depend on the owner's plan, so read the `limits` object on `GET /api/v1/routines` for the caller's actual ceilings rather than assuming a tier; the free defaults are 3 per app and 25 per owner.",
         "security": [
           {
             "userToken": []
