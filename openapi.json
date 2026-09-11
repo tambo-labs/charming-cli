@@ -126,6 +126,7 @@
                   "sign_in_required",
                   "token_expired",
                   "forbidden",
+                  "experiment_disabled",
                   "forbidden_write",
                   "stored_value_too_large",
                   "storage_full",
