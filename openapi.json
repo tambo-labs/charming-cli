@@ -122,6 +122,7 @@
                   "unknown_operation",
                   "operation_not_found",
                   "operation_failed",
+                  "app_busy",
                   "unauthorized",
                   "sign_in_required",
                   "token_expired",
