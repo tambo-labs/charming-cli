@@ -7,7 +7,7 @@ describe('CharmingClient', () => {
   test('sends bearer auth and JSON bodies', async () => {
     const fetchImpl = vi.fn(async () => Response.json({ ok: true }, { headers: { ETag: '"v2"' } }));
     const client = new CharmingClient({
-      baseUrl: 'https://charm.ing/',
+      baseUrl: 'https://charming.test/',
       token: 'bld_user_test',
       fetchImpl,
     });
@@ -17,7 +17,7 @@ describe('CharmingClient', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/app/abc',
+      'https://charming.test/app/abc',
       expect.objectContaining({
         method: 'PUT',
         headers: expect.objectContaining({
@@ -31,7 +31,7 @@ describe('CharmingClient', () => {
 
   test('turns Charming error envelopes into typed errors', async () => {
     const client = new CharmingClient({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       fetchImpl: async () =>
         Response.json(
           {
@@ -59,12 +59,12 @@ describe('CharmingClient', () => {
     const fetchImpl = vi.fn(async () => Response.json({ ok: true }));
     const form = new FormData();
     form.set('key', 'icon.txt');
-    const client = new CharmingClient({ baseUrl: 'https://charm.ing', fetchImpl });
+    const client = new CharmingClient({ baseUrl: 'https://charming.test', fetchImpl });
 
     await client.request('POST', '/app/abc/assets', { rawBody: form });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/app/abc/assets',
+      'https://charming.test/app/abc/assets',
       expect.objectContaining({
         body: form,
         headers: { Accept: 'application/json' },
@@ -80,7 +80,7 @@ describe('CharmingClient', () => {
 
   test('falls back to a flat { reason, message } error envelope when there is no error.kind', async () => {
     const client = new CharmingClient({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       fetchImpl: async () =>
         Response.json(
           { ok: false, reason: 'reserved_name', message: 'That name is reserved.' },
@@ -101,7 +101,7 @@ describe('CharmingClient', () => {
 
   test('turns an aborted request into a TimeoutError naming the timeout used', async () => {
     const client = new CharmingClient({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       fetchImpl: fetchThatWaitsForAbort,
     });
 
@@ -116,7 +116,9 @@ describe('CharmingClient', () => {
 
 describe('isOpenableUrl', () => {
   test('allows an HTTPS URL on the same origin as the API', () => {
-    expect(isOpenableUrl('https://charm.ing/pair?code=1&label=ci', 'https://charm.ing')).toBe(true);
+    expect(
+      isOpenableUrl('https://charming.test/pair?code=1&label=ci', 'https://charming.test'),
+    ).toBe(true);
   });
 
   test('allows loopback HTTP on the same origin', () => {
@@ -124,18 +126,18 @@ describe('isOpenableUrl', () => {
   });
 
   test('refuses a URL on a different origin than the API', () => {
-    expect(isOpenableUrl('https://attacker.example/pair', 'https://charm.ing')).toBe(false);
+    expect(isOpenableUrl('https://attacker.example/pair', 'https://charming.test')).toBe(false);
   });
 
   test('refuses a non-HTTPS scheme even on a matching hostname', () => {
-    expect(isOpenableUrl('javascript:alert(1)', 'https://charm.ing')).toBe(false);
+    expect(isOpenableUrl('javascript:alert(1)', 'https://charming.test')).toBe(false);
   });
 
   test('refuses plain HTTP outside loopback', () => {
-    expect(isOpenableUrl('http://charm.ing/pair', 'http://charm.ing')).toBe(false);
+    expect(isOpenableUrl('http://charming.test/pair', 'http://charming.test')).toBe(false);
   });
 
   test('refuses an unparsable URL', () => {
-    expect(isOpenableUrl('not a url', 'https://charm.ing')).toBe(false);
+    expect(isOpenableUrl('not a url', 'https://charming.test')).toBe(false);
   });
 });

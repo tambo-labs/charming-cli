@@ -1,3 +1,4 @@
+/* oxlint-disable charming/no-production-host -- generated from the production OpenAPI fallback; regenerate with bun run cli:gen */
 // Generated from openapi.json by @hey-api/openapi-ts. Run `bun run openapi:gen`.
 export const generatedOperations = [
   {
@@ -2363,7 +2364,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/.well-known/oauth-authorization-server/mcp/chatgpt",
     "summary": "OAuth authorization-server metadata for the ChatGPT MCP surface",
-    "description": "Returns the RFC 8414 authorization-server metadata for the `/mcp/chatgpt` surface, at the path-inserted well-known URL a client derives from an issuer carrying that path. Reached only when that surface's protected-resource document names the surface as its own authorization server, which `CHARMING__SERVER__CHATGPT_AUTH_PROXY_ADVERTISED` decides. The same switch decides whether this document is served, so the pointer and its target appear together: while it is off nothing names this URL and asking for it answers 404. Differs from the origin-wide document in `issuer`, which claims the surface, and in `authorization_endpoint`, which names the `usecharming.com` login proxy while the switch is on. Token, registration, and JWKS endpoints stay on this origin.",
+    "description": "Returns the RFC 8414 authorization-server metadata for the `/mcp/chatgpt` surface, at the path-inserted well-known URL a client derives from an issuer carrying that path. Reached only when that surface's protected-resource document names the surface as its own authorization server, which `CHARMING__SERVER__CHATGPT_AUTH_PROXY_ADVERTISED` decides. The same switch decides whether this document is served, so the pointer and its target appear together: while it is off nothing names this URL and asking for it answers 404. Differs from the origin-wide document in `issuer`, which claims the surface, and in `authorization_endpoint`, which names the marketing-site login proxy while the switch is on. Token, registration, and JWKS endpoints stay on this origin.",
     "parameters": [],
     "requestBody": null,
     "response": {

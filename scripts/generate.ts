@@ -105,7 +105,7 @@ try {
   if (operations.length === 0) throw new Error('Hey API did not return any OpenAPI operations.');
 
   operations.sort((left, right) => left.id.localeCompare(right.id));
-  const source = `// Generated from openapi.json by @hey-api/openapi-ts. Run \`bun run openapi:gen\`.\nexport const generatedOperations = ${JSON.stringify(
+  const source = `/* oxlint-disable charming/no-production-host -- generated from the production OpenAPI fallback; regenerate with bun run cli:gen */\n// Generated from openapi.json by @hey-api/openapi-ts. Run \`bun run openapi:gen\`.\nexport const generatedOperations = ${JSON.stringify(
     operations,
     null,
     2,

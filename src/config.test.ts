@@ -4,7 +4,14 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
-import { loadAppToken, loadToken, removeCredentials, resolveToken, saveToken } from './config.js';
+import {
+  loadAppToken,
+  loadToken,
+  PRODUCTION_BASE_URL,
+  removeCredentials,
+  resolveToken,
+  saveToken,
+} from './config.js';
 
 describe('token config', () => {
   test('prefers CHARMING_TOKEN over the saved token', async () => {
@@ -105,7 +112,7 @@ describe('token config', () => {
       JSON.stringify({
         appTokens: {
           'legacy-app': 'legacy-production-token',
-          'https://charm.ing|current-app': 'current-production-token',
+          [`${PRODUCTION_BASE_URL}|current-app`]: 'current-production-token',
           'https://preview.example|preview-app': 'preview-token',
         },
         token: 'production-user-token',

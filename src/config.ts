@@ -21,6 +21,7 @@ type Config = {
   tokens?: Record<string, string>;
 };
 
+// oxlint-disable-next-line charming/no-production-host -- the CLI's default API is production
 export const PRODUCTION_BASE_URL = 'https://charm.ing';
 
 function defaultConfigDirectory(env: NodeJS.ProcessEnv): string {

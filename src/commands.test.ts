@@ -14,6 +14,7 @@ import {
   runDoctor,
   type CommandContext,
 } from './commands.js';
+import { PRODUCTION_BASE_URL } from './config.js';
 
 async function runCommand(context: CommandContext & { command: string[] }): Promise<unknown> {
   const [topic, action, ...positionals] = context.command;
@@ -54,7 +55,7 @@ describe('runCommand', () => {
       .mockResolvedValueOnce(Response.json({ id: 'app-1', revision: 4 }));
 
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'update', 'app-1', directory],
       fetchImpl,
       options: {},
@@ -63,7 +64,7 @@ describe('runCommand', () => {
 
     expect(result).toEqual({ id: 'app-1', revision: 4 });
     expect(fetchImpl).toHaveBeenLastCalledWith(
-      'https://charm.ing/app/app-1',
+      'https://charming.test/app/app-1',
       expect.objectContaining({
         headers: expect.objectContaining({ 'If-Match': '"3"' }),
         method: 'PUT',
@@ -82,7 +83,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'update', 'app-1', directory],
         fetchImpl,
         options: {},
@@ -93,7 +94,7 @@ describe('runCommand', () => {
     );
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/app/app-1/source',
+      'https://charming.test/app/app-1/source',
       expect.objectContaining({ method: 'GET' }),
     );
   });
@@ -102,7 +103,7 @@ describe('runCommand', () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['api', 'request', 'set-app-public'],
       fetchImpl,
       options: {
@@ -125,7 +126,7 @@ describe('runCommand', () => {
   test('rejects a missing required body in a generated request', async () => {
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'set-app-public'],
         options: {
           'dry-run': true,
@@ -138,7 +139,7 @@ describe('runCommand', () => {
   test('rejects unknown generated request parameters', async () => {
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'set-app-public'],
         options: {
           body: '{"public":true}',
@@ -152,7 +153,7 @@ describe('runCommand', () => {
   test('redacts secret values from generated dry runs', async () => {
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'create-app-secret'],
         options: {
           body: '{"name":"API_KEY","value":"super-sensitive-value"}',
@@ -173,7 +174,7 @@ describe('runCommand', () => {
       await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
     ).version;
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['agent-context'],
       options: {},
     });
@@ -194,7 +195,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'create', directory],
         fetchImpl,
         options: {},
@@ -210,7 +211,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'create', directory],
         fetchImpl,
         options: { yes: true },
@@ -225,7 +226,7 @@ describe('runCommand', () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'app-1' }));
 
     await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'create', directory],
       fetchImpl,
       options: { yes: true, description: 'A place to jot things down.' },
@@ -242,7 +243,7 @@ describe('runCommand', () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ id: 'app-1' }));
 
     await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'create', directory],
       fetchImpl,
       options: { yes: true },
@@ -262,7 +263,7 @@ describe('runCommand', () => {
       );
 
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'rename', 'app-1', 'new-name'],
       fetchImpl,
       options: {},
@@ -270,7 +271,7 @@ describe('runCommand', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/account/apps/app-1/name',
+      'https://charming.test/account/apps/app-1/name',
       expect.objectContaining({ method: 'POST' }),
     );
     const init = fetchImpl.mock.calls[0]?.[1];
@@ -282,7 +283,7 @@ describe('runCommand', () => {
     const fetchImpl = vi.fn<typeof fetch>();
 
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'rename', 'app-1', 'new-name'],
       fetchImpl,
       options: { 'dry-run': true },
@@ -310,7 +311,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'rename', 'app-1', 'admin'],
         fetchImpl,
         options: {},
@@ -324,7 +325,7 @@ describe('runCommand', () => {
     vi.useFakeTimers();
 
     const pending = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'source', 'app-1'],
       fetchImpl,
       options: {},
@@ -340,7 +341,7 @@ describe('runCommand', () => {
     vi.useFakeTimers();
 
     const pending = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'list'],
       fetchImpl,
       options: {},
@@ -360,7 +361,7 @@ describe('runCommand', () => {
     );
 
     const result = await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['apps', 'describe', 'app-1'],
       fetchImpl,
       options: {},
@@ -368,7 +369,7 @@ describe('runCommand', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/app/app-1/agent.json',
+      'https://charming.test/app/app-1/agent.json',
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toEqual({
@@ -381,7 +382,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'delete-app'],
         fetchImpl,
         options: { param: ['id=app-1'] },
@@ -396,7 +397,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'create-app'],
         fetchImpl,
         options: { body: '{"module":"export const manifest = {}"}' },
@@ -411,7 +412,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'create-app'],
         fetchImpl,
         options: { body: '{"module":"export const manifest = {}"}', 'dry-run': true },
@@ -462,7 +463,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', 'create-app'],
         fetchImpl,
         options: { body: '{"module":"export const manifest = {}"}', yes: true },
@@ -475,7 +476,7 @@ describe('runCommand', () => {
   test('allows a delete dry run without confirmation', async () => {
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'delete', 'app-1'],
         options: { 'dry-run': true },
       }),
@@ -488,7 +489,7 @@ describe('runCommand', () => {
 
   test('describes generated request and response schemas', async () => {
     const result = (await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['api', 'describe', 'set-app-public'],
       options: {},
     })) as {
@@ -509,7 +510,7 @@ describe('runCommand', () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ ok: true }));
 
     await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['api', 'request', 'patch-app-source'],
       fetchImpl,
       options: {
@@ -520,7 +521,7 @@ describe('runCommand', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charm.ing/app/app-1/source',
+      'https://charming.test/app/app-1/source',
       expect.objectContaining({
         headers: expect.objectContaining({ 'If-Match': '"1"' }),
       }),
@@ -534,7 +535,7 @@ describe('runCommand', () => {
 
       await expect(
         runCommand({
-          baseUrl: 'https://charm.ing',
+          baseUrl: 'https://charming.test',
           command: ['api', 'request', operationId],
           fetchImpl,
           options: {},
@@ -554,7 +555,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['api', 'request', operationId],
         fetchImpl,
         options: { ...(body === undefined ? {} : { body }), 'dry-run': true },
@@ -563,19 +564,19 @@ describe('runCommand', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  test('saves a device-login token after a pending poll is approved', async () => {
+  test('saves a device-login token for the production origin after a pending poll is approved', async () => {
     vi.useFakeTimers();
     const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
     vi.stubEnv('XDG_CONFIG_HOME', directory);
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(pairingStartResponse())
+      .mockResolvedValueOnce(pairingStartResponse(PRODUCTION_BASE_URL))
       .mockResolvedValueOnce(Response.json({ status: 'pending' }))
       .mockResolvedValueOnce(Response.json({ status: 'approved', token: 'chrm_user_saved-token' }));
 
     const login = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: PRODUCTION_BASE_URL,
       command: ['auth', 'login'],
       fetchImpl,
       options: { 'no-open': true },
@@ -631,7 +632,7 @@ describe('runCommand', () => {
       .mockResolvedValueOnce(Response.json(pollResponse));
 
     const login = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['auth', 'login'],
       fetchImpl,
       options: { 'no-open': true },
@@ -648,13 +649,13 @@ describe('runCommand', () => {
       Response.json({
         expires_in: 600,
         user_code: 'CHRM-ABC234',
-        verification_url: 'https://charm.ing/pair',
+        verification_url: 'https://charming.test/pair',
       }),
     );
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['auth', 'login'],
         fetchImpl,
         options: { 'no-open': true },
@@ -676,11 +677,13 @@ describe('runCommand', () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 600, 1, { [field]: value }));
+      .mockResolvedValueOnce(
+        pairingStartResponse('https://charming.test', 600, 1, { [field]: value }),
+      );
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['auth', 'login'],
         fetchImpl,
         options: { 'no-open': true },
@@ -695,14 +698,14 @@ describe('runCommand', () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
-        pairingStartResponse('https://charm.ing', 600, 1, {
-          verification_url_complete: 'https://charm.ing/pair?code=CHRM-ABC234',
+        pairingStartResponse('https://charming.test', 600, 1, {
+          verification_url_complete: 'https://charming.test/pair?code=CHRM-ABC234',
         }),
       )
       .mockResolvedValueOnce(Response.json({ status: 'expired' }));
 
     const login = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['auth', 'login'],
       fetchImpl,
       options: { 'no-open': true },
@@ -712,7 +715,7 @@ describe('runCommand', () => {
 
     await rejection;
     expect(stderr).toHaveBeenCalledWith(
-      expect.stringContaining('https://charm.ing/pair?code=CHRM-ABC234'),
+      expect.stringContaining('https://charming.test/pair?code=CHRM-ABC234'),
     );
   });
 
@@ -721,10 +724,10 @@ describe('runCommand', () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 1, 5));
+      .mockResolvedValueOnce(pairingStartResponse('https://charming.test', 1, 5));
 
     const login = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['auth', 'login'],
       fetchImpl,
       options: { 'no-open': true },
@@ -741,10 +744,10 @@ describe('runCommand', () => {
     vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(pairingStartResponse('https://charm.ing', 3_600, 3_600));
+      .mockResolvedValueOnce(pairingStartResponse('https://charming.test', 3_600, 3_600));
 
     const login = runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['auth', 'login'],
       fetchImpl,
       options: { 'no-open': true },
@@ -765,7 +768,7 @@ describe('runCommand', () => {
       .mockResolvedValue(Response.json({ ok: true }, { status: 201 }));
 
     await runCommand({
-      baseUrl: 'https://charm.ing',
+      baseUrl: 'https://charming.test',
       command: ['api', 'request', 'upload-app-asset'],
       fetchImpl,
       options: {
@@ -799,7 +802,7 @@ describe('runCommand', () => {
     try {
       await expect(
         runCommand({
-          baseUrl: 'https://charm.ing',
+          baseUrl: PRODUCTION_BASE_URL,
           command: ['auth', 'logout'],
           options: {},
         }),
@@ -821,7 +824,7 @@ describe('runCommand', () => {
         appTokens: {
           'https://preview.example|preview-app': 'preview-app-token',
           'https://other.example|other-app': 'other-app-token',
-          'https://charm.ing|production-app': 'production-app-token',
+          [`${PRODUCTION_BASE_URL}|production-app`]: 'production-app-token',
         },
         token: 'production-user-token',
         tokens: {
@@ -842,7 +845,7 @@ describe('runCommand', () => {
     expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
       appTokens: {
         'https://other.example|other-app': 'other-app-token',
-        'https://charm.ing|production-app': 'production-app-token',
+        [`${PRODUCTION_BASE_URL}|production-app`]: 'production-app-token',
       },
       token: 'production-user-token',
       tokens: { 'https://other.example': 'other-user-token' },
@@ -885,7 +888,7 @@ describe('runCommand', () => {
 
     await expect(
       runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['doctor'],
         fetchImpl,
         options: {},
@@ -919,14 +922,14 @@ describe('runCommand', () => {
         pairing: {
           device_code: 'bld_pair_secret',
           user_code: 'CHRM-ABC234',
-          verification_url: 'https://charm.ing/pair',
+          verification_url: 'https://charming.test/pair',
         },
       }),
     );
 
     try {
       const result = await runCommand({
-        baseUrl: 'https://charm.ing',
+        baseUrl: 'https://charming.test',
         command: ['apps', 'create', directory],
         fetchImpl,
         options: {},
@@ -939,7 +942,7 @@ describe('runCommand', () => {
         expect.objectContaining({
           pairing: {
             user_code: 'CHRM-ABC234',
-            verification_url: 'https://charm.ing/pair',
+            verification_url: 'https://charming.test/pair',
           },
           tokenSaved: true,
         }),
@@ -959,7 +962,7 @@ async function appDirectory(): Promise<string> {
 }
 
 function pairingStartResponse(
-  origin = 'https://charm.ing',
+  origin = 'https://charming.test',
   expiresIn = 600,
   pollingInterval = 1,
   overrides: Record<string, unknown> = {},
