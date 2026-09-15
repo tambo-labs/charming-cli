@@ -334,6 +334,50 @@ export const generatedOperations = [
               "retryable": {
                 "type": "boolean"
               },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution",
+                      "operationId"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "not_started",
+                          "may_have_run"
+                        ]
+                      },
+                      "operationId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reservationId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "may_have_run"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
               "target": {
                 "type": "string"
               },
@@ -1942,6 +1986,50 @@ export const generatedOperations = [
               },
               "retryable": {
                 "type": "boolean"
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution",
+                      "operationId"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "not_started",
+                          "may_have_run"
+                        ]
+                      },
+                      "operationId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reservationId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "may_have_run"
+                        ]
+                      }
+                    }
+                  }
+                ]
               },
               "target": {
                 "type": "string"
