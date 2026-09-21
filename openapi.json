@@ -222,7 +222,11 @@
                   "routine_limit_exceeded",
                   "invalid_interval",
                   "op_requires_input",
-                  "duplicate_routine"
+                  "duplicate_routine",
+                  "webhook_limit_exceeded",
+                  "duplicate_webhook",
+                  "webhook_disabled",
+                  "feature_disabled"
                 ]
               },
               "message": {
