@@ -11,12 +11,44 @@ export type ClientOptions = {
   token?: string;
 };
 
+/**
+ * The extras a plan refusal carries. Published on the `Error` schema, so the
+ * CLI reads them by name rather than passing the whole envelope through.
+ */
+export type PlanRefusal = {
+  plan: 'free' | 'pro' | 'business' | 'enterprise';
+  limit?: string;
+  max?: number;
+  feature?: string;
+  upgradeUrl?: string;
+};
+
+const PLAN_TIERS = new Set(['free', 'pro', 'business', 'enterprise']);
+
+/** The refusal in an error envelope, if it is one. `plan` is the marker. */
+function planRefusalOf(error: ErrorBody['error']): PlanRefusal | undefined {
+  if (!error || typeof error.plan !== 'string' || !PLAN_TIERS.has(error.plan)) return undefined;
+  const { plan, limit, max, feature, upgradeUrl } = error;
+  return {
+    plan: plan as PlanRefusal['plan'],
+    ...(limit !== undefined ? { limit } : {}),
+    ...(max !== undefined ? { max } : {}),
+    ...(feature !== undefined ? { feature } : {}),
+    ...(upgradeUrl !== undefined ? { upgradeUrl } : {}),
+  };
+}
+
 type ErrorBody = {
   error?: {
     kind?: string;
     message?: string;
     reason?: string;
     recovery?: unknown;
+    plan?: string;
+    limit?: string;
+    max?: number;
+    feature?: string;
+    upgradeUrl?: string;
   };
   // A handful of internal routes (e.g. `/account/apps/:id/name`) reply with a
   // flat `{ ok: false, reason, message }` envelope instead of the standard
@@ -30,6 +62,8 @@ export class ApiError extends Error {
   readonly body: unknown;
   readonly kind: string;
   readonly recovery: unknown;
+  /** Set when the owner's plan refused the call rather than the call failing. */
+  readonly refusal: PlanRefusal | undefined;
   readonly status: number;
 
   constructor(status: number, body: unknown) {
@@ -44,6 +78,7 @@ export class ApiError extends Error {
     this.status = status;
     this.kind = error?.kind ?? (typeof parsed?.reason === 'string' ? parsed.reason : 'http_error');
     this.recovery = error?.recovery;
+    this.refusal = planRefusalOf(error);
     this.body = body;
   }
 }

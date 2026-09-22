@@ -56,6 +56,9 @@ export abstract class CharmingCommand extends Command {
           kind: error.kind,
           message: error.message,
           recovery: error.recovery,
+          // Printed under the message so someone reading the failure in a
+          // terminal has the one link that lifts it, not just the refusal.
+          ...error.refusal,
           status: error.status,
         },
       });

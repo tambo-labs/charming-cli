@@ -226,7 +226,9 @@
                   "webhook_limit_exceeded",
                   "duplicate_webhook",
                   "webhook_disabled",
-                  "feature_disabled"
+                  "feature_disabled",
+                  "version_limit_exceeded",
+                  "plan_required"
                 ]
               },
               "message": {
@@ -241,6 +243,41 @@
                   "token_revoked",
                   "token_revoked_post_claim"
                 ]
+              },
+              "plan": {
+                "type": "string",
+                "enum": [
+                  "free",
+                  "pro",
+                  "business",
+                  "enterprise"
+                ],
+                "description": "Present on every plan refusal: the tier the caller was refused under. Its presence is what marks an error as a plan refusal rather than a validation or permission failure."
+              },
+              "limit": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner`, `webhook_delivery_body_bytes` — and pairs it with `max`. An `app_busy` refusal names one of the two per-app run bounds, `concurrent_runs` or `runs_per_window`, and pairs it with `observed` and `allowed`; no plan lifts that one. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "On a `*_limit_exceeded` refusal, that limit's number on the caller's plan."
+              },
+              "feature": {
+                "type": "string",
+                "enum": [
+                  "custom_domain",
+                  "watermark_removal"
+                ],
+                "description": "On a `plan_required` refusal, the capability the plan does not include. Never paired with `limit` / `max`."
+              },
+              "upgradeUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Absolute link to the owner's own billing page, where the refusal is lifted — the team's page for a team-owned app. Omitted only when the owner has no handle and therefore no settings page of their own, so treat it as optional and fall back to your own copy. MCP appends it as an `Upgrade: <url>` last line; the CLI prints it under the message."
               },
               "recovery": {
                 "description": "Self-contained recovery hint, branching on `kind`. Attached to error envelopes the agent can self-correct on: `pair` for `token_revoked_post_claim` 401s (#1284), `retry` for 429s, `shrink` for too-large / quota-exceeded 413s, `refetch` for 412 `revision_mismatch` / `invalid_if_match` / 428 `precondition_required`, `fix_route_label` for 403 `forbidden_write`, `open_existing` for 409 `duplicate_remix`, `rename` for 409 `manifest_id_immutable` / `manifest_id_conflict`, and `migrate_contract` for 422 `contract_migration_required`. Every `instructions` string is a single-paragraph, action-first walk-through. Inlined per ADR 2026-05-06-agent-facing-error-surfaces-self-contain-the-fix.",
