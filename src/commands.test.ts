@@ -41,6 +41,28 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe('redactSecrets', () => {
+  const envelope =
+    'chrm_render_v2.eyJhcHAiOiI5MWQ1MjU3ZS05YWM2LTQ1MmMtYTY4Mi0zNzM4ZTJjYjMzMmYiLCJxYyI6ImFub24iLCJleHAiOjE3OTAwMDAwMDAsImtpZCI6IjEiLCJuIjoiWVdGaFlXRmhZV0ZoWVdGaFlXRmhZV0ZoWVdGaFlXRmhZV0ZoWVdFIn0.P-bjKFLC3c7ZqkNY7U1y7XAUVTy78m_ynqj1k3QC638';
+
+  test('leaves no payload or signature bytes of a dotted render envelope', () => {
+    const scrubbed = redactSecrets(`token=${envelope} done`) as string;
+
+    expect(scrubbed).toBe('token=[redacted] done');
+    expect(scrubbed).not.toContain(envelope.split('.')[1]);
+    expect(scrubbed).not.toContain(envelope.split('.')[2]);
+  });
+
+  test('still redacts the opaque token shapes whole', () => {
+    expect(redactSecrets(`bearer chrm_render_${'a'.repeat(43)}`)).toBe('bearer [redacted]');
+    expect(redactSecrets(`bearer chrm_user_${'a'.repeat(43)}`)).toBe('bearer [redacted]');
+  });
+
+  test('reaches a token nested in an object or an array', () => {
+    expect(redactSecrets({ note: [`see ${envelope}`] })).toEqual({ note: ['see [redacted]'] });
+  });
+});
+
 describe('runCommand', () => {
   test('updates from a project directory with optimistic concurrency', async () => {
     const directory = await appDirectory();

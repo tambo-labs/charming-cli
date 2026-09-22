@@ -259,7 +259,16 @@
                   "string",
                   "integer"
                 ],
-                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner`, `webhook_delivery_body_bytes` — and pairs it with `max`. An `app_busy` refusal names one of the two per-app run bounds, `concurrent_runs` or `runs_per_window`, and pairs it with `observed` and `allowed`; no plan lifts that one. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
+                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner`, `webhook_delivery_body_bytes` — and pairs it with `max`. An `app_busy` refusal names the bound it met and pairs it with `observed` and `allowed`; no plan lifts any of them. Two are per-app run bounds, `concurrent_runs` and `runs_per_window`; the third, `render_token_refresh`, is the page render asking for a new render-token secret, held by 10 per app per client IP and 60 per app across every address in a 60 second window, and `observed`/`allowed` name whichever of those two refused. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
+              },
+              "rung": {
+                "type": "string",
+                "enum": [
+                  "throttled",
+                  "parked",
+                  "closed"
+                ],
+                "description": "On an `app_busy` refusal, how hard the app's own refusal ladder is refusing: `throttled` is the plain ceiling breach above; `parked` means a caller kept calling inside a wait it was given, so the server mints its own `Retry-After` (doubling from 60s to a 300s cap) and refuses until a quiet window passes even once the ceiling clears; `closed` is the same, plus the response closes the connection. Absent on every other `kind`."
               },
               "max": {
                 "type": "integer",

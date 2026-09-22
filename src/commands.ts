@@ -648,7 +648,10 @@ function safeCreateResult(data: {
 
 export function redactSecrets(value: unknown): unknown {
   if (typeof value === 'string') {
-    return value.replace(/(?:bld|chrm)_(?:app|pair|render|user)_[A-Za-z0-9_-]{4,}/g, '[redacted]');
+    // The trailing class accepts `.` so the dotted render envelope
+    // (`chrm_render_v2.<payload>.<sig>`) redacts whole rather than down to its
+    // prefix, leaving the signed payload in the output.
+    return value.replace(/(?:bld|chrm)_(?:app|pair|render|user)_[A-Za-z0-9_.-]{4,}/g, '[redacted]');
   }
   if (Array.isArray(value)) return value.map(redactSecrets);
   if (value && typeof value === 'object') {
