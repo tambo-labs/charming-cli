@@ -1472,7 +1472,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "ISO-8601 cutoff; only events at or after this instant are returned.",
+        "description": "ISO-8601 cutoff; only events at or after this instant are returned. Clamped to the plan window.",
         "in": "query",
         "name": "since",
         "required": false,
@@ -1512,12 +1512,47 @@ export const generatedOperations = [
           "value": {
             "type": "object",
             "required": [
-              "items"
+              "items",
+              "retention"
             ],
             "properties": {
+              "retention": {
+                "type": "object",
+                "required": [
+                  "tier",
+                  "hours",
+                  "since",
+                  "truncated"
+                ],
+                "description": "The plan window this read used: 24 hours on Free, 30 days on Pro, 90 days on Business. Older events are hidden, not deleted.",
+                "properties": {
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "free",
+                      "pro",
+                      "business",
+                      "enterprise"
+                    ]
+                  },
+                  "hours": {
+                    "type": "integer",
+                    "description": "Length of the plan window."
+                  },
+                  "since": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "The cutoff this read used."
+                  },
+                  "truncated": {
+                    "type": "boolean",
+                    "description": "True when the plan window set the cutoff."
+                  }
+                }
+              },
               "items": {
                 "type": "array",
-                "description": "Newest-first durable runtime-failure events for this app. Bounded by per-kind insert caps and a 90-day retention window.",
+                "description": "Newest-first durable runtime-failure events for this app, inside the plan window. Bounded by per-kind insert caps and a 90-day prune.",
                 "items": {
                   "type": "object",
                   "required": [
