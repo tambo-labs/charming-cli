@@ -126,7 +126,7 @@ Sandbox rules that silently break apps:
 - No external `<script>` tags or CDN imports. Inline a UMD build if a library is truly needed.
 - Prevent native form submission and handle it in JavaScript.
 - Set `#app` innerHTML **before** attaching listeners, and re-bind after every re-render. Re-render narrow containers, not the whole root, or a refresh wipes half-typed input.
-- Reserve the bottom-right 64px square — Charming's protected control sits there. Do not build a Charming badge, share button, app switcher, or account nav inside the app; the outer shell owns those.
+- Reserve the bottom-right 64px square — Charming's widget button sits there. Do not build a Charming badge, share button, app switcher, or account nav inside the app; the outer shell owns those.
 
 `window.charming.viewer.can(op)` is a UI hint for read-only viewers, not an auth check — the server enforces access. Catch `forbidden` / `forbidden_write` and render a read-only state.
 

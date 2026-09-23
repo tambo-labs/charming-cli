@@ -68,9 +68,9 @@ imgElement.src = src;
 
 `window.charming.images.proxy(remoteUrl)` also exists (a same-origin proxy URL) but does **not** work inside Claude's or ChatGPT's inline embed CSP, only standalone — a raw `<img>` pointed at it just shows a broken-image box with no visible error. Default to `.load()`. Both enforce the declared origins server-side; neither bypasses them.
 
-## Protected control
+## The widget
 
-Charming renders one protected control outside the generated app frame — a browser chrome bar or an MCP host's viewer chrome. Do not add another Charming badge, app switcher, Share button, App settings link, account nav, or agent handoff control inside the app. Reserve the bottom-right 64px square for it: don't put the app's only action, status, or scroll affordance under that corner.
+Charming renders one widget outside the generated app frame, in a browser chrome bar or an MCP host's viewer chrome. Do not add another Charming badge, app switcher, Share button, App settings link, account nav, or agent handoff control inside the app. Reserve the bottom-right 64px square for it: don't put the app's only action, status, or scroll affordance under that corner.
 
 ## Storage caps and route mechanics
 
