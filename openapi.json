@@ -284,7 +284,8 @@
                 "type": "string",
                 "enum": [
                   "custom_domain",
-                  "watermark_removal"
+                  "watermark_removal",
+                  "teams"
                 ],
                 "description": "On a `plan_required` refusal, the capability the plan does not include. Never paired with `limit` / `max`."
               },
