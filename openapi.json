@@ -1101,6 +1101,420 @@
         "type": "string",
         "description": "Authenticated browser build progress or terminal result page."
       },
+      "AppSharesListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "shares"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "grantee",
+                "status",
+                "role"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "grantee": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "label"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "account",
+                        "email"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "accepted",
+                    "invited"
+                  ]
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "collaborator",
+                    "end-user",
+                    "viewer"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AppSignedInAccessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "signedInAccess"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "signedInAccess": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "viewer",
+              "end-user",
+              null
+            ]
+          }
+        }
+      },
+      "ShareAcceptResponse": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "alreadyAccepted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      },
+      "ShareInviteResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "status"
+        ],
+        "description": "`pending` = an existing user must accept; `invited` = an email-keyed invitation that materializes when that address registers.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "invited"
+            ]
+          }
+        }
+      },
+      "ShareRemovedResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ShareRoleResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        }
+      },
+      "TemplateListing": {
+        "type": "object",
+        "required": [
+          "appId",
+          "creator",
+          "builders",
+          "draft",
+          "resolved",
+          "templateEnabled",
+          "listed",
+          "validation",
+          "publicUrl"
+        ],
+        "properties": {
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creator": {
+            "type": "object",
+            "required": [
+              "handle"
+            ],
+            "properties": {
+              "handle": {
+                "type": "string"
+              }
+            }
+          },
+          "builders": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "draft": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TemplateListingFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "legacyFallback"
+                ],
+                "properties": {
+                  "legacyFallback": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          },
+          "resolved": {
+            "$ref": "#/components/schemas/TemplateListingFields"
+          },
+          "templateEnabled": {
+            "type": "boolean"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "validation": {
+            "type": "object",
+            "required": [
+              "complete",
+              "missingFields"
+            ],
+            "properties": {
+              "complete": {
+                "type": "boolean"
+              },
+              "missingFields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "title",
+                    "summary"
+                  ]
+                }
+              }
+            }
+          },
+          "publicUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TemplateListingFields": {
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "contentMarkdown",
+          "category",
+          "cover",
+          "gallery"
+        ],
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "business",
+              "developer-tools",
+              "education",
+              "entertainment",
+              "lifestyle",
+              "productivity",
+              "utilities",
+              null
+            ]
+          },
+          "cover": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TemplateListingMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateListingMedia"
+            }
+          }
+        }
+      },
+      "TemplateListingMedia": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "assetKey",
+          "url",
+          "alt",
+          "caption",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "screenshot"
+            ]
+          },
+          "assetKey": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TemplateListingResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "$ref": "#/components/schemas/TemplateListing"
+          }
+        }
+      },
+      "WidgetRuntimeIssueHandoffResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "prompt"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      },
       "AppCreateBody": {
         "type": "object",
         "required": [
@@ -2666,6 +3080,1886 @@
     "idempotencyMs": 2592000000
   },
   "paths": {
+    "/api/v1/apps/{appId}/shares": {
+      "get": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Direct shares visible to the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSharesListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-app-shares",
+        "summary": "List an app’s direct shares",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Returns stable share ids and display labels without internal account ids or mutation authority.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Invitation created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareInviteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the owner can manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or no account for the grantee handle.",
+            "x-error-kinds": [
+              "not_found",
+              "grantee_not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Unshareable state (unclaimed app, self-share, existing access, or pending invitation).",
+            "x-error-kinds": [
+              "app_unclaimed",
+              "grantee_is_self",
+              "grantee_is_owner",
+              "grantee_already_has_access",
+              "already_invited"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Share-lookup rate limit or invitation cap.",
+            "x-error-kinds": [
+              "rate_limited",
+              "invite_cap_reached",
+              "invite_sender_blocked"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "create-app-share",
+        "summary": "Invite a user to an app",
+        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantee"
+                ],
+                "properties": {
+                  "grantee": {
+                    "type": "string",
+                    "description": "Handle or email of the invitee."
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "collaborator",
+                      "end-user",
+                      "viewer"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, app id, or missing role.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the owner can manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or no share for the grantee.",
+            "x-error-kinds": [
+              "not_found",
+              "grantee_not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Unshareable state (unclaimed app).",
+            "x-error-kinds": [
+              "app_unclaimed"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Share-lookup rate limit.",
+            "x-error-kinds": [
+              "rate_limited"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-app-share",
+        "summary": "Change an existing share’s role by grantee",
+        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Re-roles an existing grant or outstanding email invitation; never creates one.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantee",
+                  "role"
+                ],
+                "properties": {
+                  "grantee": {
+                    "type": "string",
+                    "description": "Handle or email of the grantee."
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "collaborator",
+                      "end-user",
+                      "viewer"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/shares/accept": {
+      "post": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted (or already accepted).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareAcceptResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No invitation for this app.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "accept-app-share",
+        "summary": "Accept a share invitation",
+        "description": "User-gated (`chrm_user_*` or session). Accepts the CALLER’s pending invitation for this app; idempotent (`alreadyAccepted: true` on a repeat).",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/shares/decline": {
+      "post": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Declined / left (or nothing to remove).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRemovedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "decline-app-share",
+        "summary": "Decline or leave a share",
+        "description": "User-gated (`chrm_user_*` or session). Declines the CALLER’s pending invite or leaves an accepted share; idempotent (`removed: false` when there was nothing).",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/shares/revoke": {
+      "post": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked (or nothing to revoke).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRemovedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only the owner can manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or no account for the grantee handle.",
+            "x-error-kinds": [
+              "not_found",
+              "grantee_not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Share-lookup rate limit.",
+            "x-error-kinds": [
+              "rate_limited"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "revoke-app-share",
+        "summary": "Revoke a share by grantee",
+        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there).",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantee"
+                ],
+                "properties": {
+                  "grantee": {
+                    "type": "string",
+                    "description": "Handle or email of the grantee."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/shares/{shareId}": {
+      "patch": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id, share id, or body.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App or share not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The app has no owner.",
+            "x-error-kinds": [
+              "app_unclaimed"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-app-share-by-id",
+        "summary": "Change an existing share’s role",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Updates the grant or email invitation addressed by its opaque share id.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "collaborator",
+                      "end-user",
+                      "viewer"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/shares/{shareId}/revoke": {
+      "post": {
+        "tags": [
+          "AppShares"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "shareId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked, or no matching share remained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareRemovedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id or share id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage shares.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "revoke-app-share-by-id",
+        "summary": "Revoke a share",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Idempotently removes the grant or email invitation addressed by its opaque share id.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/signed-in-access": {
+      "patch": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed-in access updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppSignedInAccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id or request body.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "App management permission required.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-app-signed-in-access",
+        "summary": "Update signed-in app access",
+        "description": "User-gated (`chrm_user_*` or session). Sets the role granted to signed-in visitors without changing anonymous Viewer access.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "signedInAccess"
+                ],
+                "properties": {
+                  "signedInAccess": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "viewer",
+                      "end-user",
+                      null
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/template-listing": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Editable Template listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-app-template-listing",
+        "summary": "Get an editable Template listing",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Returns authored listing fields, resolved legacy fallbacks, signed media URLs, validation state, and Template flags.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated editable Template listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id or request body.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Listing content or media is invalid.",
+            "x-error-kinds": [
+              "template_listing_incomplete",
+              "template_media_invalid"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-app-template-listing",
+        "summary": "Update a Template listing draft",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Changes only supplied listing content fields and does not enable, disable, publish, or unpublish the Template.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "assetKey",
+                          "alt"
+                        ],
+                        "properties": {
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "oneOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "assetKey",
+                            "alt"
+                          ],
+                          "properties": {
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/template-listing/disable": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disabled Template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "disable-app-template",
+        "summary": "Disable a Template",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Disables copying and unlists the Template while preserving draft content.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/template-listing/enable": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Enabled Template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "enable-app-template",
+        "summary": "Enable a Template",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Enables copying while preserving listing state and draft content.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/template-listing/publish": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Published Template listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The resulting listing content or media is invalid.",
+            "x-error-kinds": [
+              "template_listing_incomplete",
+              "template_media_invalid"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "publish-app-template-listing",
+        "summary": "Publish a Template listing",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Validates the resulting title and summary, then enables and lists the Template atomically.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "assetKey",
+                          "alt"
+                        ],
+                        "properties": {
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "oneOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "assetKey",
+                            "alt"
+                          ],
+                          "properties": {
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/template-listing/unpublish": {
+      "post": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unpublished Template listing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot edit this Template.",
+            "x-error-kinds": [
+              "forbidden_template_edit"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "unpublish-app-template-listing",
+        "summary": "Unpublish a Template listing",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Removes the public listing while preserving Template enablement and draft content.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/widget/apps/{appId}/overview/handoffs/{token}": {
+      "get": {
+        "tags": [
+          "Widget"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Short-lived private agent prompt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WidgetRuntimeIssueHandoffResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authenticated agent token required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The handoff is invalid, expired, or belongs to another owner.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App or active runtime issue not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-widget-runtime-issue-handoff",
+        "summary": "Resolve a private runtime issue handoff",
+        "description": "Requires a personal access token (`chrm_user_*`) and `app:manage`. Browser sessions are refused. Resolves an unexpired handoff for the same user and app into a private agent prompt.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
     "/api/v1/app-builds/{buildId}": {
       "get": {
         "tags": [

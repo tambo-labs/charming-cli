@@ -53,6 +53,11 @@ function parseAssignment(entry: string, option: 'header' | 'param'): [string, st
 // Operations that upsert by a caller-supplied id and silently overwrite an existing
 // row in place, so they need the same --yes consent as a DELETE.
 const REPLACES_IN_PLACE = new Set(['create-app']);
+const DELETES_APP_SHARES = new Set([
+  'revoke-app-share',
+  'revoke-app-share-by-id',
+  'decline-app-share',
+]);
 const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
 
 type SourceResponse = {
@@ -391,7 +396,9 @@ export async function runApi(
       `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
     );
   }
-  if (operation.method === 'DELETE') requireDeletionConsent(context);
+  if (operation.method === 'DELETE' || DELETES_APP_SHARES.has(operation.id)) {
+    requireDeletionConsent(context);
+  }
   const supplied = new Map(
     stringOptions(context.options, 'param').map((entry) => parseAssignment(entry, 'param')),
   );

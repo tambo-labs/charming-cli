@@ -2,6 +2,55 @@
 // Generated from openapi.json by @hey-api/openapi-ts. Run `bun run openapi:gen`.
 export const generatedOperations = [
   {
+    "id": "accept-app-share",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/shares/accept",
+    "summary": "Accept a share invitation",
+    "description": "User-gated (`chrm_user_*` or session). Accepts the CALLER’s pending invitation for this app; idempotent (`alreadyAccepted: true` on a repeat).",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Accepted (or already accepted).",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "alreadyAccepted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request accept-app-share --param appId=VALUE"
+  },
+  {
     "id": "approve-pairing",
     "method": "POST",
     "path": "/api/pair/approve",
@@ -837,6 +886,85 @@ export const generatedOperations = [
     "usage": "charming api request create-app-secret --param id=VALUE --body @body.json"
   },
   {
+    "id": "create-app-share",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/shares",
+    "summary": "Invite a user to an app",
+    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "grantee"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "Handle or email of the invitee."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "grantee": "string"
+      }
+    },
+    "response": {
+      "description": "Invitation created.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "status"
+        ],
+        "description": "`pending` = an existing user must accept; `invited` = an email-keyed invitation that materializes when that address registers.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "invited"
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request create-app-share --param appId=VALUE --body @body.json"
+  },
+  {
     "id": "create-routine",
     "method": "POST",
     "path": "/api/v1/apps/{appId}/routines",
@@ -1059,6 +1187,53 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request create-token --body @body.json"
+  },
+  {
+    "id": "decline-app-share",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/shares/decline",
+    "summary": "Decline or leave a share",
+    "description": "User-gated (`chrm_user_*` or session). Declines the CALLER’s pending invite or leaves an accepted share; idempotent (`removed: false` when there was nothing).",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Declined / left (or nothing to remove).",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request decline-app-share --param appId=VALUE"
   },
   {
     "id": "delete-app",
@@ -1445,6 +1620,850 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request describe-app --param id=VALUE"
+  },
+  {
+    "id": "disable-app-template",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/template-listing/disable",
+    "summary": "Disable a Template",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Disables copying and unlists the Template while preserving draft content.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Disabled Template.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request disable-app-template --param appId=VALUE"
+  },
+  {
+    "id": "enable-app-template",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/template-listing/enable",
+    "summary": "Enable a Template",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Enables copying while preserving listing state and draft content.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Enabled Template.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request enable-app-template --param appId=VALUE"
   },
   {
     "id": "get-app-activity",
@@ -2431,6 +3450,428 @@ export const generatedOperations = [
     "usage": "charming api request get-app-source --param id=VALUE"
   },
   {
+    "id": "get-app-template-listing",
+    "method": "GET",
+    "path": "/api/v1/apps/{appId}/template-listing",
+    "summary": "Get an editable Template listing",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Returns authored listing fields, resolved legacy fallbacks, signed media URLs, validation state, and Template flags.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Editable Template listing.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-app-template-listing --param appId=VALUE"
+  },
+  {
     "id": "get-design-guide-prompt",
     "method": "GET",
     "path": "/api/prompts/charming-design-guide",
@@ -2603,6 +4044,63 @@ export const generatedOperations = [
     "usage": "charming api request get-openapi-spec"
   },
   {
+    "id": "get-widget-runtime-issue-handoff",
+    "method": "GET",
+    "path": "/api/v1/widget/apps/{appId}/overview/handoffs/{token}",
+    "summary": "Resolve a private runtime issue handoff",
+    "description": "Requires a personal access token (`chrm_user_*`) and `app:manage`. Browser sessions are refused. Resolves an unexpired handoff for the same user and app into a private agent prompt.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "token",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Short-lived private agent prompt.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "prompt"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-widget-runtime-issue-handoff --param appId=VALUE --param token=VALUE"
+  },
+  {
     "id": "list-app-assets",
     "method": "GET",
     "path": "/app/{id}/assets",
@@ -2719,6 +4217,103 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request list-app-secrets --param id=VALUE"
+  },
+  {
+    "id": "list-app-shares",
+    "method": "GET",
+    "path": "/api/v1/apps/{appId}/shares",
+    "summary": "List an app’s direct shares",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Returns stable share ids and display labels without internal account ids or mutation authority.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Direct shares visible to the caller.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "shares"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "grantee",
+                "status",
+                "role"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "grantee": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "label"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "account",
+                        "email"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "accepted",
+                    "invited"
+                  ]
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "collaborator",
+                    "end-user",
+                    "viewer"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-app-shares --param appId=VALUE"
   },
   {
     "id": "list-apps",
@@ -3278,6 +4873,533 @@ export const generatedOperations = [
     "usage": "charming api request poll-pairing --body @body.json"
   },
   {
+    "id": "publish-app-template-listing",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/template-listing/publish",
+    "summary": "Publish a Template listing",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Validates the resulting title and summary, then enables and lists the Template atomically.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": false,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "business",
+              "developer-tools",
+              "education",
+              "entertainment",
+              "lifestyle",
+              "productivity",
+              "utilities",
+              null
+            ]
+          },
+          "cover": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "assetKey",
+                  "alt"
+                ],
+                "properties": {
+                  "assetKey": {
+                    "type": "string"
+                  },
+                  "alt": {
+                    "type": "string"
+                  },
+                  "caption": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gallery": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "assetKey",
+                    "alt"
+                  ],
+                  "properties": {
+                    "assetKey": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    },
+                    "caption": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Published Template listing.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request publish-app-template-listing --param appId=VALUE --body @body.json"
+  },
+  {
     "id": "report-app-diag",
     "method": "POST",
     "path": "/app/{id}/diag/report",
@@ -3422,6 +5544,129 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request resolve-app-manifest --param manifestId=VALUE"
+  },
+  {
+    "id": "revoke-app-share",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/shares/revoke",
+    "summary": "Revoke a share by grantee",
+    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there).",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "grantee"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "Handle or email of the grantee."
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "grantee": "string"
+      }
+    },
+    "response": {
+      "description": "Revoked (or nothing to revoke).",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request revoke-app-share --param appId=VALUE --body @body.json"
+  },
+  {
+    "id": "revoke-app-share-by-id",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/shares/{shareId}/revoke",
+    "summary": "Revoke a share",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Idempotently removes the grant or email invitation addressed by its opaque share id.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "shareId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Revoked, or no matching share remained.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request revoke-app-share-by-id --param appId=VALUE --param shareId=VALUE"
   },
   {
     "id": "revoke-token",
@@ -3997,6 +6242,428 @@ export const generatedOperations = [
     "usage": "charming api request subscribe-app-events --param id=VALUE"
   },
   {
+    "id": "unpublish-app-template-listing",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/template-listing/unpublish",
+    "summary": "Unpublish a Template listing",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Removes the public listing while preserving Template enablement and draft content.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Unpublished Template listing.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request unpublish-app-template-listing --param appId=VALUE"
+  },
+  {
     "id": "update-app",
     "method": "PUT",
     "path": "/app/{id}",
@@ -4206,6 +6873,781 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-app --param id=VALUE --body @body.json"
+  },
+  {
+    "id": "update-app-share",
+    "method": "PATCH",
+    "path": "/api/v1/apps/{appId}/shares",
+    "summary": "Change an existing share’s role by grantee",
+    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Re-roles an existing grant or outstanding email invitation; never creates one.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "grantee",
+          "role"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "Handle or email of the grantee."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "grantee": "string",
+        "role": "collaborator"
+      }
+    },
+    "response": {
+      "description": "Role changed.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-app-share --param appId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-app-share-by-id",
+    "method": "PATCH",
+    "path": "/api/v1/apps/{appId}/shares/{shareId}",
+    "summary": "Change an existing share’s role",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Updates the grant or email invitation addressed by its opaque share id.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "shareId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "role": "collaborator"
+      }
+    },
+    "response": {
+      "description": "Role changed.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-app-share-by-id --param appId=VALUE --param shareId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-app-signed-in-access",
+    "method": "PATCH",
+    "path": "/api/v1/apps/{appId}/signed-in-access",
+    "summary": "Update signed-in app access",
+    "description": "User-gated (`chrm_user_*` or session). Sets the role granted to signed-in visitors without changing anonymous Viewer access.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signedInAccess"
+        ],
+        "properties": {
+          "signedInAccess": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "viewer",
+              "end-user",
+              null
+            ]
+          }
+        }
+      },
+      "example": {
+        "signedInAccess": "viewer"
+      }
+    },
+    "response": {
+      "description": "Signed-in access updated.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "signedInAccess"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "signedInAccess": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "viewer",
+              "end-user",
+              null
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-app-signed-in-access --param appId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-app-template-listing",
+    "method": "PATCH",
+    "path": "/api/v1/apps/{appId}/template-listing",
+    "summary": "Update a Template listing draft",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:template-edit`. Changes only supplied listing content fields and does not enable, disable, publish, or unpublish the Template.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "business",
+              "developer-tools",
+              "education",
+              "entertainment",
+              "lifestyle",
+              "productivity",
+              "utilities",
+              null
+            ]
+          },
+          "cover": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "assetKey",
+                  "alt"
+                ],
+                "properties": {
+                  "assetKey": {
+                    "type": "string"
+                  },
+                  "alt": {
+                    "type": "string"
+                  },
+                  "caption": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gallery": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "assetKey",
+                    "alt"
+                  ],
+                  "properties": {
+                    "assetKey": {
+                      "type": "string"
+                    },
+                    "alt": {
+                      "type": "string"
+                    },
+                    "caption": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Updated editable Template listing.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "type": "object",
+            "required": [
+              "appId",
+              "creator",
+              "builders",
+              "draft",
+              "resolved",
+              "templateEnabled",
+              "listed",
+              "validation",
+              "publicUrl"
+            ],
+            "properties": {
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "creator": {
+                "type": "object",
+                "required": [
+                  "handle"
+                ],
+                "properties": {
+                  "handle": {
+                    "type": "string"
+                  }
+                }
+              },
+              "builders": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draft": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "title",
+                      "summary",
+                      "contentMarkdown",
+                      "category",
+                      "cover",
+                      "gallery"
+                    ],
+                    "properties": {
+                      "title": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "summary": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "contentMarkdown": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "category": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "business",
+                          "developer-tools",
+                          "education",
+                          "entertainment",
+                          "lifestyle",
+                          "productivity",
+                          "utilities",
+                          null
+                        ]
+                      },
+                      "cover": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "id",
+                              "kind",
+                              "assetKey",
+                              "url",
+                              "alt",
+                              "caption",
+                              "position"
+                            ],
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "cover",
+                                  "screenshot"
+                                ]
+                              },
+                              "assetKey": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "alt": {
+                                "type": "string"
+                              },
+                              "caption": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "position": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            }
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "gallery": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "kind",
+                            "assetKey",
+                            "url",
+                            "alt",
+                            "caption",
+                            "position"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "cover",
+                                "screenshot"
+                              ]
+                            },
+                            "assetKey": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "alt": {
+                              "type": "string"
+                            },
+                            "caption": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "position": {
+                              "type": "integer",
+                              "minimum": 0
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "legacyFallback"
+                    ],
+                    "properties": {
+                      "legacyFallback": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                ]
+              },
+              "resolved": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "summary",
+                  "contentMarkdown",
+                  "category",
+                  "cover",
+                  "gallery"
+                ],
+                "properties": {
+                  "title": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "summary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "contentMarkdown": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "category": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "business",
+                      "developer-tools",
+                      "education",
+                      "entertainment",
+                      "lifestyle",
+                      "productivity",
+                      "utilities",
+                      null
+                    ]
+                  },
+                  "cover": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "kind",
+                          "assetKey",
+                          "url",
+                          "alt",
+                          "caption",
+                          "position"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "cover",
+                              "screenshot"
+                            ]
+                          },
+                          "assetKey": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri"
+                          },
+                          "alt": {
+                            "type": "string"
+                          },
+                          "caption": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "position": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "gallery": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "kind",
+                        "assetKey",
+                        "url",
+                        "alt",
+                        "caption",
+                        "position"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "cover",
+                            "screenshot"
+                          ]
+                        },
+                        "assetKey": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "alt": {
+                          "type": "string"
+                        },
+                        "caption": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "listed": {
+                "type": "boolean"
+              },
+              "validation": {
+                "type": "object",
+                "required": [
+                  "complete",
+                  "missingFields"
+                ],
+                "properties": {
+                  "complete": {
+                    "type": "boolean"
+                  },
+                  "missingFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "title",
+                        "summary"
+                      ]
+                    }
+                  }
+                }
+              },
+              "publicUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-app-template-listing --param appId=VALUE --body @body.json"
   },
   {
     "id": "update-routine",

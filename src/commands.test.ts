@@ -145,6 +145,47 @@ describe('runCommand', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  test.each([
+    {
+      id: 'revoke-app-share',
+      path: '/api/v1/apps/app-1/shares/revoke',
+      param: ['appId=app-1'],
+      body: '{"grantee":"friend@example.com"}',
+    },
+    {
+      id: 'revoke-app-share-by-id',
+      path: '/api/v1/apps/app-1/shares/share-1/revoke',
+      param: ['appId=app-1', 'shareId=share-1'],
+    },
+    { id: 'decline-app-share', path: '/api/v1/apps/app-1/shares/decline', param: ['appId=app-1'] },
+  ])('requires confirmation for share deletion through $id', async ({ id, path, param, body }) => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => Response.json({ ok: true, removed: true }));
+    const context = {
+      baseUrl: 'https://charming.test',
+      command: ['api', 'request', id],
+      fetchImpl,
+      token: 'chrm_user_fixture',
+      options: { param, ...(body ? { body } : {}) },
+    };
+    await expect(runCommand(context)).rejects.toThrow('Deletion requires --yes');
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(
+      await runCommand({ ...context, options: { ...context.options, 'dry-run': true } }),
+    ).toMatchObject({ dryRun: true, method: 'POST', path });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(await runCommand({ ...context, options: { ...context.options, yes: true } })).toEqual({
+      ok: true,
+      removed: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `https://charming.test${path}`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   test('rejects a missing required body in a generated request', async () => {
     await expect(
       runCommand({

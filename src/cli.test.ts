@@ -277,6 +277,116 @@ describe('main', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  test('discovers and executes published app management operations from outside the source tree', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-cli-app-management-'));
+    const ids = [
+      'list-app-shares',
+      'create-app-share',
+      'update-app-share',
+      'accept-app-share',
+      'decline-app-share',
+      'revoke-app-share',
+      'update-app-share-by-id',
+      'revoke-app-share-by-id',
+      'update-app-signed-in-access',
+      'get-app-template-listing',
+      'update-app-template-listing',
+      'disable-app-template',
+      'enable-app-template',
+      'publish-app-template-listing',
+      'unpublish-app-template-listing',
+      'get-widget-runtime-issue-handoff',
+    ];
+    const listed = JSON.parse((await runBinary(['api', 'list'], directory)).stdout);
+    expect(listed.operations).toEqual(
+      expect.arrayContaining(ids.map((id) => expect.objectContaining({ id }))),
+    );
+    const described = JSON.parse(
+      (await runBinary(['api', 'describe', 'get-widget-runtime-issue-handoff'], directory)).stdout,
+    );
+    expect(described).toMatchObject({
+      method: 'GET',
+      parameters: expect.arrayContaining([
+        expect.objectContaining({ name: 'appId', required: true }),
+        expect.objectContaining({ name: 'token', required: true }),
+      ]),
+    });
+
+    const requests: Array<{
+      method?: string;
+      path?: string;
+      authenticated: boolean;
+      body: string;
+    }> = [];
+    const server = createServer(async (request, response) => {
+      let body = '';
+      for await (const chunk of request) body += chunk;
+      requests.push({
+        method: request.method,
+        path: request.url,
+        authenticated: request.headers.authorization === 'Bearer chrm_user_fixture',
+        body,
+      });
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(
+        JSON.stringify(
+          request.method === 'GET'
+            ? { ok: true, shares: [] }
+            : { ok: true, signedInAccess: 'viewer' },
+        ),
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string')
+        throw new Error('Expected a listening fixture server');
+      const flags = [
+        '--base-url',
+        `http://127.0.0.1:${address.port}`,
+        '--token',
+        'chrm_user_fixture',
+        '--param',
+        'appId=app-1',
+      ];
+      const read = await runBinary(['api', 'request', 'list-app-shares', ...flags], directory);
+      expect(JSON.parse(read.stdout)).toEqual({ ok: true, shares: [] });
+      const write = [
+        'api',
+        'request',
+        'update-app-signed-in-access',
+        ...flags,
+        '--body',
+        '{"signedInAccess":"viewer"}',
+      ];
+      const preview = await runBinary([...write, '--dry-run'], directory);
+      expect(JSON.parse(preview.stdout)).toEqual({
+        dryRun: true,
+        method: 'PATCH',
+        path: '/api/v1/apps/app-1/signed-in-access',
+        body: { signedInAccess: 'viewer' },
+      });
+      expect(requests).toHaveLength(1);
+      expect(JSON.parse((await runBinary(write, directory)).stdout)).toEqual({
+        ok: true,
+        signedInAccess: 'viewer',
+      });
+      expect(requests).toEqual([
+        { method: 'GET', path: '/api/v1/apps/app-1/shares', authenticated: true, body: '' },
+        {
+          method: 'PATCH',
+          path: '/api/v1/apps/app-1/signed-in-access',
+          authenticated: true,
+          body: '{"signedInAccess":"viewer"}',
+        },
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   test('runs every discovered command through the compiled CLI', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'charming-cli-command-'));
     await writeFile(join(directory, 'module.js'), 'export default {};');
@@ -327,8 +437,15 @@ describe('main', () => {
   });
 });
 
-async function runBinary(args: string[]): Promise<{ stderr: string; stdout: string }> {
-  return promisify(execFile)(process.execPath, ['bin/run.js', ...args], { cwd: process.cwd() });
+async function runBinary(
+  args: string[],
+  cwd = process.cwd(),
+): Promise<{ stderr: string; stdout: string }> {
+  return promisify(execFile)(
+    process.execPath,
+    [join(import.meta.dirname, '../bin/run.js'), ...args],
+    { cwd },
+  );
 }
 
 /** Serves `body` as JSON on a loopback port for the duration of `use`, then shuts down. */
