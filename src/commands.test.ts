@@ -16,6 +16,8 @@ import {
 } from './commands.js';
 import { PRODUCTION_BASE_URL } from './config.js';
 
+const APP_ID = '00000000-0000-4000-8000-000000000001';
+
 async function runCommand(context: CommandContext & { command: string[] }): Promise<unknown> {
   const [topic, action, ...positionals] = context.command;
   const result =
@@ -74,19 +76,19 @@ describe('runCommand', () => {
           { headers: { ETag: '"3"' } },
         ),
       )
-      .mockResolvedValueOnce(Response.json({ id: 'app-1', revision: 4 }));
+      .mockResolvedValueOnce(Response.json({ id: APP_ID, revision: 4 }));
 
     const result = await runCommand({
       baseUrl: 'https://charming.test',
-      command: ['apps', 'update', 'app-1', directory],
+      command: ['apps', 'update', APP_ID, directory],
       fetchImpl,
       options: {},
       token: 'bld_user_test',
     });
 
-    expect(result).toEqual({ id: 'app-1', revision: 4 });
+    expect(result).toEqual({ id: APP_ID, revision: 4 });
     expect(fetchImpl).toHaveBeenLastCalledWith(
-      'https://charming.test/app/app-1',
+      `https://charming.test/app/${APP_ID}`,
       expect.objectContaining({
         headers: expect.objectContaining({ 'If-Match': '"3"' }),
         method: 'PUT',
@@ -101,12 +103,12 @@ describe('runCommand', () => {
       .mockResolvedValueOnce(
         Response.json({ source: { module: 'old', ui: 'old ui', styles: 'old css' } }),
       )
-      .mockResolvedValueOnce(Response.json({ id: 'app-1', revision: 4 }));
+      .mockResolvedValueOnce(Response.json({ id: APP_ID, revision: 4 }));
 
     await expect(
       runCommand({
         baseUrl: 'https://charming.test',
-        command: ['apps', 'update', 'app-1', directory],
+        command: ['apps', 'update', APP_ID, directory],
         fetchImpl,
         options: {},
         token: 'bld_user_test',
@@ -116,7 +118,7 @@ describe('runCommand', () => {
     );
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charming.test/app/app-1/source',
+      `https://charming.test/app/${APP_ID}/source`,
       expect.objectContaining({ method: 'GET' }),
     );
   });
@@ -327,14 +329,14 @@ describe('runCommand', () => {
 
     const result = await runCommand({
       baseUrl: 'https://charming.test',
-      command: ['apps', 'rename', 'app-1', 'new-name'],
+      command: ['apps', 'rename', APP_ID, 'new-name'],
       fetchImpl,
       options: {},
       token: 'chrm_user_test',
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charming.test/account/apps/app-1/name',
+      `https://charming.test/account/apps/${APP_ID}/name`,
       expect.objectContaining({ method: 'POST' }),
     );
     const init = fetchImpl.mock.calls[0]?.[1];
@@ -347,7 +349,7 @@ describe('runCommand', () => {
 
     const result = await runCommand({
       baseUrl: 'https://charming.test',
-      command: ['apps', 'rename', 'app-1', 'new-name'],
+      command: ['apps', 'rename', APP_ID, 'new-name'],
       fetchImpl,
       options: { 'dry-run': true },
       token: 'chrm_user_test',
@@ -357,7 +359,7 @@ describe('runCommand', () => {
     expect(result).toEqual({
       dryRun: true,
       method: 'POST',
-      path: '/account/apps/app-1/name',
+      path: `/account/apps/${APP_ID}/name`,
       body: { app_name: 'new-name' },
     });
   });
@@ -375,7 +377,7 @@ describe('runCommand', () => {
     await expect(
       runCommand({
         baseUrl: 'https://charming.test',
-        command: ['apps', 'rename', 'app-1', 'admin'],
+        command: ['apps', 'rename', APP_ID, 'admin'],
         fetchImpl,
         options: {},
         token: 'chrm_user_test',
@@ -389,7 +391,7 @@ describe('runCommand', () => {
 
     const pending = runCommand({
       baseUrl: 'https://charming.test',
-      command: ['apps', 'source', 'app-1'],
+      command: ['apps', 'source', APP_ID],
       fetchImpl,
       options: {},
       token: 'chrm_app_test',
@@ -425,14 +427,14 @@ describe('runCommand', () => {
 
     const result = await runCommand({
       baseUrl: 'https://charming.test',
-      command: ['apps', 'describe', 'app-1'],
+      command: ['apps', 'describe', APP_ID],
       fetchImpl,
       options: {},
       token: 'bld_user_test',
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://charming.test/app/app-1/agent.json',
+      `https://charming.test/app/${APP_ID}/agent.json`,
       expect.objectContaining({ method: 'GET' }),
     );
     expect(result).toEqual({
@@ -540,13 +542,13 @@ describe('runCommand', () => {
     await expect(
       runCommand({
         baseUrl: 'https://charming.test',
-        command: ['apps', 'delete', 'app-1'],
+        command: ['apps', 'delete', APP_ID],
         options: { 'dry-run': true },
       }),
     ).resolves.toEqual({
       dryRun: true,
       method: 'DELETE',
-      path: '/app/app-1',
+      path: `/app/${APP_ID}`,
     });
   });
 

@@ -38,6 +38,8 @@ Do not free-hand the skeleton. Copy `templates/crud`, then change the data model
 5. Smoke-test the backend before you claim it works: `charming apps call <app-id> list --input '{}'`
 6. Return the `url` from the JSON result.
 
+For `<app-id>`, use the UUID returned by `apps create` or the `id` field from `apps list`. The app name and `manifest.id` are not lookup keys for this command.
+
 `--yes` is required on a signed-in create because a create whose `manifest.id` already exists **replaces that app in place**. Ask the user before running it, and keep `manifest.id` stable and unique per app.
 
 Without a saved token, `charming apps create` still works: it pairs the new app to this machine and stores an app-scoped credential locally, so later `update` and `call` on that app work from the same machine without `charming auth login`.

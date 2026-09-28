@@ -12,6 +12,8 @@ import { describe, expect, test, vi } from 'vitest';
 import { fetchThatWaitsForAbort } from '../test-helpers.js';
 import { main } from './cli.js';
 
+const APP_ID = '00000000-0000-4000-8000-000000000001';
+
 describe('main', () => {
   test('renders generated help for a mutation command', async () => {
     const dispatched = await runOclifCommand('agent-context', process.cwd(), { stripAnsi: true });
@@ -30,7 +32,7 @@ describe('main', () => {
     const output = await runBinary([
       'apps',
       'update',
-      'app-1',
+      APP_ID,
       directory,
       '--description',
       'Updated notes.',
@@ -54,7 +56,7 @@ describe('main', () => {
         [
           'apps',
           'update',
-          'app-1',
+          APP_ID,
           directory,
           '--description',
           'Updated notes.',
@@ -129,7 +131,7 @@ describe('main', () => {
     const output = await runBinary([
       'apps',
       'call',
-      'app-1',
+      APP_ID,
       'echo',
       '--input',
       '{"a":1}',
@@ -139,23 +141,56 @@ describe('main', () => {
     ]);
 
     expect(output.stdout.trim()).toBe(
-      '{"dryRun":true,"method":"POST","path":"/app/app-1/api/echo","body":{"a":1}}',
+      '{"dryRun":true,"method":"POST","path":"/app/00000000-0000-4000-8000-000000000001/api/echo","body":{"a":1}}',
     );
     expect(output.stdout).not.toContain('\n  ');
   });
 
   test('apps call without --output pretty-prints', async () => {
-    const output = await runBinary(['apps', 'call', 'app-1', 'echo', '--dry-run']);
+    const output = await runBinary(['apps', 'call', APP_ID, 'echo', '--dry-run']);
 
     expect(output.stdout).toContain('\n  "dryRun": true');
   });
+
+  test('apps call rejects an app name locally and points to the listed app ID', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const result = await captureOutput(() =>
+      main(['apps', 'call', 'charming-cli-hello', 'hello', '--token', 'chrm_user_test'], {
+        fetchImpl,
+      }),
+    );
+
+    expect(result.result).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('apps list');
+    expect(result.stderr).toContain('app ID');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test.each([['describe'], ['source'], ['update'], ['delete', '--yes'], ['rename', 'new-name']])(
+    'apps %s rejects an app name before any request',
+    async (action, ...args) => {
+      const fetchImpl = vi.fn<typeof fetch>();
+      const result = await captureOutput(() =>
+        main(['apps', action, 'charming-cli-hello', ...args, '--token', 'chrm_user_test'], {
+          fetchImpl,
+        }),
+      );
+
+      expect(result.result).toBe(2);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('apps list');
+      expect(result.stderr).toContain('app ID');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
 
   test('apps call replaces an oversized response with a truncated wrapper', async () => {
     await withJsonServer({ data: 'x'.repeat(300_000) }, async (baseUrl) => {
       const output = await runBinary([
         'apps',
         'call',
-        'app-1',
+        APP_ID,
         'echo',
         '--base-url',
         baseUrl,
@@ -182,7 +217,7 @@ describe('main', () => {
       const output = await runBinary([
         'apps',
         'call',
-        'app-1',
+        APP_ID,
         'echo',
         '--base-url',
         baseUrl,
@@ -205,7 +240,7 @@ describe('main', () => {
       const output = await runBinary([
         'apps',
         'call',
-        'app-1',
+        APP_ID,
         'echo',
         '--base-url',
         baseUrl,
@@ -223,7 +258,7 @@ describe('main', () => {
       const output = await runBinary([
         'apps',
         'call',
-        'app-1',
+        APP_ID,
         'echo',
         '--output',
         'compact',
@@ -418,13 +453,13 @@ describe('main', () => {
       ],
       [['apps', 'list', '--token', 'chrm_user_test'], 0],
       [['apps', 'create', directory, '--description', 'A test app.', '--dry-run'], 0],
-      [['apps', 'describe', 'app-1', '--token', 'chrm_app_test'], 0],
-      [['apps', 'source', 'app-1', '--token', 'chrm_app_test'], 0],
-      [['apps', 'update', 'app-1', directory, '--dry-run'], 0],
-      [['apps', 'call', 'app-1', 'echo', '--dry-run'], 0],
-      [['apps', 'call', 'app-1', 'echo', '--output', 'compact', '--dry-run'], 0],
-      [['apps', 'delete', 'app-1', '--dry-run'], 0],
-      [['apps', 'rename', 'app-1', 'new-name', '--dry-run'], 0],
+      [['apps', 'describe', APP_ID, '--token', 'chrm_app_test'], 0],
+      [['apps', 'source', APP_ID, '--token', 'chrm_app_test'], 0],
+      [['apps', 'update', APP_ID, directory, '--dry-run'], 0],
+      [['apps', 'call', APP_ID, 'echo', '--dry-run'], 0],
+      [['apps', 'call', APP_ID, 'echo', '--output', 'compact', '--dry-run'], 0],
+      [['apps', 'delete', APP_ID, '--dry-run'], 0],
+      [['apps', 'rename', APP_ID, 'new-name', '--dry-run'], 0],
       [['auth', 'login', '--no-open'], 2],
       [['auth', 'logout', '--token', 'chrm_user_test'], 2],
       [['auth', 'status', '--token', 'chrm_user_test'], 0],

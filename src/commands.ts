@@ -33,6 +33,8 @@ const READ_TIMEOUT_MS = 2_000;
 const SOURCE_READ_TIMEOUT_MS = 10_000;
 const MUTATE_TIMEOUT_MS = 10_000;
 const CALL_TIMEOUT_MS = 30_000;
+const APP_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_APP_ID_ACTIONS = new Set(['call', 'describe', 'source', 'update', 'delete', 'rename']);
 
 function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
@@ -229,6 +231,11 @@ export async function runApps(
 
   const appId = positionals[0];
   if (!appId) throw new Error(`Usage: charming apps ${action ?? '<command>'} <APP_ID>`);
+  if (action && UUID_APP_ID_ACTIONS.has(action) && !APP_ID_RE.test(appId)) {
+    throw new Error(
+      'Invalid app ID. Run `charming apps list` and pass the app ID from its `id` field.',
+    );
+  }
 
   if (action === 'delete') requireDeletionConsent(context);
 
