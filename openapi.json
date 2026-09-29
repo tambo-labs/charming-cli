@@ -12143,7 +12143,7 @@
       "post": {
         "operationId": "create-routine",
         "summary": "Schedule a Routine on an app",
-        "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a per-app and a per-owner cap. Both depend on the owner's plan, so read the `limits` object on `GET /api/v1/routines` for the caller's actual ceilings rather than assuming a tier; the free defaults are 3 per app and 25 per owner.",
+        "description": "Session-gated; requires `app:write`. Schedules a declared op to run on its own, on a timer (`hourly` | `daily` | `weekly`). The op is invoked with empty input, so it must declare no required input fields. Rejects a duplicate (app, op) pair, and enforces a per-app and a per-owner cap from the app owner's plan, which for a team app is the team's plan rather than the caller's. `limits` on `GET /api/v1/routines` reports the caller's own plan, so it matches only their personal apps. The free defaults are 3 per app and 25 per owner.",
         "security": [
           {
             "userToken": []
@@ -12424,7 +12424,7 @@
       "post": {
         "operationId": "create-webhook",
         "summary": "Declare a Webhook on an app",
-        "description": "Session-gated; requires `app:write`. Declares one of the app’s ops as a Webhook target an external sender can invoke by POSTing to the returned `url` with the returned `secret` (shown once). Unlike a Routine, the op may declare required input: the sender supplies the body. Rejects a duplicate (app, op) pair and enforces a per-app and a per-owner cap from the owner's plan; read `limits` on `GET /api/v1/webhooks` for the caller's ceilings. The free defaults are 3 per app and 25 per owner.",
+        "description": "Session-gated; requires `app:write`. Declares one of the app’s ops as a Webhook target an external sender can invoke by POSTing to the returned `url` with the returned `secret` (shown once). Unlike a Routine, the op may declare required input: the sender supplies the body. Rejects a duplicate (app, op) pair and enforces a per-app and a per-owner cap from the app owner's plan, which for a team app is the team's plan rather than the caller's. `limits` on `GET /api/v1/webhooks` reports the caller's own plan, so it matches only their personal apps. The free defaults are 3 per app and 25 per owner.",
         "security": [
           {
             "userToken": []
