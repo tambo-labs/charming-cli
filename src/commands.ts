@@ -13,7 +13,7 @@ import {
   saveAppToken,
   saveToken,
 } from './config.js';
-import { findOperation, operations } from './contract.js';
+import { findOperation, type Operation, operations } from './contract.js';
 import { readAppBundle, readJsonValue, writeAppBundle } from './files.js';
 import { ApiError, CharmingClient, isOpenableUrl } from './http.js';
 
@@ -40,7 +40,7 @@ function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
 }
 
-function requireConsent(context: CommandContext, subject = 'Deletion'): void {
+function requireConsent(context: CommandContext, subject = 'This action'): void {
   if (context.options['dry-run'] !== true && context.options.yes !== true) {
     throw new Error(`${subject} requires --yes. Use --dry-run to preview it.`);
   }
@@ -55,10 +55,14 @@ function parseAssignment(entry: string, option: 'header' | 'param'): [string, st
 // Operations that upsert by a caller-supplied id and silently overwrite an existing
 // row in place, so they need the same --yes consent as a DELETE.
 const REPLACES_IN_PLACE = new Set(['create-app']);
-const DELETES_APP_SHARES = new Set([
+const REQUIRES_CONSENT = new Set([
+  'add-team-member',
+  'decline-app-share',
+  'decline-team-invitation',
   'revoke-app-share',
   'revoke-app-share-by-id',
-  'decline-app-share',
+  'transfer-app',
+  'update-team-app-defaults',
 ]);
 const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
 
@@ -384,7 +388,13 @@ export async function runApi(
       `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
     );
   }
-  if (operation.method === 'DELETE' || DELETES_APP_SHARES.has(operation.id)) {
+  const sessionOnly = acceptsOnlySessionCookie(operation);
+  if (sessionOnly && context.token) {
+    throw new Error(
+      `Operation ${operation.id} does not accept --token. It needs a signed-in Charming session cookie. Pass one with --header Cookie=NAME=VALUE, or do this in the Charming web app.`,
+    );
+  }
+  if (operation.method === 'DELETE' || REQUIRES_CONSENT.has(operation.id)) {
     requireConsent(context);
   }
   const supplied = new Map(
@@ -446,7 +456,17 @@ export async function runApi(
       body: redactDryRunBody(operation.id, body),
     };
   }
-  const token = await rawRequestToken(context, supplied.get('id'));
+  if (sessionOnly) {
+    const hasCookie = Object.entries(headers).some(
+      ([name, value]) => name.toLowerCase() === 'cookie' && value.length > 0,
+    );
+    if (!hasCookie) {
+      throw new Error(
+        `Operation ${operation.id} needs a signed-in Charming session cookie. Personal access tokens, including the one from \`charming auth login\`, are not accepted. Do this in the Charming web app, or pass your session cookie with --header Cookie=NAME=VALUE.`,
+      );
+    }
+  }
+  const token = sessionOnly ? undefined : await rawRequestToken(context, supplied.get('id'));
   if (
     operation.id === 'create-app' &&
     (!isUserToken(token) ||
@@ -476,6 +496,13 @@ export async function runApi(
       timeoutMs: timeoutFor(context, operation.timeoutMs),
     })
   ).data;
+}
+
+function acceptsOnlySessionCookie(operation: Operation): boolean {
+  return (
+    operation.security.length > 0 &&
+    operation.security.every((scheme) => scheme === 'sessionCookie')
+  );
 }
 
 export function agentContext(baseUrl: string): unknown {

@@ -61,7 +61,7 @@ charming apps update <app-id> ./my-app
 
 Other commands: `charming apps list`, `charming apps describe <app-id>` (the public descriptor — ops and input schemas), `charming apps rename <app-id> <name>`, `charming apps delete <app-id> --yes`.
 
-Run mutations with `--dry-run` first. Signed-in creates and deletions require `--yes`; pass it only after the user approves that action.
+Run mutations with `--dry-run` first. Signed-in creates, deletions, share revocations and declines, and the team actions listed under the platform API require `--yes`; pass it only after the user approves that action.
 
 Read JSON results from stdout. Login instructions and JSON errors use stderr. Branch on `error.kind`. Follow `error.recovery` when present. Never print tokens or `device_code` values. Show `user_code` only during login.
 
@@ -166,6 +166,8 @@ More patterns, including agent-mediated enrichment and display-only apps: [resou
 
 1. `charming api list`, then `charming api describe <operation-id>`.
 2. `charming api request set-app-public --param id=<app-id> --body '{"public":true}' --dry-run`
+
+For team operations, inspect `security` in `api describe`. Personal tokens work for operations that list `userToken`, including the team inventory reads (`list-team-apps`, `get-team-audit`, `list-team-egress`, `get-team-exposure`, `list-team-people`, `list-team-shares`). An operation whose `security` is only `sessionCookie` needs a signed-in session cookie, which CLI login does not provide: the CLI sends no bearer token, refuses `--token`, and fails before sending without `--header Cookie=NAME=VALUE`. Ask the user to do it in the Charming web app, or to supply an existing session cookie. App transfers, invitation declines, direct team member additions, and team App default changes require `--yes`; preview them with `--dry-run` first.
 
 `charming doctor` checks connectivity, auth, and contract freshness. `charming agent-context` prints the CLI's own contract as JSON.
 

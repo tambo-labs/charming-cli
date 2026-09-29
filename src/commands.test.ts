@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -65,7 +65,184 @@ describe('redactSecrets', () => {
   });
 });
 
+const SESSION_COOKIE = 'better-auth.session_token=fixture-session';
+const SESSION_COOKIE_REQUIRED =
+  'Operation update-team-member needs a signed-in Charming session cookie. Personal access tokens, including the one from `charming auth login`, are not accepted. Do this in the Charming web app, or pass your session cookie with --header Cookie=NAME=VALUE.';
+
+async function withSavedToken<T>(
+  baseUrl: string,
+  token: string,
+  use: () => Promise<T>,
+): Promise<T> {
+  const directory = await mkdtemp(join(tmpdir(), 'charming-session-'));
+  await mkdir(join(directory, 'charming'));
+  await writeFile(
+    join(directory, 'charming', 'config.json'),
+    `${JSON.stringify({ tokens: { [baseUrl]: token } })}\n`,
+  );
+  vi.stubEnv('XDG_CONFIG_HOME', directory);
+  try {
+    return await use();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 describe('runCommand', () => {
+  test.each([
+    {
+      operation: 'transfer-app',
+      param: ['appId=app-1'],
+      path: '/api/v1/apps/app-1/transfer',
+      method: 'POST',
+      body: '{"teamId":"team-1","keepExistingAppMembers":false}',
+    },
+    {
+      operation: 'decline-team-invitation',
+      param: ['invitationId=invite-1'],
+      path: '/api/v1/team-invitations/invite-1/decline',
+      method: 'POST',
+      header: [`Cookie=${SESSION_COOKIE}`],
+    },
+    {
+      operation: 'add-team-member',
+      param: ['teamId=team-1'],
+      path: '/api/v1/teams/team-1/members',
+      method: 'POST',
+      body: '{"grantee":"friend@charming.test","role":"owner"}',
+    },
+    {
+      operation: 'update-team-app-defaults',
+      param: ['teamId=team-1'],
+      path: '/api/v1/teams/team-1/app-defaults',
+      method: 'PATCH',
+      body: '{"generalAccessTier":"public-view"}',
+    },
+  ])(
+    'requires consent before $operation sends a request',
+    async ({ operation, param, path, method, body, header }) => {
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async () => Response.json({ ok: true }));
+      const context: CommandContext = {
+        baseUrl: 'https://charming.test',
+        fetchImpl,
+        options: { param, ...(body ? { body } : {}), ...(header ? { header } : {}) },
+        ...(header ? {} : { token: 'chrm_user_fixture' }),
+      };
+      await expect(runApi('request', [operation], context)).rejects.toThrow(
+        new Error('This action requires --yes. Use --dry-run to preview it.'),
+      );
+      expect(fetchImpl).not.toHaveBeenCalled();
+      await expect(
+        runApi('request', [operation], {
+          ...context,
+          options: { ...context.options, 'dry-run': true },
+        }),
+      ).resolves.toMatchObject({ dryRun: true, method, path });
+      expect(fetchImpl).not.toHaveBeenCalled();
+      await expect(
+        runApi('request', [operation], { ...context, options: { ...context.options, yes: true } }),
+      ).resolves.toEqual({ ok: true });
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(`https://charming.test${path}`);
+      expect(fetchImpl.mock.calls[0]?.[1]?.method).toBe(method);
+    },
+  );
+
+  describe('session-cookie-only operations', () => {
+    const baseUrl = 'https://charming.test';
+    const updateMember = {
+      param: ['teamId=team-1', 'memberId=member-1'],
+      body: '{"role":"admin"}',
+    };
+
+    test('send the Cookie header and no bearer even with a saved token', async () => {
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async () => Response.json({ ok: true }));
+
+      const result = await withSavedToken(baseUrl, 'chrm_user_expired', () =>
+        runApi('request', ['update-team-member'], {
+          baseUrl,
+          fetchImpl,
+          options: { ...updateMember, header: [`cookie=${SESSION_COOKIE}`] },
+        }),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(fetchImpl).toHaveBeenCalledOnce();
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${baseUrl}/api/v1/teams/team-1/members/member-1`);
+      const headers = new Headers(fetchImpl.mock.calls[0]?.[1]?.headers);
+      expect(headers.get('cookie')).toBe(SESSION_COOKIE);
+      expect(headers.has('authorization')).toBe(false);
+    });
+
+    test('fail before any request when no Cookie header is supplied', async () => {
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      await expect(
+        withSavedToken(baseUrl, 'chrm_user_saved', () =>
+          runApi('request', ['update-team-member'], {
+            baseUrl,
+            fetchImpl,
+            options: updateMember,
+          }),
+        ),
+      ).rejects.toThrow(new Error(SESSION_COOKIE_REQUIRED));
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    test('refuse an explicit --token instead of dropping it', async () => {
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      await expect(
+        runApi('request', ['update-team-member'], {
+          baseUrl,
+          fetchImpl,
+          options: { ...updateMember, header: [`Cookie=${SESSION_COOKIE}`] },
+          token: 'chrm_user_fixture',
+        }),
+      ).rejects.toThrow('Operation update-team-member does not accept --token.');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    test('preview with --dry-run without a cookie', async () => {
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      await expect(
+        runApi('request', ['update-team-member'], {
+          baseUrl,
+          fetchImpl,
+          options: { ...updateMember, 'dry-run': true },
+        }),
+      ).resolves.toEqual({
+        dryRun: true,
+        method: 'PATCH',
+        path: '/api/v1/teams/team-1/members/member-1',
+        body: { role: 'admin' },
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    test('leave bearer auth on operations that accept a personal token', async () => {
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async () => Response.json({ apps: [] }));
+
+      await withSavedToken(baseUrl, 'chrm_user_saved', () =>
+        runApi('request', ['list-team-apps'], {
+          baseUrl,
+          fetchImpl,
+          options: { param: ['teamId=team-1'] },
+        }),
+      );
+
+      const headers = new Headers(fetchImpl.mock.calls[0]?.[1]?.headers);
+      expect(headers.get('authorization')).toBe('Bearer chrm_user_saved');
+    });
+  });
+
   test('updates from a project directory with optimistic concurrency', async () => {
     const directory = await appDirectory();
     const fetchImpl = vi
@@ -171,7 +348,9 @@ describe('runCommand', () => {
       token: 'chrm_user_fixture',
       options: { param, ...(body ? { body } : {}) },
     };
-    await expect(runCommand(context)).rejects.toThrow('Deletion requires --yes');
+    await expect(runCommand(context)).rejects.toThrow(
+      new Error('This action requires --yes. Use --dry-run to preview it.'),
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(
       await runCommand({ ...context, options: { ...context.options, 'dry-run': true } }),
@@ -453,7 +632,7 @@ describe('runCommand', () => {
         options: { param: ['id=app-1'] },
         token: 'bld_user_test',
       }),
-    ).rejects.toThrow('Deletion requires --yes');
+    ).rejects.toThrow(new Error('This action requires --yes. Use --dry-run to preview it.'));
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

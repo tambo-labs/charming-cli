@@ -18,6 +18,12 @@
   ],
   "components": {
     "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Secure-better-auth.session_token",
+        "description": "Authenticated Better Auth session cookie. HTTPS uses __Secure-better-auth.session_token; local HTTP uses better-auth.session_token. Personal access tokens cannot replace this cookie on operations that list only `sessionCookie`."
+      },
       "appToken": {
         "type": "http",
         "scheme": "bearer",
@@ -28,7 +34,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "chrm_user_*",
-        "description": "User-scoped personal access token. Mint via `POST /api/token` after signing in, or via the device-pairing flow at `POST /api/pair/start`. Authorises everything the user can do."
+        "description": "User-scoped personal access token. Mint via `POST /api/token` after signing in, or via the device-pairing flow at `POST /api/pair/start`. Accepted by every operation that lists `userToken` in its `security`; operations that list only `sessionCookie` refuse it with 401 `unauthorized`."
       },
       "renderToken": {
         "type": "http",
@@ -95,6 +101,1569 @@
       }
     },
     "schemas": {
+      "AppTransferResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "userId",
+          "teamId"
+        ],
+        "description": "Post-transfer owner scope: exactly one of userId/teamId is set.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TeamListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "teams"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamSummary"
+            }
+          }
+        }
+      },
+      "TeamCreateResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "team"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "team": {
+            "type": "object",
+            "required": [
+              "id",
+              "slug"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "TeamAppDefaultsResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "defaults"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "defaults": {
+            "$ref": "#/components/schemas/TeamAppDefaults"
+          }
+        }
+      },
+      "TeamAppListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "apps",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamAppSummary"
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team owns more apps than this page returned."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      },
+      "TeamAuditResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "audit",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamAuditRow"
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when more rows follow this page under the active sort."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      },
+      "TeamEgressResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "destinations",
+          "hasMore",
+          "scanTruncated"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "destinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamEgressDestination"
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more destinations than this page returned."
+          },
+          "scanTruncated": {
+            "type": "boolean",
+            "description": "True when the underlying event scan hit its row cap before grouping — every `api-op` destination’s `calls`/`failedCalls` in this response is a lower bound, not the true count."
+          }
+        }
+      },
+      "TeamExposureResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "exposure"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "exposure": {
+            "type": "object",
+            "required": [
+              "public",
+              "signed-in",
+              "template",
+              "shared",
+              "private",
+              "externalShares"
+            ],
+            "description": "Counts every team app exactly once, by the widest audience `deriveAppVisibility` assigns it, plus the count of shares whose grantee classifies external.",
+            "properties": {
+              "public": {
+                "type": "integer"
+              },
+              "signed-in": {
+                "type": "integer"
+              },
+              "template": {
+                "type": "integer"
+              },
+              "shared": {
+                "type": "integer"
+              },
+              "private": {
+                "type": "integer"
+              },
+              "externalShares": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "TeamInvitationCreateResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "invitation"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "invitation": {
+            "type": "object",
+            "required": [
+              "id",
+              "email",
+              "role",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "TeamMemberAddResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "userId",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "userId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        }
+      },
+      "TeamPeopleResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "people",
+          "hasMore"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamPerson"
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more members than this page returned."
+          }
+        }
+      },
+      "ShareLedgerResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "shares",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareLedgerRow"
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more matching shares than this page returned."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      },
+      "AppSharesListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "shares"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "grantee",
+                "status",
+                "role"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "grantee": {
+                  "type": "object",
+                  "required": [
+                    "kind",
+                    "label"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "account",
+                        "email"
+                      ]
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "handle": {
+                      "type": "string",
+                      "description": "The account grantee’s handle, which names their avatar at `/<handle>.png`. Absent for email invitations and accounts without a handle."
+                    }
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "accepted",
+                    "invited"
+                  ]
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "collaborator",
+                    "end-user",
+                    "viewer"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ShareInviteResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "status"
+        ],
+        "description": "`pending` = an existing user must accept; `invited` = an email-keyed invitation that materializes when that address registers.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "invited"
+            ]
+          }
+        }
+      },
+      "ShareRoleResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          }
+        }
+      },
+      "ShareAcceptResponse": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "alreadyAccepted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      },
+      "ShareRemovedResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "removed"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "removed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AppSignedInAccessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ok",
+          "signedInAccess"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "signedInAccess": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "viewer",
+              "end-user",
+              null
+            ]
+          }
+        }
+      },
+      "TemplateListingResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "listing"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "listing": {
+            "$ref": "#/components/schemas/TemplateListing"
+          }
+        }
+      },
+      "WidgetRuntimeIssueHandoffResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "prompt"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "prompt": {
+            "type": "string"
+          }
+        }
+      },
+      "AppBuildResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "buildId",
+          "intent",
+          "state",
+          "sourceEtag",
+          "statusUrl",
+          "attempts",
+          "acceptedAt",
+          "updatedAt",
+          "finishedAt",
+          "elapsedMs",
+          "lockState",
+          "inputDigest",
+          "queueDeadline",
+          "deadline",
+          "inspectionExpiresAt",
+          "idempotencyExpiresAt"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "buildId": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "migrate",
+              "restore",
+              "copy"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "resolving",
+              "building",
+              "validating",
+              "published",
+              "failed",
+              "superseded",
+              "canceled",
+              "expired"
+            ]
+          },
+          "sourceEtag": {
+            "type": "string"
+          },
+          "statusUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "retryAfterSeconds": {
+            "type": "integer"
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Published app source revision. Present only after successful publication."
+          },
+          "desiredRevision": {
+            "type": "integer"
+          },
+          "activeRevision": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "elapsedMs": {
+            "type": "integer"
+          },
+          "lockState": {
+            "type": "string",
+            "enum": [
+              "locked",
+              "unresolved"
+            ]
+          },
+          "inputDigest": {
+            "type": "string"
+          },
+          "lockDigest": {
+            "type": "string"
+          },
+          "resolvedDependencies": {
+            "type": "object",
+            "required": [
+              "server",
+              "client"
+            ],
+            "properties": {
+              "server": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "client": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "queueDeadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inspectionExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "idempotencyExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "module",
+              "ui",
+              "styles",
+              "description"
+            ],
+            "properties": {
+              "module": {
+                "type": "string"
+              },
+              "ui": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "styles": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "kind",
+              "message",
+              "retryable"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "details": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution",
+                      "operationId"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "not_started",
+                          "may_have_run"
+                        ]
+                      },
+                      "operationId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "reservationId": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "execution"
+                    ],
+                    "properties": {
+                      "execution": {
+                        "type": "string",
+                        "enum": [
+                          "may_have_run"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "target": {
+                "type": "string"
+              },
+              "specifier": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              },
+              "column": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "AppBuildPage": {
+        "type": "string",
+        "description": "Authenticated browser build progress or terminal result page."
+      },
+      "AppActivityResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "appId",
+          "items",
+          "hasMore",
+          "retention"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when older entries exist. Fetch them with `before` and `beforeId` set from the oldest entry returned."
+          },
+          "retention": {
+            "type": "object",
+            "required": [
+              "tier",
+              "hours",
+              "since",
+              "truncated"
+            ],
+            "description": "The plan window this read used. Older events are hidden, not deleted.",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "free",
+                  "pro",
+                  "business",
+                  "enterprise"
+                ]
+              },
+              "hours": {
+                "type": "integer",
+                "description": "Length of the plan window."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The cutoff this read used."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when the plan window set the cutoff."
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "ts",
+                "kind",
+                "summary",
+                "data"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Pass back as `beforeId` (with `before`) to page further."
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TeamSummary": {
+        "type": "object",
+        "required": [
+          "teamId",
+          "name",
+          "slug",
+          "role",
+          "memberCount",
+          "appCount",
+          "members"
+        ],
+        "description": "One row in the caller’s team list.",
+        "properties": {
+          "teamId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "description": "The caller’s own role in this team."
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "appCount": {
+            "type": "integer"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberSummary"
+            }
+          }
+        }
+      },
+      "TeamAppDefaults": {
+        "type": "object",
+        "required": [
+          "teamId",
+          "generalAccessTier",
+          "templateEnabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "teamId": {
+            "type": "string"
+          },
+          "generalAccessTier": {
+            "type": "string",
+            "enum": [
+              "invited-only",
+              "public-view",
+              "public-and-signed-in-use"
+            ]
+          },
+          "templateEnabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "TeamAppSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "appName",
+          "displayName",
+          "visibility",
+          "createdByLabel",
+          "shareCount",
+          "updatedAtMs"
+        ],
+        "description": "One row in the team apps inventory.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Friendly-URL slug."
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "signed-in",
+              "template",
+              "shared",
+              "private"
+            ],
+            "description": "The widest audience that can reach the app."
+          },
+          "createdByLabel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name of the account that created the app, null when no creator was recorded, and \"Former member\" when the creator has left the team or deleted their account."
+          },
+          "shareCount": {
+            "type": "integer",
+            "description": "Share grants (accepted and pending) plus pending email invitations."
+          },
+          "updatedAtMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "TeamAuditRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "appId",
+          "appDisplayName",
+          "actor",
+          "client",
+          "createdAtMs",
+          "summary"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appDisplayName": {
+            "type": "string"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for an anonymous/public end-user viewer."
+          },
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "Web",
+              "MCP",
+              null
+            ]
+          },
+          "createdAtMs": {
+            "type": "integer"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "TeamEgressDestination": {
+        "type": "object",
+        "required": [
+          "destination",
+          "kind",
+          "calls",
+          "lastSeenMs",
+          "failedCalls",
+          "callers"
+        ],
+        "description": "One egress destination, discriminated by `kind`.",
+        "properties": {
+          "destination": {
+            "type": "string",
+            "description": "The declared host origin, or the `requestedOp` string."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "outbound-host",
+              "api-op"
+            ]
+          },
+          "calls": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null for `outbound-host` — config, not traffic."
+          },
+          "lastSeenMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null for `outbound-host`."
+          },
+          "failedCalls": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Count of calls with a 4xx/5xx status or a non-null errorKind. Null for `outbound-host`."
+          },
+          "callers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamEgressCaller"
+            }
+          }
+        }
+      },
+      "TeamPerson": {
+        "type": "object",
+        "required": [
+          "userId",
+          "label",
+          "role",
+          "appsOwned",
+          "appsCreated",
+          "lastActiveMs",
+          "externalShareCount"
+        ],
+        "description": "One row in the People tab — a current team member with their app footprint.",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "appsOwned": {
+            "type": "integer"
+          },
+          "appsCreated": {
+            "type": "integer"
+          },
+          "lastActiveMs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Null (never epoch zero) for a member with no attributable events."
+          },
+          "externalShareCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "ShareLedgerRow": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "appId",
+          "appDisplayName",
+          "grantee",
+          "role",
+          "scope",
+          "status",
+          "createdAtMs"
+        ],
+        "description": "One row in the shares ledger — a grant, an invitation, or a live share link, normalized to one shape.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "person",
+              "invite",
+              "link"
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appDisplayName": {
+            "type": "string"
+          },
+          "grantee": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Handle or email; null for a link (nobody is behind the door yet)."
+          },
+          "role": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "internal",
+              "external"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "active",
+              "redeemed",
+              "revoked"
+            ]
+          },
+          "createdAtMs": {
+            "type": "integer"
+          }
+        }
+      },
+      "TemplateListing": {
+        "type": "object",
+        "required": [
+          "appId",
+          "creator",
+          "builders",
+          "draft",
+          "resolved",
+          "templateEnabled",
+          "listed",
+          "validation",
+          "publicUrl"
+        ],
+        "properties": {
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "creator": {
+            "type": "object",
+            "required": [
+              "handle"
+            ],
+            "properties": {
+              "handle": {
+                "type": "string"
+              }
+            }
+          },
+          "builders": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "draft": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/TemplateListingFields"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "legacyFallback"
+                ],
+                "properties": {
+                  "legacyFallback": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          },
+          "resolved": {
+            "$ref": "#/components/schemas/TemplateListingFields"
+          },
+          "templateEnabled": {
+            "type": "boolean"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "validation": {
+            "type": "object",
+            "required": [
+              "complete",
+              "missingFields"
+            ],
+            "properties": {
+              "complete": {
+                "type": "boolean"
+              },
+              "missingFields": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "title",
+                    "summary"
+                  ]
+                }
+              }
+            }
+          },
+          "publicUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TeamMemberSummary": {
+        "type": "object",
+        "required": [
+          "userId",
+          "memberId",
+          "name",
+          "image",
+          "handle",
+          "role",
+          "isYou"
+        ],
+        "description": "One member in a team roster. `memberId` is the membership-row id used by the member PATCH/DELETE endpoints (distinct from `userId`).",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "memberId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "handle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "description": "Comma-joined role string (e.g. `owner`)."
+          },
+          "isYou": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TeamEgressCaller": {
+        "type": "object",
+        "required": [
+          "appId",
+          "appDisplayName"
+        ],
+        "properties": {
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appDisplayName": {
+            "type": "string"
+          }
+        }
+      },
+      "TemplateListingFields": {
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "contentMarkdown",
+          "category",
+          "cover",
+          "gallery"
+        ],
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentMarkdown": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "business",
+              "developer-tools",
+              "education",
+              "entertainment",
+              "lifestyle",
+              "productivity",
+              "utilities",
+              null
+            ]
+          },
+          "cover": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TemplateListingMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateListingMedia"
+            }
+          }
+        }
+      },
+      "TemplateListingMedia": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "assetKey",
+          "url",
+          "alt",
+          "caption",
+          "position"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "screenshot"
+            ]
+          },
+          "assetKey": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "Error": {
         "type": "object",
         "required": [
@@ -823,797 +2392,6 @@
                 }
               }
             }
-          }
-        }
-      },
-      "AppBuildResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "buildId",
-          "intent",
-          "state",
-          "sourceEtag",
-          "statusUrl",
-          "attempts",
-          "acceptedAt",
-          "updatedAt",
-          "finishedAt",
-          "elapsedMs",
-          "lockState",
-          "inputDigest",
-          "queueDeadline",
-          "deadline",
-          "inspectionExpiresAt",
-          "idempotencyExpiresAt"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "buildId": {
-            "type": "string"
-          },
-          "intent": {
-            "type": "string",
-            "enum": [
-              "create",
-              "update",
-              "migrate",
-              "restore",
-              "copy"
-            ]
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "queued",
-              "resolving",
-              "building",
-              "validating",
-              "published",
-              "failed",
-              "superseded",
-              "canceled",
-              "expired"
-            ]
-          },
-          "sourceEtag": {
-            "type": "string"
-          },
-          "statusUrl": {
-            "type": "string",
-            "format": "uri"
-          },
-          "retryAfterSeconds": {
-            "type": "integer"
-          },
-          "appId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "revision": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "Published app source revision. Present only after successful publication."
-          },
-          "desiredRevision": {
-            "type": "integer"
-          },
-          "activeRevision": {
-            "type": "integer"
-          },
-          "url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "attempts": {
-            "type": "integer"
-          },
-          "acceptedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "finishedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "elapsedMs": {
-            "type": "integer"
-          },
-          "lockState": {
-            "type": "string",
-            "enum": [
-              "locked",
-              "unresolved"
-            ]
-          },
-          "inputDigest": {
-            "type": "string"
-          },
-          "lockDigest": {
-            "type": "string"
-          },
-          "resolvedDependencies": {
-            "type": "object",
-            "required": [
-              "server",
-              "client"
-            ],
-            "properties": {
-              "server": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "client": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "queueDeadline": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "deadline": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "inspectionExpiresAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "idempotencyExpiresAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "source": {
-            "type": "object",
-            "required": [
-              "module",
-              "ui",
-              "styles",
-              "description"
-            ],
-            "properties": {
-              "module": {
-                "type": "string"
-              },
-              "ui": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "styles": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              }
-            }
-          },
-          "error": {
-            "type": "object",
-            "required": [
-              "kind",
-              "message",
-              "retryable"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              },
-              "retryable": {
-                "type": "boolean"
-              },
-              "details": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "execution",
-                      "operationId"
-                    ],
-                    "properties": {
-                      "execution": {
-                        "type": "string",
-                        "enum": [
-                          "not_started",
-                          "may_have_run"
-                        ]
-                      },
-                      "operationId": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "reservationId": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "execution"
-                    ],
-                    "properties": {
-                      "execution": {
-                        "type": "string",
-                        "enum": [
-                          "may_have_run"
-                        ]
-                      }
-                    }
-                  }
-                ]
-              },
-              "target": {
-                "type": "string"
-              },
-              "specifier": {
-                "type": "string"
-              },
-              "line": {
-                "type": "integer"
-              },
-              "column": {
-                "type": "integer"
-              }
-            }
-          }
-        }
-      },
-      "AppBuildPage": {
-        "type": "string",
-        "description": "Authenticated browser build progress or terminal result page."
-      },
-      "AppActivityResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "appId",
-          "items",
-          "hasMore",
-          "retention"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "appId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "hasMore": {
-            "type": "boolean",
-            "description": "True when older entries exist. Fetch them with `before` and `beforeId` set from the oldest entry returned."
-          },
-          "retention": {
-            "type": "object",
-            "required": [
-              "tier",
-              "hours",
-              "since",
-              "truncated"
-            ],
-            "description": "The plan window this read used. Older events are hidden, not deleted.",
-            "properties": {
-              "tier": {
-                "type": "string",
-                "enum": [
-                  "free",
-                  "pro",
-                  "business",
-                  "enterprise"
-                ]
-              },
-              "hours": {
-                "type": "integer",
-                "description": "Length of the plan window."
-              },
-              "since": {
-                "type": "string",
-                "format": "date-time",
-                "description": "The cutoff this read used."
-              },
-              "truncated": {
-                "type": "boolean",
-                "description": "True when the plan window set the cutoff."
-              }
-            }
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "id",
-                "ts",
-                "kind",
-                "summary",
-                "data"
-              ],
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "Pass back as `beforeId` (with `before`) to page further."
-                },
-                "ts": {
-                  "type": "string",
-                  "format": "date-time"
-                },
-                "kind": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": [
-                    "integer",
-                    "null"
-                  ]
-                },
-                "summary": {
-                  "type": "string"
-                },
-                "data": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      },
-      "AppSharesListResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "shares"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "shares": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": [
-                "id",
-                "grantee",
-                "status",
-                "role"
-              ],
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "grantee": {
-                  "type": "object",
-                  "required": [
-                    "kind",
-                    "label"
-                  ],
-                  "properties": {
-                    "kind": {
-                      "type": "string",
-                      "enum": [
-                        "account",
-                        "email"
-                      ]
-                    },
-                    "label": {
-                      "type": "string"
-                    },
-                    "handle": {
-                      "type": "string",
-                      "description": "The account grantee’s handle, which names their avatar at `/<handle>.png`. Absent for email invitations and accounts without a handle."
-                    }
-                  }
-                },
-                "status": {
-                  "type": "string",
-                  "enum": [
-                    "pending",
-                    "accepted",
-                    "invited"
-                  ]
-                },
-                "role": {
-                  "type": "string",
-                  "enum": [
-                    "collaborator",
-                    "end-user",
-                    "viewer"
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
-      "AppSignedInAccessResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "ok",
-          "signedInAccess"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "signedInAccess": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "viewer",
-              "end-user",
-              null
-            ]
-          }
-        }
-      },
-      "ShareAcceptResponse": {
-        "type": "object",
-        "required": [
-          "ok"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "alreadyAccepted": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          }
-        }
-      },
-      "ShareInviteResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "status"
-        ],
-        "description": "`pending` = an existing user must accept; `invited` = an email-keyed invitation that materializes when that address registers.",
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "invited"
-            ]
-          }
-        }
-      },
-      "ShareRemovedResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "removed"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "removed": {
-            "type": "boolean"
-          }
-        }
-      },
-      "ShareRoleResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "role"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "collaborator",
-              "end-user",
-              "viewer"
-            ]
-          }
-        }
-      },
-      "TemplateListing": {
-        "type": "object",
-        "required": [
-          "appId",
-          "creator",
-          "builders",
-          "draft",
-          "resolved",
-          "templateEnabled",
-          "listed",
-          "validation",
-          "publicUrl"
-        ],
-        "properties": {
-          "appId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "creator": {
-            "type": "object",
-            "required": [
-              "handle"
-            ],
-            "properties": {
-              "handle": {
-                "type": "string"
-              }
-            }
-          },
-          "builders": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "draft": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/TemplateListingFields"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "legacyFallback"
-                ],
-                "properties": {
-                  "legacyFallback": {
-                    "type": "boolean"
-                  }
-                }
-              }
-            ]
-          },
-          "resolved": {
-            "$ref": "#/components/schemas/TemplateListingFields"
-          },
-          "templateEnabled": {
-            "type": "boolean"
-          },
-          "listed": {
-            "type": "boolean"
-          },
-          "validation": {
-            "type": "object",
-            "required": [
-              "complete",
-              "missingFields"
-            ],
-            "properties": {
-              "complete": {
-                "type": "boolean"
-              },
-              "missingFields": {
-                "type": "array",
-                "items": {
-                  "type": "string",
-                  "enum": [
-                    "title",
-                    "summary"
-                  ]
-                }
-              }
-            }
-          },
-          "publicUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "TemplateListingFields": {
-        "type": "object",
-        "required": [
-          "title",
-          "summary",
-          "contentMarkdown",
-          "category",
-          "cover",
-          "gallery"
-        ],
-        "properties": {
-          "title": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contentMarkdown": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "category": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "enum": [
-              "business",
-              "developer-tools",
-              "education",
-              "entertainment",
-              "lifestyle",
-              "productivity",
-              "utilities",
-              null
-            ]
-          },
-          "cover": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/TemplateListingMedia"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "gallery": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateListingMedia"
-            }
-          }
-        }
-      },
-      "TemplateListingMedia": {
-        "type": "object",
-        "required": [
-          "id",
-          "kind",
-          "assetKey",
-          "url",
-          "alt",
-          "caption",
-          "position"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "cover",
-              "screenshot"
-            ]
-          },
-          "assetKey": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "alt": {
-            "type": "string"
-          },
-          "caption": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "position": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
-      "TemplateListingResponse": {
-        "type": "object",
-        "required": [
-          "ok",
-          "listing"
-        ],
-        "properties": {
-          "ok": {
-            "type": "boolean",
-            "enum": [
-              true
-            ]
-          },
-          "listing": {
-            "$ref": "#/components/schemas/TemplateListing"
-          }
-        }
-      },
-      "WidgetRuntimeIssueHandoffResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "version",
-          "prompt"
-        ],
-        "properties": {
-          "version": {
-            "type": "integer",
-            "enum": [
-              1
-            ]
-          },
-          "prompt": {
-            "type": "string"
           }
         }
       },
@@ -3410,8 +4188,8 @@
     "idempotencyMs": 2592000000
   },
   "paths": {
-    "/api/v1/apps/{appId}/activity": {
-      "get": {
+    "/api/v1/apps/{appId}/transfer": {
+      "post": {
         "tags": [
           "Apps"
         ],
@@ -3424,70 +4202,21 @@
               "type": "string",
               "format": "uuid"
             }
-          },
-          {
-            "name": "kinds",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Comma-separated allow-list of event kinds. Kinds outside the owner-readable set are ignored."
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "description": "Inclusive ISO-8601 cutoff."
-          },
-          {
-            "name": "before",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "description": "Exclusive ISO-8601 cutoff — the load-more cursor. Pass the `ts` of the oldest entry you already have, together with `beforeId`, for an exact page boundary."
-          },
-          {
-            "name": "beforeId",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "The `id` of the oldest entry you already have. Pairs with `before` for an exact keyset cursor — without it, entries sharing `before`’s exact millisecond can be skipped. Ignored if `before` is absent."
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "description": "Defaults to 100, capped at 500."
           }
         ],
         "responses": {
           "200": {
-            "description": "Merged activity timeline for the app.",
+            "description": "App transferred.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppActivityResponse"
+                  "$ref": "#/components/schemas/AppTransferResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid app id, `since`, `before`, or `limit`.",
+            "description": "Malformed app id, malformed body, or a no-op/cross-scope transfer.",
             "x-error-kinds": [
               "invalid_request"
             ],
@@ -3513,7 +4242,7 @@
             }
           },
           "403": {
-            "description": "The caller cannot manage this app.",
+            "description": "Caller does not manage the app / cannot create in the team.",
             "x-error-kinds": [
               "forbidden"
             ],
@@ -3537,14 +4266,1949 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The destination already owns an app with this name.",
+            "x-error-kinds": [
+              "name_taken"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
-        "operationId": "get-app-activity-timeline",
-        "summary": "Get an app’s activity timeline",
-        "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
+        "operationId": "transfer-app",
+        "summary": "Transfer an app between the caller and a team",
+        "description": "User-gated (`chrm_user_*` or session). With `teamId`: user→team (caller must hold `app:manage` on the app and be owner/admin of the team). Without: team→user transfer to the caller.",
         "security": [
           {
             "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "teamId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Destination team. Absent or null = transfer to the caller."
+                  },
+                  "keepExistingAppMembers": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Keep direct grants, pending invitations, and active single-use links. Omitted means true."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/team-invitations/{invitationId}": {
+      "delete": {
+        "tags": [
+          "TeamInvitations"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Invitation cancelled."
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "cancel-team-invitation",
+        "summary": "Cancel an outgoing team invitation",
+        "description": "Session cookie required. Personal access tokens are not accepted; owner/admin of the invitation’s team only (plugin gate, relayed). Removes the invitation from the pending set.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team-invitations/{invitationId}/accept": {
+      "post": {
+        "tags": [
+          "TeamInvitations"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation accepted; the caller is now a member.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate (wrong recipient, expired, …).",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "accept-team-invitation",
+        "summary": "Accept a team invitation",
+        "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin validates the caller is the invitation’s recipient and creates the membership; refusals are relayed verbatim.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team-invitations/{invitationId}/decline": {
+      "post": {
+        "tags": [
+          "TeamInvitations"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation declined.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate (wrong recipient, expired, …).",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "decline-team-invitation",
+        "summary": "Decline a team invitation",
+        "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin validates the caller is the invitation’s recipient and marks it rejected; refusals are relayed verbatim.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/team-invitations/{invitationId}/resend": {
+      "post": {
+        "tags": [
+          "TeamInvitations"
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation re-sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "resend-team-invitation",
+        "summary": "Re-send a team invitation",
+        "description": "Session cookie required. Personal access tokens are not accepted; owner/admin only (plugin gate, relayed). Issues a fresh invitation with a new expiry and re-fires the email, keeping one pending invite per address.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The caller’s teams.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-teams",
+        "summary": "List the caller’s teams",
+        "description": "User-gated (`chrm_user_*` or session). Every team the caller belongs to, with their role, member roster (owners first, caller flagged via `isYou`), and app-count rollup.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Team created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or invalid slug.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller's plan does not include teams.",
+            "x-error-kinds": [
+              "plan_required"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug is already taken.",
+            "x-error-kinds": [
+              "team_slug_taken"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "create-team",
+        "summary": "Create a team",
+        "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Business plan and are set up with Charming.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "slug": {
+                    "type": "string",
+                    "description": "Team handle (kebab-case, shared namespace)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{teamId}/app-defaults": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The defaults applied to new and transferred team Apps.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAppDefaultsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner or admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-team-app-defaults",
+        "summary": "Get team App defaults",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Defaults updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAppDefaultsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or default value.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner or admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-team-app-defaults",
+        "summary": "Update team App defaults",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Changes apply only to later App creates and transfers.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "minProperties": 1,
+                "properties": {
+                  "generalAccessTier": {
+                    "type": "string",
+                    "enum": [
+                      "invited-only",
+                      "public-view",
+                      "public-and-signed-in-use"
+                    ]
+                  },
+                  "templateEnabled": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{teamId}/apps": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "updatedAt:desc",
+                "updatedAt:asc",
+                "name:asc",
+                "name:desc"
+              ]
+            },
+            "description": "Order of the whole inventory. Defaults to `updatedAt:desc` (most recently updated first); `name` sorts case-insensitively by display name. Ties break by `id` in the same direction. An unknown value is rejected, not ignored."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s app inventory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAppListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit`, `sort`, or `cursor`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-apps",
+        "summary": "List a team’s app inventory",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Never includes a personal (user-owned) app, even one owned by a team member.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/audit": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          },
+          {
+            "name": "appId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Narrows to one app."
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "A user id — narrows to events where that person is the actor OR the end-user viewer."
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Narrows to one event kind. An unrecognized kind is rejected, not ignored."
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                7,
+                30,
+                90
+              ]
+            },
+            "description": "Trailing days to include. Defaults to 7."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt:desc",
+                "createdAt:asc"
+              ]
+            },
+            "description": "Order of the whole trail. Defaults to `createdAt:desc` (newest first); ties break by `id` in the same direction. An unknown value is rejected, not ignored. CSV exports honour it too."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400. CSV exports ignore it."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s audit trail, as JSON or (with `format=csv`) as `text/csv`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAuditResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit`, `appId`, `kind`, `range`, `sort`, or `cursor`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-team-audit",
+        "summary": "Get a team’s audit trail",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Newest-first (unless `sort` says otherwise) feed of share/publish lifecycle events AND end-user activity (renders, API calls) for every app the team owns. Defaults to the trailing 7 days.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/egress": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          },
+          {
+            "name": "appId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Narrow to destinations the given app declares or calls."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "lastSeen:desc",
+                "lastSeen:asc",
+                "destination:asc",
+                "destination:desc"
+              ]
+            },
+            "description": "Order of the whole list before `limit` cuts it. Defaults to `lastSeen:desc` (most recently called first); an `outbound-host` destination has no `lastSeenMs` and sorts last either way. An unknown value is rejected, not ignored. CSV exports honour it too."
+          },
+          {
+            "name": "failedOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, keeps only `api-op` destinations with a 4xx/5xx or errored call — an all-200 op vanishes. Never hides `outbound-host` destinations."
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                7,
+                30,
+                90
+              ]
+            },
+            "description": "Restricts the `api-op` group to events within this many days."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s egress ledger, as JSON or (with `format=csv`) as `text/csv`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamEgressResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit`, `range`, `failedOnly`, or `sort`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-egress",
+        "summary": "List a team’s egress ledger (declared hosts and API ops)",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. `outbound-host` destinations are declared config with no call counts; `api-op` destinations are grouped `api_proxy_result` events with real counts.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/exposure": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "When `csv`, returns `text/csv` (a single summary row) instead of JSON. Any other value falls through to JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s exposure summary, as JSON or (with `format=csv`) as `text/csv`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamExposureResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-team-exposure",
+        "summary": "Get a team’s exposure summary",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Tallies the same `deriveAppVisibility` counters the team app inventory shows, plus an `externalShares` attention count.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/invitations": {
+      "post": {
+        "tags": [
+          "TeamInvitations"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Invitation created and emailed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamInvitationCreateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate (caller is not an owner/admin).",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "create-team-invitation",
+        "summary": "Invite a user to a team by email",
+        "description": "Session cookie required. Personal access tokens are not accepted; the Better Auth org plugin gates the invite (owner/admin caller) and sends the email. Invitation actions live under /api/v1/team-invitations/{invitationId}.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "member"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{teamId}/members": {
+      "post": {
+        "tags": [
+          "TeamMembers"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Member added.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberAddResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or role.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller may not add members (or may not grant owner).",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No Charming account for the grantee.",
+            "x-error-kinds": [
+              "grantee_not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already a member.",
+            "x-error-kinds": [
+              "already_member"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "add-team-member",
+        "summary": "Add a member to a team",
+        "description": "User-gated (`chrm_user_*` or session); caller must be a team owner/admin, and only an owner may grant the `owner` role. The grantee (handle or email) must already hold a Charming account.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "grantee"
+                ],
+                "properties": {
+                  "grantee": {
+                    "type": "string",
+                    "description": "Handle or email of the new member."
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "member"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{teamId}/members/me": {
+      "delete": {
+        "tags": [
+          "TeamMembers"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Left the team."
+          },
+          "400": {
+            "description": "Refused — e.g. the caller is the sole owner.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "leave-team",
+        "summary": "Leave a team",
+        "description": "Session cookie required. Personal access tokens are not accepted. Removes the caller’s membership. Refused (relayed verbatim) when the caller is the team’s sole owner.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/members/{memberId}": {
+      "patch": {
+        "tags": [
+          "TeamMembers"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or role.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the owner-mint guard or the plugin gate.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-team-member",
+        "summary": "Change a team member’s role",
+        "description": "Session cookie required. Personal access tokens are not accepted. Only an owner may grant the `owner` role; everything else is the Better Auth org plugin’s gate, relayed verbatim.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "member"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "TeamMembers"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "memberId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed."
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Refused by the plugin gate.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "x-error-kinds-relayed": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "remove-team-member",
+        "summary": "Remove a member from a team",
+        "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin gates the removal and its refusal is relayed verbatim. Use `DELETE …/members/me` to leave.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/people": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 500, the cap, so one response carries the whole roster of all but the largest teams."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive match against the member label (name, handle, or email)."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "label:asc",
+                "label:desc",
+                "role:asc",
+                "role:desc",
+                "appsOwned:asc",
+                "appsOwned:desc",
+                "appsCreated:asc",
+                "appsCreated:desc",
+                "lastActive:asc",
+                "lastActive:desc",
+                "externalShares:asc",
+                "externalShares:desc"
+              ]
+            },
+            "description": "Order of the whole roster before `limit` cuts it. Defaults to `label:asc`. Ties fall to the member label, then the user id, ascending; a member with no recorded activity sorts as the earliest `lastActive`. An unknown value is rejected, not ignored. CSV exports honour it, and `q`, too."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s people, as JSON or (with `format=csv`) as `text/csv`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamPeopleResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit` or `sort`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-people",
+        "summary": "List a team’s people",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Every CURRENT team member with role, apps owned, apps created, last activity, and external shares granted.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/shares": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          },
+          {
+            "name": "appId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive match against the grantee handle/email."
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "external"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "person",
+                "invite",
+                "link"
+              ]
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "enum": [
+                7,
+                30,
+                90
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt:desc",
+                "createdAt:asc",
+                "app:asc",
+                "app:desc",
+                "grantee:asc",
+                "grantee:desc",
+                "status:asc",
+                "status:desc"
+              ]
+            },
+            "description": "Order of the whole ledger, as `<column>:<direction>`. Defaults to `createdAt:desc` (newest first). Ties break by `id` in the same direction; a row with no grantee sorts last either way. An unknown value is rejected, not ignored. CSV exports honour it too."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400. CSV exports ignore it."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "csv"
+              ]
+            },
+            "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s shares ledger, as JSON or (with `format=csv`) as `text/csv`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLedgerResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit`, `scope`, `kind`, `range`, `sort`, or `cursor`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner/admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-shares",
+        "summary": "List a team’s shares ledger",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Unions grants, invitations, and live share links across every app the team owns, newest first unless `sort` says otherwise.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
           }
         ]
       }
@@ -5639,6 +8303,145 @@
         "operationId": "cancel-app-build",
         "summary": "Cancel a pending app build",
         "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Cancellation remains available after authoring cohort removal. Browser form submissions render the terminal result as HTML.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
+    "/api/v1/apps/{appId}/activity": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated allow-list of event kinds. Kinds outside the owner-readable set are ignored."
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Inclusive ISO-8601 cutoff."
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Exclusive ISO-8601 cutoff — the load-more cursor. Pass the `ts` of the oldest entry you already have, together with `beforeId`, for an exact page boundary."
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The `id` of the oldest entry you already have. Pairs with `before` for an exact keyset cursor — without it, entries sharing `before`’s exact millisecond can be skipped. Ignored if `before` is absent."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Merged activity timeline for the app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppActivityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id, `since`, `before`, or `limit`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage this app.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-app-activity-timeline",
+        "summary": "Get an app’s activity timeline",
+        "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
         "security": [
           {
             "userToken": []

@@ -31,6 +31,112 @@ describe('main', () => {
     expect(output.stderr).toBe('');
   });
 
+  test('discovers team auth and executes bearer and cookie requests outside the source directory', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-team-cli-'));
+    const description = await runBinary(['api', 'describe', 'create-team-invitation'], cwd);
+    expect(JSON.parse(description.stdout)).toMatchObject({ security: ['sessionCookie'] });
+    expect(JSON.parse(description.stdout).description).toContain(
+      'Personal access tokens are not accepted',
+    );
+    const list = await runBinary(['api', 'describe', 'list-teams'], cwd);
+    expect(JSON.parse(list.stdout).security).toEqual(['sessionCookie', 'userToken']);
+    const requests: Array<{
+      method: string | undefined;
+      url: string | undefined;
+      authorization: string | undefined;
+      cookie: string | undefined;
+      body: string;
+    }> = [];
+    const server = createServer(async (request, response) => {
+      let body = '';
+      for await (const chunk of request) body += chunk;
+      requests.push({
+        method: request.method,
+        url: request.url,
+        authorization: request.headers.authorization,
+        cookie: request.headers.cookie,
+        body,
+      });
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ ok: true, fixture: 'team-result' }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected a TCP listener.');
+      const base = ['--base-url', `http://127.0.0.1:${address.port}`];
+      const read = await runBinary(
+        [...base, '--token', 'chrm_user_fixture', 'api', 'request', 'list-teams'],
+        cwd,
+      );
+      expect(JSON.parse(read.stdout)).toEqual({ ok: true, fixture: 'team-result' });
+      const write = [
+        ...base,
+        'api',
+        'request',
+        'update-team-app-defaults',
+        '--token',
+        'chrm_user_fixture',
+        '--param',
+        'teamId=team-1',
+        '--body',
+        '{"templateEnabled":true}',
+      ];
+      const preview = await runBinary([...write, '--dry-run'], cwd);
+      expect(JSON.parse(preview.stdout)).toMatchObject({
+        dryRun: true,
+        method: 'PATCH',
+        body: { templateEnabled: true },
+      });
+      expect(requests).toHaveLength(1);
+      expect(JSON.parse((await runBinary([...write, '--yes'], cwd)).stdout).ok).toBe(true);
+      const invite = await runBinary(
+        [
+          ...base,
+          'api',
+          'request',
+          'create-team-invitation',
+          '--param',
+          'teamId=team-1',
+          '--header',
+          'Cookie=better-auth.session_token=fixture-session',
+          '--body',
+          '{"email":"invitee@charming.test"}',
+        ],
+        cwd,
+      );
+      expect(JSON.parse(invite.stdout).ok).toBe(true);
+      expect(requests).toEqual([
+        {
+          method: 'GET',
+          url: '/api/v1/teams',
+          authorization: 'Bearer chrm_user_fixture',
+          cookie: undefined,
+          body: '',
+        },
+        {
+          method: 'PATCH',
+          url: '/api/v1/teams/team-1/app-defaults',
+          authorization: 'Bearer chrm_user_fixture',
+          cookie: undefined,
+          body: '{"templateEnabled":true}',
+        },
+        {
+          method: 'POST',
+          url: '/api/v1/teams/team-1/invitations',
+          authorization: undefined,
+          cookie: 'better-auth.session_token=fixture-session',
+          body: '{"email":"invitee@charming.test"}',
+        },
+      ]);
+      expect(preview.stdout + invite.stdout + invite.stderr).not.toContain('fixture-session');
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   test('includes the update description in a dry run', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'charming-update-description-'));
     await writeFile(join(directory, 'module.js'), 'export default {};');

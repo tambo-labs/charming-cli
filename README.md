@@ -31,7 +31,7 @@ charming apps create examples/hello --dry-run
 charming apps create examples/hello --yes
 ```
 
-Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, destructive app operations, share revocations, share declines, and signed-in creates require `--yes`.
+Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, destructive app operations, share revocations, share declines, App transfers, team invitation declines, direct team member additions, team App default changes, and signed-in creates require `--yes`.
 
 Command help and input validation come from [oclif](https://oclif.io). Run `charming <topic> <command> --help` to see the generated usage and flags for any command, or `charming --help` for the full command list.
 
@@ -47,6 +47,21 @@ Both forms read the app's `agent.json` descriptor first and send the operation w
 A `GET` operation receives its input as query parameters. Don't pass secrets as `GET` input, because query strings reach server and proxy logs. In a dry-run preview, query values under credential keys (`token`, keys ending in `_token`, `authorization`, `device_code`) show as `[redacted]`; the live request sends them unchanged.
 
 A `DELETE` operation, or one the app marks `destructive`, requires `--yes`.
+
+## Teams and ownership transfer
+
+Discover existing team operations with `charming api list` and inspect each one with `charming api describe OPERATION_ID`.
+
+```bash
+charming api request list-teams
+charming api request get-team-app-defaults --param teamId=TEAM_ID
+charming api request update-team-app-defaults --param teamId=TEAM_ID --body '{"templateEnabled":true}' --dry-run
+charming api request transfer-app --param appId=APP_ID --body '{"teamId":"TEAM_ID"}' --dry-run
+```
+
+Team lists, team creation, direct member addition, team App defaults, App transfer, and the team inventory reads (`list-team-apps`, `get-team-audit`, `list-team-egress`, `get-team-exposure`, `list-team-people`, `list-team-shares`) accept a personal access token or a session cookie. `charming api describe OPERATION_ID` lists the accepted schemes in `security`. Creating a team still requires an eligible account plan. Transfer, invitation decline, direct member addition, and default changes require `--yes` to execute; use `--dry-run` to preview. Direct member addition can grant the `owner` role. Default changes can make public access the default for later creates and transfers. Transfer can change access defaults and remove existing grants when `keepExistingAppMembers` is false.
+
+Invitation creation and actions, member role changes and removal, and leaving a team accept only a signed-in session cookie. `api describe` marks these operations with `security: ["sessionCookie"]`. For them the CLI sends no bearer token, refuses `--token`, and fails before sending unless you pass `--header Cookie=NAME=VALUE`. Personal access tokens, including the `charming auth login` token, do not authorize them. Do these actions in the Charming web app, or pass an existing session cookie. The CLI does not obtain or store session cookies. HTTPS uses `__Secure-better-auth.session_token`; local HTTP uses `better-auth.session_token`.
 
 ## App management API
 

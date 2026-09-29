@@ -51,6 +51,132 @@ export const generatedOperations = [
     "usage": "charming api request accept-app-share --param appId=VALUE"
   },
   {
+    "id": "accept-team-invitation",
+    "method": "POST",
+    "path": "/api/v1/team-invitations/{invitationId}/accept",
+    "summary": "Accept a team invitation",
+    "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin validates the caller is the invitation’s recipient and creates the membership; refusals are relayed verbatim.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "invitationId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Invitation accepted; the caller is now a member.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "description": "Minimal success acknowledgement. `ok: true` confirms the mutation landed.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request accept-team-invitation --param invitationId=VALUE"
+  },
+  {
+    "id": "add-team-member",
+    "method": "POST",
+    "path": "/api/v1/teams/{teamId}/members",
+    "summary": "Add a member to a team",
+    "description": "User-gated (`chrm_user_*` or session); caller must be a team owner/admin, and only an owner may grant the `owner` role. The grantee (handle or email) must already hold a Charming account.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "grantee"
+        ],
+        "properties": {
+          "grantee": {
+            "type": "string",
+            "description": "Handle or email of the new member."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "grantee": "string"
+      }
+    },
+    "response": {
+      "description": "Member added.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "userId",
+          "role"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "userId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request add-team-member --param teamId=VALUE --body @body.json"
+  },
+  {
     "id": "approve-pairing",
     "method": "POST",
     "path": "/api/pair/approve",
@@ -450,6 +576,34 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request cancel-app-build --param buildId=VALUE"
+  },
+  {
+    "id": "cancel-team-invitation",
+    "method": "DELETE",
+    "path": "/api/v1/team-invitations/{invitationId}",
+    "summary": "Cancel an outgoing team invitation",
+    "description": "Session cookie required. Personal access tokens are not accepted; owner/admin of the invitation’s team only (plugin gate, relayed). Removes the invitation from the pending set.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "invitationId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Invitation cancelled."
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request cancel-team-invitation --param invitationId=VALUE"
   },
   {
     "id": "claim-app",
@@ -1131,6 +1285,174 @@ export const generatedOperations = [
     "usage": "charming api request create-routine --param appId=VALUE --body @body.json"
   },
   {
+    "id": "create-team",
+    "method": "POST",
+    "path": "/api/v1/teams",
+    "summary": "Create a team",
+    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Business plan and are set up with Charming.",
+    "parameters": [],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "name",
+          "slug"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "slug": {
+            "type": "string",
+            "description": "Team handle (kebab-case, shared namespace)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "name": "string",
+        "slug": "string"
+      }
+    },
+    "response": {
+      "description": "Team created.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "team"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "team": {
+            "type": "object",
+            "required": [
+              "id",
+              "slug"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request create-team --body @body.json"
+  },
+  {
+    "id": "create-team-invitation",
+    "method": "POST",
+    "path": "/api/v1/teams/{teamId}/invitations",
+    "summary": "Invite a user to a team by email",
+    "description": "Session cookie required. Personal access tokens are not accepted; the Better Auth org plugin gates the invite (owner/admin caller) and sends the email. Invitation actions live under /api/v1/team-invitations/{invitationId}.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "email": "string"
+      }
+    },
+    "response": {
+      "description": "Invitation created and emailed.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "invitation"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "invitation": {
+            "type": "object",
+            "required": [
+              "id",
+              "email",
+              "role",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request create-team-invitation --param teamId=VALUE --body @body.json"
+  },
+  {
     "id": "create-token",
     "method": "POST",
     "path": "/api/token",
@@ -1422,6 +1744,49 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request decline-app-share --param appId=VALUE"
+  },
+  {
+    "id": "decline-team-invitation",
+    "method": "POST",
+    "path": "/api/v1/team-invitations/{invitationId}/decline",
+    "summary": "Decline a team invitation",
+    "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin validates the caller is the invitation’s recipient and marks it rejected; refusals are relayed verbatim.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "invitationId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Invitation declined.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "description": "Minimal success acknowledgement. `ok: true` confirms the mutation landed.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request decline-team-invitation --param invitationId=VALUE"
   },
   {
     "id": "delete-app",
@@ -4499,6 +4864,377 @@ export const generatedOperations = [
     "usage": "charming api request get-openapi-spec"
   },
   {
+    "id": "get-team-app-defaults",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/app-defaults",
+    "summary": "Get team App defaults",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The defaults applied to new and transferred team Apps.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "defaults"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "defaults": {
+            "type": "object",
+            "required": [
+              "teamId",
+              "generalAccessTier",
+              "templateEnabled",
+              "createdAt",
+              "updatedAt"
+            ],
+            "properties": {
+              "teamId": {
+                "type": "string"
+              },
+              "generalAccessTier": {
+                "type": "string",
+                "enum": [
+                  "invited-only",
+                  "public-view",
+                  "public-and-signed-in-use"
+                ]
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-team-app-defaults --param teamId=VALUE"
+  },
+  {
+    "id": "get-team-audit",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/audit",
+    "summary": "Get a team’s audit trail",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Newest-first (unless `sort` says otherwise) feed of share/publish lifecycle events AND end-user activity (renders, API calls) for every app the team owns. Defaults to the trailing 7 days.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 100, capped at 500.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Narrows to one app.",
+        "in": "query",
+        "name": "appId",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "A user id — narrows to events where that person is the actor OR the end-user viewer.",
+        "in": "query",
+        "name": "actor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Narrows to one event kind. An unrecognized kind is rejected, not ignored.",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Trailing days to include. Defaults to 7.",
+        "in": "query",
+        "name": "range",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "enum": [
+            7,
+            30,
+            90
+          ]
+        }
+      },
+      {
+        "description": "Order of the whole trail. Defaults to `createdAt:desc` (newest first); ties break by `id` in the same direction. An unknown value is rejected, not ignored. CSV exports honour it too.",
+        "in": "query",
+        "name": "sort",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "createdAt:desc",
+            "createdAt:asc"
+          ]
+        }
+      },
+      {
+        "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400. CSV exports ignore it.",
+        "in": "query",
+        "name": "cursor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON.",
+        "in": "query",
+        "name": "format",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv"
+          ]
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s audit trail, as JSON or (with `format=csv`) as `text/csv`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "audit",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "audit": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "appId",
+                "appDisplayName",
+                "actor",
+                "client",
+                "createdAtMs",
+                "summary"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "appId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "appDisplayName": {
+                  "type": "string"
+                },
+                "actor": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Null for an anonymous/public end-user viewer."
+                },
+                "client": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "Web",
+                    "MCP",
+                    null
+                  ]
+                },
+                "createdAtMs": {
+                  "type": "integer"
+                },
+                "summary": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when more rows follow this page under the active sort."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-team-audit --param teamId=VALUE"
+  },
+  {
+    "id": "get-team-exposure",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/exposure",
+    "summary": "Get a team’s exposure summary",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Tallies the same `deriveAppVisibility` counters the team app inventory shows, plus an `externalShares` attention count.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "When `csv`, returns `text/csv` (a single summary row) instead of JSON. Any other value falls through to JSON.",
+        "in": "query",
+        "name": "format",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv"
+          ]
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s exposure summary, as JSON or (with `format=csv`) as `text/csv`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "exposure"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "exposure": {
+            "type": "object",
+            "required": [
+              "public",
+              "signed-in",
+              "template",
+              "shared",
+              "private",
+              "externalShares"
+            ],
+            "description": "Counts every team app exactly once, by the widest audience `deriveAppVisibility` assigns it, plus the count of shares whose grantee classifies external.",
+            "properties": {
+              "public": {
+                "type": "integer"
+              },
+              "signed-in": {
+                "type": "integer"
+              },
+              "template": {
+                "type": "integer"
+              },
+              "shared": {
+                "type": "integer"
+              },
+              "private": {
+                "type": "integer"
+              },
+              "externalShares": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-team-exposure --param teamId=VALUE"
+  },
+  {
     "id": "get-widget-runtime-issue-handoff",
     "method": "GET",
     "path": "/api/v1/widget/apps/{appId}/overview/handoffs/{token}",
@@ -4554,6 +5290,34 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request get-widget-runtime-issue-handoff --param appId=VALUE --param token=VALUE"
+  },
+  {
+    "id": "leave-team",
+    "method": "DELETE",
+    "path": "/api/v1/teams/{teamId}/members/me",
+    "summary": "Leave a team",
+    "description": "Session cookie required. Personal access tokens are not accepted. Removes the caller’s membership. Refused (relayed verbatim) when the caller is the team’s sole owner.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Left the team."
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request leave-team --param teamId=VALUE"
   },
   {
     "id": "list-app-assets",
@@ -5067,6 +5831,842 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request list-routines"
+  },
+  {
+    "id": "list-team-apps",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/apps",
+    "summary": "List a team’s app inventory",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Never includes a personal (user-owned) app, even one owned by a team member.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 100, capped at 500.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Order of the whole inventory. Defaults to `updatedAt:desc` (most recently updated first); `name` sorts case-insensitively by display name. Ties break by `id` in the same direction. An unknown value is rejected, not ignored.",
+        "in": "query",
+        "name": "sort",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "updatedAt:desc",
+            "updatedAt:asc",
+            "name:asc",
+            "name:desc"
+          ]
+        }
+      },
+      {
+        "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400.",
+        "in": "query",
+        "name": "cursor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s app inventory.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "apps",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "appName",
+                "displayName",
+                "visibility",
+                "createdByLabel",
+                "shareCount",
+                "updatedAtMs"
+              ],
+              "description": "One row in the team apps inventory.",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "appName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Friendly-URL slug."
+                },
+                "displayName": {
+                  "type": "string"
+                },
+                "visibility": {
+                  "type": "string",
+                  "enum": [
+                    "public",
+                    "signed-in",
+                    "template",
+                    "shared",
+                    "private"
+                  ],
+                  "description": "The widest audience that can reach the app."
+                },
+                "createdByLabel": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Display name of the account that created the app, null when no creator was recorded, and \"Former member\" when the creator has left the team or deleted their account."
+                },
+                "shareCount": {
+                  "type": "integer",
+                  "description": "Share grants (accepted and pending) plus pending email invitations."
+                },
+                "updatedAtMs": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team owns more apps than this page returned."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-apps --param teamId=VALUE"
+  },
+  {
+    "id": "list-team-egress",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/egress",
+    "summary": "List a team’s egress ledger (declared hosts and API ops)",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. `outbound-host` destinations are declared config with no call counts; `api-op` destinations are grouped `api_proxy_result` events with real counts.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 100, capped at 500.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Narrow to destinations the given app declares or calls.",
+        "in": "query",
+        "name": "appId",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Order of the whole list before `limit` cuts it. Defaults to `lastSeen:desc` (most recently called first); an `outbound-host` destination has no `lastSeenMs` and sorts last either way. An unknown value is rejected, not ignored. CSV exports honour it too.",
+        "in": "query",
+        "name": "sort",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "lastSeen:desc",
+            "lastSeen:asc",
+            "destination:asc",
+            "destination:desc"
+          ]
+        }
+      },
+      {
+        "description": "When true, keeps only `api-op` destinations with a 4xx/5xx or errored call — an all-200 op vanishes. Never hides `outbound-host` destinations.",
+        "in": "query",
+        "name": "failedOnly",
+        "required": false,
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      {
+        "description": "Restricts the `api-op` group to events within this many days.",
+        "in": "query",
+        "name": "range",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "enum": [
+            7,
+            30,
+            90
+          ]
+        }
+      },
+      {
+        "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON.",
+        "in": "query",
+        "name": "format",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv"
+          ]
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s egress ledger, as JSON or (with `format=csv`) as `text/csv`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "destinations",
+          "hasMore",
+          "scanTruncated"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "destinations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "destination",
+                "kind",
+                "calls",
+                "lastSeenMs",
+                "failedCalls",
+                "callers"
+              ],
+              "description": "One egress destination, discriminated by `kind`.",
+              "properties": {
+                "destination": {
+                  "type": "string",
+                  "description": "The declared host origin, or the `requestedOp` string."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "outbound-host",
+                    "api-op"
+                  ]
+                },
+                "calls": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Null for `outbound-host` — config, not traffic."
+                },
+                "lastSeenMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Null for `outbound-host`."
+                },
+                "failedCalls": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Count of calls with a 4xx/5xx status or a non-null errorKind. Null for `outbound-host`."
+                },
+                "callers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "appId",
+                      "appDisplayName"
+                    ],
+                    "properties": {
+                      "appId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "appDisplayName": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more destinations than this page returned."
+          },
+          "scanTruncated": {
+            "type": "boolean",
+            "description": "True when the underlying event scan hit its row cap before grouping — every `api-op` destination’s `calls`/`failedCalls` in this response is a lower bound, not the true count."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-egress --param teamId=VALUE"
+  },
+  {
+    "id": "list-team-people",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/people",
+    "summary": "List a team’s people",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Every CURRENT team member with role, apps owned, apps created, last activity, and external shares granted.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 500, the cap, so one response carries the whole roster of all but the largest teams.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Case-insensitive match against the member label (name, handle, or email).",
+        "in": "query",
+        "name": "q",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Order of the whole roster before `limit` cuts it. Defaults to `label:asc`. Ties fall to the member label, then the user id, ascending; a member with no recorded activity sorts as the earliest `lastActive`. An unknown value is rejected, not ignored. CSV exports honour it, and `q`, too.",
+        "in": "query",
+        "name": "sort",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "label:asc",
+            "label:desc",
+            "role:asc",
+            "role:desc",
+            "appsOwned:asc",
+            "appsOwned:desc",
+            "appsCreated:asc",
+            "appsCreated:desc",
+            "lastActive:asc",
+            "lastActive:desc",
+            "externalShares:asc",
+            "externalShares:desc"
+          ]
+        }
+      },
+      {
+        "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON.",
+        "in": "query",
+        "name": "format",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv"
+          ]
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s people, as JSON or (with `format=csv`) as `text/csv`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "people",
+          "hasMore"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "userId",
+                "label",
+                "role",
+                "appsOwned",
+                "appsCreated",
+                "lastActiveMs",
+                "externalShareCount"
+              ],
+              "description": "One row in the People tab — a current team member with their app footprint.",
+              "properties": {
+                "userId": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "appsOwned": {
+                  "type": "integer"
+                },
+                "appsCreated": {
+                  "type": "integer"
+                },
+                "lastActiveMs": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Null (never epoch zero) for a member with no attributable events."
+                },
+                "externalShareCount": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more members than this page returned."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-people --param teamId=VALUE"
+  },
+  {
+    "id": "list-team-shares",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/shares",
+    "summary": "List a team’s shares ledger",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Unions grants, invitations, and live share links across every app the team owns, newest first unless `sort` says otherwise.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 100, capped at 500.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "",
+        "in": "query",
+        "name": "appId",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Case-insensitive match against the grantee handle/email.",
+        "in": "query",
+        "name": "q",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "",
+        "in": "query",
+        "name": "scope",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "external"
+          ]
+        }
+      },
+      {
+        "description": "",
+        "in": "query",
+        "name": "kind",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "person",
+            "invite",
+            "link"
+          ]
+        }
+      },
+      {
+        "description": "",
+        "in": "query",
+        "name": "range",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "enum": [
+            7,
+            30,
+            90
+          ]
+        }
+      },
+      {
+        "description": "Order of the whole ledger, as `<column>:<direction>`. Defaults to `createdAt:desc` (newest first). Ties break by `id` in the same direction; a row with no grantee sorts last either way. An unknown value is rejected, not ignored. CSV exports honour it too.",
+        "in": "query",
+        "name": "sort",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "createdAt:desc",
+            "createdAt:asc",
+            "app:asc",
+            "app:desc",
+            "grantee:asc",
+            "grantee:desc",
+            "status:asc",
+            "status:desc"
+          ]
+        }
+      },
+      {
+        "description": "The load-more cursor: the `nextCursor` of the previous page, sent with the same `sort`. A cursor from a different sort, or one that does not decode, is rejected with a 400. CSV exports ignore it.",
+        "in": "query",
+        "name": "cursor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "When `csv`, returns `text/csv` instead of JSON, at a higher row cap. Any other value falls through to JSON.",
+        "in": "query",
+        "name": "format",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv"
+          ]
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The team’s shares ledger, as JSON or (with `format=csv`) as `text/csv`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "shares",
+          "hasMore",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "shares": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "kind",
+                "appId",
+                "appDisplayName",
+                "grantee",
+                "role",
+                "scope",
+                "status",
+                "createdAtMs"
+              ],
+              "description": "One row in the shares ledger — a grant, an invitation, or a live share link, normalized to one shape.",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "invite",
+                    "link"
+                  ]
+                },
+                "appId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "appDisplayName": {
+                  "type": "string"
+                },
+                "grantee": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Handle or email; null for a link (nobody is behind the door yet)."
+                },
+                "role": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "internal",
+                    "external"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "accepted",
+                    "active",
+                    "redeemed",
+                    "revoked"
+                  ]
+                },
+                "createdAtMs": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when the team has more matching shares than this page returned."
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor`, with the same `sort`, for the next page. Null on the last page."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-shares --param teamId=VALUE"
+  },
+  {
+    "id": "list-teams",
+    "method": "GET",
+    "path": "/api/v1/teams",
+    "summary": "List the caller’s teams",
+    "description": "User-gated (`chrm_user_*` or session). Every team the caller belongs to, with their role, member roster (owners first, caller flagged via `isYou`), and app-count rollup.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "The caller’s teams.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "teams"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "teamId",
+                "name",
+                "slug",
+                "role",
+                "memberCount",
+                "appCount",
+                "members"
+              ],
+              "description": "One row in the caller’s team list.",
+              "properties": {
+                "teamId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "description": "The caller’s own role in this team."
+                },
+                "memberCount": {
+                  "type": "integer"
+                },
+                "appCount": {
+                  "type": "integer"
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "userId",
+                      "memberId",
+                      "name",
+                      "image",
+                      "handle",
+                      "role",
+                      "isYou"
+                    ],
+                    "description": "One member in a team roster. `memberId` is the membership-row id used by the member PATCH/DELETE endpoints (distinct from `userId`).",
+                    "properties": {
+                      "userId": {
+                        "type": "string"
+                      },
+                      "memberId": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "image": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "handle": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "role": {
+                        "type": "string",
+                        "description": "Comma-joined role string (e.g. `owner`)."
+                      },
+                      "isYou": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-teams"
   },
   {
     "id": "list-tokens",
@@ -6003,6 +7603,43 @@ export const generatedOperations = [
     "usage": "charming api request publish-app-template-listing --param appId=VALUE --body @body.json"
   },
   {
+    "id": "remove-team-member",
+    "method": "DELETE",
+    "path": "/api/v1/teams/{teamId}/members/{memberId}",
+    "summary": "Remove a member from a team",
+    "description": "Session cookie required. Personal access tokens are not accepted. The Better Auth org plugin gates the removal and its refusal is relayed verbatim. Use `DELETE …/members/me` to leave.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "memberId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Member removed."
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request remove-team-member --param teamId=VALUE --param memberId=VALUE"
+  },
+  {
     "id": "report-app-diag",
     "method": "POST",
     "path": "/app/{id}/diag/report",
@@ -6105,6 +7742,49 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request report-app-load-error --param id=VALUE --body @body.json"
+  },
+  {
+    "id": "resend-team-invitation",
+    "method": "POST",
+    "path": "/api/v1/team-invitations/{invitationId}/resend",
+    "summary": "Re-send a team invitation",
+    "description": "Session cookie required. Personal access tokens are not accepted; owner/admin only (plugin gate, relayed). Issues a fresh invitation with a new expiry and re-fires the email, keeping one pending invite per address.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "invitationId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Invitation re-sent.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "description": "Minimal success acknowledgement. `ok: true` confirms the mutation landed.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request resend-team-invitation --param invitationId=VALUE"
   },
   {
     "id": "resolve-app-manifest",
@@ -6843,6 +8523,87 @@ export const generatedOperations = [
     "streaming": true,
     "timeoutMs": 2000,
     "usage": "charming api request subscribe-app-events --param id=VALUE"
+  },
+  {
+    "id": "transfer-app",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/transfer",
+    "summary": "Transfer an app between the caller and a team",
+    "description": "User-gated (`chrm_user_*` or session). With `teamId`: user→team (caller must hold `app:manage` on the app and be owner/admin of the team). Without: team→user transfer to the caller.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": false,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Destination team. Absent or null = transfer to the caller."
+          },
+          "keepExistingAppMembers": {
+            "type": "boolean",
+            "default": true,
+            "description": "Keep direct grants, pending invitations, and active single-use links. Omitted means true."
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "App transferred.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "userId",
+          "teamId"
+        ],
+        "description": "Post-transfer owner scope: exactly one of userId/teamId is set.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "teamId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request transfer-app --param appId=VALUE --body @body.json"
   },
   {
     "id": "unpublish-app-template-listing",
@@ -8410,6 +10171,187 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-routine --param routineId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-team-app-defaults",
+    "method": "PATCH",
+    "path": "/api/v1/teams/{teamId}/app-defaults",
+    "summary": "Update team App defaults",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Changes apply only to later App creates and transfers.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "generalAccessTier": {
+            "type": "string",
+            "enum": [
+              "invited-only",
+              "public-view",
+              "public-and-signed-in-use"
+            ]
+          },
+          "templateEnabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Defaults updated.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "defaults"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "defaults": {
+            "type": "object",
+            "required": [
+              "teamId",
+              "generalAccessTier",
+              "templateEnabled",
+              "createdAt",
+              "updatedAt"
+            ],
+            "properties": {
+              "teamId": {
+                "type": "string"
+              },
+              "generalAccessTier": {
+                "type": "string",
+                "enum": [
+                  "invited-only",
+                  "public-view",
+                  "public-and-signed-in-use"
+                ]
+              },
+              "templateEnabled": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-team-app-defaults --param teamId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-team-member",
+    "method": "PATCH",
+    "path": "/api/v1/teams/{teamId}/members/{memberId}",
+    "summary": "Change a team member’s role",
+    "description": "Session cookie required. Personal access tokens are not accepted. Only an owner may grant the `owner` role; everything else is the Better Auth org plugin’s gate, relayed verbatim.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "memberId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "member"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "role": "owner"
+      }
+    },
+    "response": {
+      "description": "Role changed.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "description": "Minimal success acknowledgement. `ok: true` confirms the mutation landed.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-team-member --param teamId=VALUE --param memberId=VALUE --body @body.json"
   },
   {
     "id": "update-webhook",
