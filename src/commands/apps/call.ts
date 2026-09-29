@@ -19,6 +19,9 @@ export default class AppsCall extends CharmingCommand {
     input: Flags.string({
       description: 'JSON input or @file. A GET operation receives it as query parameters.',
     }),
+    yes: Flags.boolean({
+      description: 'Confirm a DELETE operation or one the app marks destructive.',
+    }),
     output: Flags.string({
       description: 'Output format. compact skips pretty-printing for large responses.',
       options: ['json', 'compact'],

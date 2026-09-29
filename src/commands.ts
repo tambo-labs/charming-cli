@@ -40,9 +40,9 @@ function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
 }
 
-function requireDeletionConsent(context: CommandContext): void {
+function requireConsent(context: CommandContext, subject = 'Deletion'): void {
   if (context.options['dry-run'] !== true && context.options.yes !== true) {
-    throw new Error('Deletion requires --yes. Use --dry-run to preview it.');
+    throw new Error(`${subject} requires --yes. Use --dry-run to preview it.`);
   }
 }
 
@@ -237,7 +237,7 @@ export async function runApps(
     );
   }
 
-  if (action === 'delete') requireDeletionConsent(context);
+  if (action === 'delete') requireConsent(context);
 
   if (action === 'update' && context.options['dry-run'] === true) {
     const local = await readBundle(positionals[1], context.options);
@@ -326,14 +326,7 @@ export async function runApps(
     if (!operation) throw new Error('Usage: charming apps call <APP_ID> <OPERATION>');
     const inputOption = stringOption(context.options, 'input');
     const input = inputOption ? await readJsonValue(inputOption) : {};
-    const request = await resolveOperationRequest(client, context, appId, operation, input);
-    if (context.options['dry-run'] === true) return { dryRun: true, ...request };
-    return (
-      await client.request(request.method, request.path, {
-        body: request.body,
-        timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
-      })
-    ).data;
+    return callAppOperation(context, client, appId, operation, input);
   }
 
   if (action === 'rename') {
@@ -392,7 +385,7 @@ export async function runApi(
     );
   }
   if (operation.method === 'DELETE' || DELETES_APP_SHARES.has(operation.id)) {
-    requireDeletionConsent(context);
+    requireConsent(context);
   }
   const supplied = new Map(
     stringOptions(context.options, 'param').map((entry) => parseAssignment(entry, 'param')),
@@ -434,6 +427,17 @@ export async function runApi(
   if (file && operation.requestBody?.mediaType !== 'multipart/form-data') {
     throw new Error(`Operation ${operation.id} does not accept --file.`);
   }
+  const headers = Object.fromEntries(
+    [
+      ...Object.entries(parameterHeaders).map(([name, value]) => `${name}=${value}`),
+      ...stringOptions(context.options, 'header'),
+    ].map((entry) => parseAssignment(entry, 'header')),
+  );
+  if (operation.id === 'call-app-operation') {
+    const appId = supplied.get('id')!;
+    const client = clientFor(context, await rawRequestToken(context, appId));
+    return callAppOperation(context, client, appId, supplied.get('operation')!, body, headers);
+  }
   if (context.options['dry-run'] === true && operation.method !== 'GET') {
     return {
       dryRun: true,
@@ -442,12 +446,7 @@ export async function runApi(
       body: redactDryRunBody(operation.id, body),
     };
   }
-  const token =
-    context.token ??
-    (await loadToken({ baseUrl: context.baseUrl })) ??
-    (supplied.get('id')
-      ? await loadAppToken(supplied.get('id')!, { baseUrl: context.baseUrl })
-      : undefined);
+  const token = await rawRequestToken(context, supplied.get('id'));
   if (
     operation.id === 'create-app' &&
     (!isUserToken(token) ||
@@ -472,12 +471,7 @@ export async function runApi(
   return (
     await clientFor(context, token).request(operation.method, path, {
       body: rawBody ? undefined : body,
-      headers: Object.fromEntries(
-        [
-          ...Object.entries(parameterHeaders).map(([name, value]) => `${name}=${value}`),
-          ...stringOptions(context.options, 'header'),
-        ].map((entry) => parseAssignment(entry, 'header')),
-      ),
+      headers,
       rawBody,
       timeoutMs: timeoutFor(context, operation.timeoutMs),
     })
@@ -584,20 +578,69 @@ async function multipartBody(body: unknown, filePath: string): Promise<FormData>
   return form;
 }
 
-type OperationRequest = { method: string; path: string; body?: unknown };
+async function rawRequestToken(
+  context: CommandContext,
+  appId: string | undefined,
+): Promise<string | undefined> {
+  return (
+    context.token ??
+    (await loadToken({ baseUrl: context.baseUrl })) ??
+    (appId ? await loadAppToken(appId, { baseUrl: context.baseUrl }) : undefined)
+  );
+}
 
-type DeclaredOperation = { op: string; method: string; path: string; fromRoutes: boolean };
+async function callAppOperation(
+  context: CommandContext,
+  client: CharmingClient,
+  appId: string,
+  operation: string,
+  input: unknown,
+  headers?: Record<string, string>,
+): Promise<unknown> {
+  const { method, path, destructive } = await resolveOperationRequest(
+    client,
+    context,
+    appId,
+    operation,
+    headers,
+  );
+  const query = method === 'GET' ? queryFromInput(operation, input ?? {}) : undefined;
+  if (destructive) requireConsent(context, `Destructive operation \`${operation}\``);
+  if (context.options['dry-run'] === true) {
+    if (!query) return { dryRun: true, method, path, body: redactSecrets(input) };
+    const preview = queryFromInput(operation, redactSecrets(input ?? {}));
+    return { dryRun: true, method, path: withQuery(path, preview) };
+  }
+  return (
+    await client.request(method, query ? withQuery(path, query) : path, {
+      body: query ? undefined : input,
+      headers,
+      timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
+    })
+  ).data;
+}
+
+type OperationRequest = { method: string; path: string; destructive: boolean };
+
+type DeclaredOperation = {
+  op: string;
+  method: string;
+  path: string;
+  destructive: boolean;
+  fromRoutes: boolean;
+};
 
 async function resolveOperationRequest(
   client: CharmingClient,
   context: CommandContext,
   appId: string,
   operation: string,
-  input: unknown,
+  headers?: Record<string, string>,
 ): Promise<OperationRequest> {
   const appPath = `/app/${encodeURIComponent(appId)}`;
   const descriptor = (
     await client.request('GET', `${appPath}/agent.json`, {
+      headers,
       timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
     })
   ).data;
@@ -612,7 +655,7 @@ async function resolveOperationRequest(
     return {
       method: 'POST',
       path: `${appPath}/api/${encodeURIComponent(operation)}`,
-      body: input,
+      destructive: false,
     };
   }
   const path = `${appPath}${match.path}`;
@@ -626,9 +669,15 @@ async function resolveOperationRequest(
       `Operation \`${operation}\` declares path ${JSON.stringify(match.path)}, which is not under the app's /api routes.`,
     );
   }
-  if (match.method !== 'GET') return { method: match.method, path, body: input };
-  const query = queryFromInput(operation, input);
-  return { method: 'GET', path: query.size > 0 ? `${path}?${query}` : path };
+  return {
+    method: match.method,
+    path,
+    destructive: match.method === 'DELETE' || match.destructive,
+  };
+}
+
+function withQuery(path: string, query: URLSearchParams): string {
+  return query.size > 0 ? `${path}?${query}` : path;
 }
 
 function declaredOperations(descriptor: unknown): DeclaredOperation[] {
@@ -647,6 +696,7 @@ function declaredOperations(descriptor: unknown): DeclaredOperation[] {
         op: entry.op,
         method: entry.method.toUpperCase(),
         path: entry.path,
+        destructive: entry.destructive === true,
         fromRoutes:
           Array.isArray(entry.discoveredFrom) && entry.discoveredFrom.includes('routes_export'),
       },

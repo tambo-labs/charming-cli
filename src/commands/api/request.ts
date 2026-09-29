@@ -10,7 +10,10 @@ export default class ApiRequest extends CharmingCommand {
 
   static override flags = {
     body: Flags.string({ description: 'JSON body or @file.' }),
-    'dry-run': Flags.boolean({ description: 'Print the request without sending it.' }),
+    'dry-run': Flags.boolean({
+      description:
+        "Print the request without sending it. call-app-operation still reads the app's descriptor.",
+    }),
     file: Flags.string({ description: 'File for multipart requests.' }),
     header: Flags.string({ description: 'Header as NAME=VALUE.', multiple: true }),
     param: Flags.string({ description: 'Parameter as NAME=VALUE.', multiple: true }),

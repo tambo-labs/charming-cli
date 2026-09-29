@@ -1039,7 +1039,7 @@ describe('apps call', () => {
       baseUrl: 'https://charming.test',
       command: ['apps', 'call', APP_ID, operation],
       fetchImpl,
-      options: { input },
+      options: { input, yes: true },
       token: 'chrm_user_test',
     });
     return { fetchImpl, result };

@@ -31,9 +31,22 @@ charming apps create examples/hello --dry-run
 charming apps create examples/hello --yes
 ```
 
-Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, share revocations, share declines, and signed-in creates require `--yes`.
+Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, destructive app operations, share revocations, share declines, and signed-in creates require `--yes`.
 
 Command help and input validation come from [oclif](https://oclif.io). Run `charming <topic> <command> --help` to see the generated usage and flags for any command, or `charming --help` for the full command list.
+
+## Calling app operations
+
+```bash
+charming apps call APP_ID search --input '{"text":"hello","limit":5}' --dry-run
+charming api request call-app-operation --param id=APP_ID --param operation=search --body '{"text":"hello","limit":5}' --dry-run
+```
+
+Both forms read the app's `agent.json` descriptor first and send the operation with its declared method and path. The `call-app-operation` catalog entry lists the server's generic POST route; the CLI dispatches that one operation by the declared method instead. `--dry-run` makes the descriptor read, prints the resolved request, and does not call the operation.
+
+A `GET` operation receives its input as query parameters. Don't pass secrets as `GET` input, because query strings reach server and proxy logs. In a dry-run preview, query values under credential keys (`token`, keys ending in `_token`, `authorization`, `device_code`) show as `[redacted]`; the live request sends them unchanged.
+
+A `DELETE` operation, or one the app marks `destructive`, requires `--yes`.
 
 ## App management API
 
