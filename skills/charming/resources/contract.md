@@ -10,7 +10,7 @@ Declare only the capabilities the app actually uses in `manifest.capabilities.im
 | `charming:network/fetch@1.0` | `env.fetch` (open) | Also requires `permissions.server.fetch` with each exact origin. |
 | `charming:secrets/fetch@1.0` | `env.fetch` (sealed, secret-substituting) | Claimed apps only. |
 | `charming:logging/emit@1.0` | `env.logging` | Structured event logging visible to the app owner. |
-| `charming:browser/storage@1.0` | `localStorage` / `sessionStorage` / `IndexedDB` | Claim-gated, web-only. Empty inside Claude/ChatGPT. |
+| `charming:browser/storage@1.0` | `localStorage` / `sessionStorage` / `IndexedDB` | Web-only. Empty inside Claude/ChatGPT. |
 | `charming:browser/microphone@1.0` | `getUserMedia` audio | Claim-gated. |
 | `charming:browser/camera@1.0` | `getUserMedia` video | Claim-gated. |
 | `charming:browser/geolocation@1.0` | geolocation | Claim-gated. |

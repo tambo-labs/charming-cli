@@ -109,7 +109,7 @@ export const routes = [
 
 `env.storage` (`get` / `put` / `delete` / `list`) stores JSON values **directly**. Never `JSON.stringify` on the way in or `JSON.parse` on the way out. Storage is per-app and survives updates, so iterate freely.
 
-`env.storage` works everywhere the app runs — the web app and inside Claude/ChatGPT. `localStorage` / `sessionStorage` / `IndexedDB` need the claim-gated `charming:browser/storage@1.0` capability _and_ are empty inside chat hosts. Anything the user expects to keep belongs in `env.storage`.
+`env.storage` works everywhere the app runs — the web app and inside Claude/ChatGPT. `localStorage` / `sessionStorage` / `IndexedDB` need the `charming:browser/storage@1.0` capability _and_ are empty inside chat hosts. Anything the user expects to keep belongs in `env.storage`.
 
 Keep user data in `env.storage`, never in module constants — a shared or templated copy of the app then starts empty instead of leaking the author's data.
 
@@ -129,7 +129,7 @@ const items = await api.list({}); // the value itself; throws on failure
 Sandbox rules that silently break apps:
 
 - `alert`, `confirm`, and `prompt` do nothing. Build inline UI instead.
-- No external `<script>` tags or CDN imports. Inline a UMD build if a library is truly needed.
+- Chat embeds block external `<script>` tags and CDN imports; on the web only, pinned scripts from cdnjs, unpkg, or jsDelivr load. Prefer inlining a UMD build if a library is truly needed.
 - Prevent native form submission and handle it in JavaScript.
 - Set `#app` innerHTML **before** attaching listeners, and re-bind after every re-render. Re-render narrow containers, not the whole root, or a refresh wipes half-typed input.
 - Reserve the bottom-right 64px square — Charming's widget button sits there. Do not build a Charming badge, share button, app switcher, or account nav inside the app; the outer shell owns those.
