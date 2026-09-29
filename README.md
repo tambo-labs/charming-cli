@@ -55,6 +55,12 @@ A runtime-issue handoff requires your personal access token, app-management perm
 
 The CLI stores credentials in `$XDG_CONFIG_HOME/charming/config.json`, or `~/.config/charming/config.json`, with user-only permissions.
 
+## Activity feeds
+
+`charming api request get-app-activity-timeline --param appId=APP_ID --param limit=50` reads the app timeline using a user token with `app:manage` access. It returns `items`, `hasMore`, and `retention`; page backward with both `--param before=OLDEST_TS` and `--param beforeId=OLDEST_ID`. Optional `kinds` and `since` filters narrow the feed.
+
+The separate `get-app-activity --param id=APP_ID` operation keeps the durable runtime-failure log and its `{ok,value:{items,retention}}` response.
+
 ## Development
 
 The source of truth is [`packages/cli` in the Charming monorepo](https://github.com/tambo-ai/charming/tree/main/packages/cli). This public repository is a generated mirror. Source pull requests opened here cannot be merged because the next mirror run replaces the full tree.

@@ -18,12 +18,33 @@ describe('generated operation catalog', () => {
     ).toBe(true);
   });
 
+  test('keeps legacy failures and the rich activity timeline distinct', () => {
+    expect(findOperation('get-app-activity')).toMatchObject({
+      method: 'GET',
+      path: '/app/{id}/activity',
+    });
+    const timeline = findOperation('get-app-activity-timeline');
+    expect(timeline).toMatchObject({
+      method: 'GET',
+      path: '/api/v1/apps/{appId}/activity',
+      security: ['userToken'],
+    });
+    expect(timeline?.parameters.map((parameter) => parameter.name)).toEqual([
+      'appId',
+      'kinds',
+      'since',
+      'before',
+      'beforeId',
+      'limit',
+    ]);
+  });
+
   test('has unique operation ids', () => {
     expect(new Set(operations.map((operation) => operation.id)).size).toBe(operations.length);
   });
 
   test('preserves operation count, timeouts, event auth, and the closed create schema', () => {
-    expect(operations).toHaveLength(73);
+    expect(operations).toHaveLength(74);
     expect(findOperation('call-app-operation')).toEqual(
       expect.objectContaining({ timeoutMs: 30_000 }),
     );

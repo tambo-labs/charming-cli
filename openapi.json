@@ -1100,6 +1100,105 @@
         "type": "string",
         "description": "Authenticated browser build progress or terminal result page."
       },
+      "AppActivityResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "appId",
+          "items",
+          "hasMore",
+          "retention"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when older entries exist. Fetch them with `before` and `beforeId` set from the oldest entry returned."
+          },
+          "retention": {
+            "type": "object",
+            "required": [
+              "tier",
+              "hours",
+              "since",
+              "truncated"
+            ],
+            "description": "The plan window this read used. Older events are hidden, not deleted.",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "free",
+                  "pro",
+                  "business",
+                  "enterprise"
+                ]
+              },
+              "hours": {
+                "type": "integer",
+                "description": "Length of the plan window."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The cutoff this read used."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when the plan window set the cutoff."
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "ts",
+                "kind",
+                "summary",
+                "data"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Pass back as `beforeId` (with `before`) to page further."
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
       "AppSharesListResponse": {
         "type": "object",
         "required": [
@@ -3311,6 +3410,145 @@
     "idempotencyMs": 2592000000
   },
   "paths": {
+    "/api/v1/apps/{appId}/activity": {
+      "get": {
+        "tags": [
+          "Apps"
+        ],
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "kinds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated allow-list of event kinds. Kinds outside the owner-readable set are ignored."
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Inclusive ISO-8601 cutoff."
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Exclusive ISO-8601 cutoff — the load-more cursor. Pass the `ts` of the oldest entry you already have, together with `beforeId`, for an exact page boundary."
+          },
+          {
+            "name": "beforeId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The `id` of the oldest entry you already have. Pairs with `before` for an exact keyset cursor — without it, entries sharing `before`’s exact millisecond can be skipped. Ignored if `before` is absent."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 100, capped at 500."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Merged activity timeline for the app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppActivityResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid app id, `since`, `before`, or `limit`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage this app.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-app-activity-timeline",
+        "summary": "Get an app’s activity timeline",
+        "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ]
+      }
+    },
     "/api/v1/apps/{appId}/shares": {
       "get": {
         "tags": [

@@ -168,3 +168,5 @@ More patterns, including agent-mediated enrichment and display-only apps: [resou
 2. `charming api request set-app-public --param id=<app-id> --body '{"public":true}' --dry-run`
 
 `charming doctor` checks connectivity, auth, and contract freshness. `charming agent-context` prints the CLI's own contract as JSON.
+
+Read the rich app timeline with `charming api request get-app-activity-timeline --param appId=APP_ID --param limit=50` using a user token with `app:manage`. When `hasMore` is true, pass the oldest item’s `ts` and `id` as `before` and `beforeId`. `get-app-activity --param id=APP_ID` remains the separate runtime-failure log.

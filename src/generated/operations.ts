@@ -2910,6 +2910,183 @@ export const generatedOperations = [
     "usage": "charming api request get-app-activity --param id=VALUE"
   },
   {
+    "id": "get-app-activity-timeline",
+    "method": "GET",
+    "path": "/api/v1/apps/{appId}/activity",
+    "summary": "Get an app’s activity timeline",
+    "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "Comma-separated allow-list of event kinds. Kinds outside the owner-readable set are ignored.",
+        "in": "query",
+        "name": "kinds",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Inclusive ISO-8601 cutoff.",
+        "in": "query",
+        "name": "since",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      {
+        "description": "Exclusive ISO-8601 cutoff — the load-more cursor. Pass the `ts` of the oldest entry you already have, together with `beforeId`, for an exact page boundary.",
+        "in": "query",
+        "name": "before",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      {
+        "description": "The `id` of the oldest entry you already have. Pairs with `before` for an exact keyset cursor — without it, entries sharing `before`’s exact millisecond can be skipped. Ignored if `before` is absent.",
+        "in": "query",
+        "name": "beforeId",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "Defaults to 100, capped at 500.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Merged activity timeline for the app.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "appId",
+          "items",
+          "hasMore",
+          "retention"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when older entries exist. Fetch them with `before` and `beforeId` set from the oldest entry returned."
+          },
+          "retention": {
+            "type": "object",
+            "required": [
+              "tier",
+              "hours",
+              "since",
+              "truncated"
+            ],
+            "description": "The plan window this read used. Older events are hidden, not deleted.",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "free",
+                  "pro",
+                  "business",
+                  "enterprise"
+                ]
+              },
+              "hours": {
+                "type": "integer",
+                "description": "Length of the plan window."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The cutoff this read used."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when the plan window set the cutoff."
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "ts",
+                "kind",
+                "summary",
+                "data"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Pass back as `beforeId` (with `before`) to page further."
+                },
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-app-activity-timeline --param appId=VALUE"
+  },
+  {
     "id": "get-app-agent-descriptor",
     "method": "GET",
     "path": "/app/{id}/agent.json",
