@@ -1016,6 +1016,121 @@ describe('runCommand', () => {
       vi.unstubAllEnvs();
     }
   });
+
+  test('call sends POST for a normal operation', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ ok: true, value: { done: true } }));
+
+    const result = await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'call', APP_ID, 'toggle'],
+      fetchImpl,
+      options: { input: '{"id":"item-1"}' },
+      token: 'bld_user_test',
+    });
+
+    expect(result).toEqual({ ok: true, value: { done: true } });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `https://charming.test/app/${APP_ID}/api/toggle`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  test('call retries a GET-only (readOnly) op over GET after the POST 404s as operation_not_found', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              kind: 'operation_not_found',
+              message: 'This app declares routes but exposes no operation named `list`.',
+            },
+          },
+          { status: 404 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ ok: true, value: { items: [] } }));
+
+    const result = await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'call', APP_ID, 'list'],
+      fetchImpl,
+      options: { input: '{}' },
+      token: 'bld_user_test',
+    });
+
+    expect(result).toEqual({ ok: true, value: { items: [] } });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      `https://charming.test/app/${APP_ID}/api/list`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      `https://charming.test/app/${APP_ID}/api/list`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('call sends string inputs as query params on the GET retry', async () => {
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            error: {
+              kind: 'operation_not_found',
+              message: 'This app declares routes but exposes no operation named `list`.',
+            },
+          },
+          { status: 404 },
+        ),
+      )
+      .mockResolvedValueOnce(Response.json({ ok: true, value: { items: [] } }));
+
+    await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'call', APP_ID, 'list'],
+      fetchImpl,
+      options: { input: '{"status":"open","owner":"ada"}' },
+      token: 'bld_user_test',
+    });
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      `https://charming.test/app/${APP_ID}/api/list?status=open&owner=ada`,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  test('call still surfaces a genuinely unknown op after the GET retry', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
+      Response.json(
+        {
+          error: {
+            kind: 'operation_not_found',
+            message: 'This app declares routes but exposes no operation named `bogus`.',
+          },
+        },
+        { status: 404 },
+      ),
+    );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'call', APP_ID, 'bogus'],
+        fetchImpl,
+        options: { input: '{}' },
+        token: 'bld_user_test',
+      }),
+    ).rejects.toThrow('exposes no operation named `bogus`');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });
 
 async function appDirectory(): Promise<string> {

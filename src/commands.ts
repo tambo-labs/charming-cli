@@ -338,14 +338,39 @@ export async function runApps(
     const operation = positionals[1];
     if (!operation) throw new Error('Usage: charming apps call <APP_ID> <OPERATION>');
     const input = stringOption(context.options, 'input');
-    const body = input ? await readJsonValue(input) : {};
+    const body = (input ? await readJsonValue(input) : {}) as Record<string, unknown>;
     const path = `/app/${encodeURIComponent(appId)}/api/${encodeURIComponent(operation)}`;
-    return (
-      await client.request('POST', path, {
-        body,
-        timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
-      })
-    ).data;
+    try {
+      return (
+        await client.request('POST', path, {
+          body,
+          timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
+        })
+      ).data;
+    } catch (error) {
+      // A read-only route is registered GET-only, so the POST above never
+      // matches and the server's route matcher falls through to its generic
+      // "exposes no operation named X" 404 — indistinguishable, from here,
+      // from a genuinely unknown op. Retry once over GET (input as query
+      // params, matching the server's readRouteInput for GET/HEAD) before
+      // surfacing the original error, so `apps call <id> list` (the
+      // documented smoke-test step) works without the caller needing to
+      // already know each op's declared method.
+      if (error instanceof ApiError && error.kind === 'operation_not_found') {
+        const query = new URLSearchParams();
+        for (const [key, value] of Object.entries(body)) {
+          if (value === undefined) continue;
+          query.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+        }
+        const qs = query.toString();
+        return (
+          await client.request('GET', qs ? `${path}?${qs}` : path, {
+            timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
+          })
+        ).data;
+      }
+      throw error;
+    }
   }
 
   if (action === 'rename') {
