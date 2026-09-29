@@ -160,7 +160,7 @@ More patterns, including agent-mediated enrichment and display-only apps: [resou
 
 ## Beyond apps: the platform API
 
-`charming apps …` covers create / read / update / call / delete. Everything else — sharing, public access, templates, routines, secrets, feedback — goes through the generated catalog:
+`charming apps …` covers create / read / update / call / delete. Everything else, including sharing, public access, templates, routines, webhooks, secrets, and feedback, goes through the generated catalog:
 
 1. `charming api list`, then `charming api describe <operation-id>`.
 2. `charming api request set-app-public --param id=<app-id> --body '{"public":true}' --dry-run`

@@ -128,7 +128,6 @@
                   "sign_in_required",
                   "token_expired",
                   "forbidden",
-                  "experiment_disabled",
                   "forbidden_write",
                   "stored_value_too_large",
                   "storage_full",
@@ -231,7 +230,6 @@
                   "webhook_limit_exceeded",
                   "duplicate_webhook",
                   "webhook_disabled",
-                  "feature_disabled",
                   "version_limit_exceeded",
                   "plan_required"
                 ]
@@ -264,7 +262,7 @@
                   "string",
                   "integer"
                 ],
-                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner`, `webhook_delivery_body_bytes` — and pairs it with `max`. An `app_busy` refusal names the bound it met and pairs it with `observed` and `allowed`; no plan lifts any of them. Two are per-app run bounds, `concurrent_runs` and `runs_per_window`; the third, `render_token_refresh`, is the page render asking for a new render-token secret, held by 10 per app per client IP and 60 per app across every address in a 60 second window, and `observed`/`allowed` name whichever of those two refused. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
+                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner` — and pairs it with `max`. An `app_busy` refusal names the bound it met and pairs it with `observed` and `allowed`; no plan lifts any of them. Two are per-app run bounds, `concurrent_runs` and `runs_per_window`; the third, `render_token_refresh`, is the page render asking for a new render-token secret, held by 10 per app per client IP and 60 per app across every address in a 60 second window, and `observed`/`allowed` name whichever of those two refused. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
               },
               "rung": {
                 "type": "string",
@@ -3022,6 +3020,234 @@
           },
           "routine": {
             "$ref": "#/components/schemas/Routine"
+          }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "description": "A declared op an external sender invokes by POSTing to `url` with the Webhook secret. The body is the op’s input.",
+        "required": [
+          "id",
+          "app_id",
+          "op",
+          "name",
+          "url",
+          "secret_prefix",
+          "enabled",
+          "disabled_reason",
+          "last_run_at",
+          "last_outcome",
+          "last_error",
+          "consecutive_failures"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Public id, `webhook_<uuid>` form."
+          },
+          "app_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "op": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "The owner’s label; defaults to the op’s title, description, or identifier."
+          },
+          "url": {
+            "type": "string",
+            "description": "The delivery URL an external sender POSTs to."
+          },
+          "secret_prefix": {
+            "type": "string",
+            "description": "First characters of the secret, for matching a stored copy by eye."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "disabled_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "owner",
+              null
+            ]
+          },
+          "last_run_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_outcome": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "required": [
+              "kind",
+              "message"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "consecutive_failures": {
+            "type": "integer"
+          }
+        }
+      },
+      "WebhookTarget": {
+        "type": "object",
+        "description": "The target op’s contract: the JSON body a sender must POST and the value it gets back, read from the app’s active code.",
+        "required": [
+          "op",
+          "input_schema",
+          "output_schema"
+        ],
+        "properties": {
+          "op": {
+            "type": "string"
+          },
+          "input_schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "output_schema": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "WebhookCreatedResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhook",
+          "secret",
+          "target"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The `chrm_hook_*` secret. Shown once; only its hash is stored."
+          },
+          "target": {
+            "$ref": "#/components/schemas/WebhookTarget"
+          }
+        }
+      },
+      "WebhookResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhook"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          },
+          "secret": {
+            "type": "string",
+            "description": "Present only when the update rotated the secret. Shown once."
+          }
+        }
+      },
+      "WebhookDeliveryBody": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "The target op's input. Its shape is the op's declared input schema, returned as `target.input_schema` when the Webhook was created, so it cannot be closed here."
+      },
+      "WebhookDeliveryResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "value"
+        ],
+        "description": "The op's own result envelope, validated against its declared output schema.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "value": {
+            "description": "The op's return value."
+          }
+        }
+      },
+      "WebhookListResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhooks",
+          "limits"
+        ],
+        "description": "The caller's Webhooks, and the Webhook ceilings their plan allows.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Webhook"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "description": "The caller's own Webhook ceilings, resolved from their plan. Read these rather than assuming a tier.",
+            "required": [
+              "webhooks_per_app",
+              "webhooks_per_owner"
+            ],
+            "properties": {
+              "webhooks_per_app": {
+                "type": "integer"
+              },
+              "webhooks_per_owner": {
+                "type": "integer"
+              }
+            }
           }
         }
       },
@@ -8812,7 +9038,7 @@
       "get": {
         "operationId": "list-routines",
         "summary": "List the caller's Routines",
-        "description": "Session-gated. Lists every Routine on an app the caller personally owns.",
+        "description": "Session-gated. Lists every Routine on an app the caller can edit (holds `app:write` on): their own apps, their teams' apps, and apps shared with them as a collaborator.",
         "security": [
           {
             "userToken": []
@@ -9078,6 +9304,382 @@
           },
           "404": {
             "description": "Routine not found, or the caller lacks `app:write` on its app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks": {
+      "get": {
+        "operationId": "list-webhooks",
+        "summary": "List the caller's Webhooks",
+        "description": "Session-gated. Lists every Webhook on an app the caller can edit (holds `app:write` on): their own apps, their teams' apps, and apps shared with them as a collaborator.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's Webhooks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/apps/{appId}/webhooks": {
+      "parameters": [
+        {
+          "name": "appId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "create-webhook",
+        "summary": "Declare a Webhook on an app",
+        "description": "Session-gated; requires `app:write`. Declares one of the app’s ops as a Webhook target an external sender can invoke by POSTing to the returned `url` with the returned `secret` (shown once). Unlike a Routine, the op may declare required input: the sender supplies the body. Rejects a duplicate (app, op) pair and enforces a per-app and a per-owner cap from the owner's plan; read `limits` on `GET /api/v1/webhooks` for the caller's ceilings. The free defaults are 3 per app and 25 per owner.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "op"
+                ],
+                "properties": {
+                  "op": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook created. `secret` appears only in this response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookCreatedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body or app id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller cannot manage this app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or the op is not declared on it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A Webhook already exists for this (app, op) pair.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-app or per-owner Webhook cap reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/{webhookId}": {
+      "parameters": [
+        {
+          "name": "webhookId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "patch": {
+        "operationId": "update-webhook",
+        "summary": "Rename a Webhook, change its enabled state, or rotate its secret",
+        "description": "Session-gated; requires `app:write` on the webhook's app. Re-enable is `{enabled: true}` — not a separate action — and resets the consecutive-failure counter. `{rotate_secret: true}` replaces the secret immediately and returns the new one once. `name` relabels the Webhook.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "rotate_secret": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  }
+                },
+                "minProperties": 1,
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook updated. `secret` is present only after a rotation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found, or the caller lacks `app:write` on its app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete-webhook",
+        "summary": "Delete a Webhook",
+        "description": "Session-gated; requires `app:write` on the webhook's app. Removes the Webhook; its secret stops working at once.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook deleted."
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook not found, or the caller lacks `app:write` on its app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hooks/{webhookId}": {
+      "parameters": [
+        {
+          "name": "webhookId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "key",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string"
+          },
+          "description": "The Webhook secret, for senders that cannot set an Authorization header."
+        }
+      ],
+      "post": {
+        "operationId": "deliver-webhook",
+        "summary": "Deliver an event to a Webhook",
+        "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The JSON body is the target op's input, validated against its declared input schema; the response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookDeliveryBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The op's result envelope, `{ ok: true, value }`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDeliveryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not a JSON object, or fails the op's input schema.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or wrong secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The owner disabled this Webhook.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No Webhook with this id, or its op is no longer declared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many deliveries from this address or to this Webhook, or the app is at its run ceiling; retry after `Retry-After`.",
             "content": {
               "application/json": {
                 "schema": {

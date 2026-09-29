@@ -1189,6 +1189,194 @@ export const generatedOperations = [
     "usage": "charming api request create-token --body @body.json"
   },
   {
+    "id": "create-webhook",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/webhooks",
+    "summary": "Declare a Webhook on an app",
+    "description": "Session-gated; requires `app:write`. Declares one of the app’s ops as a Webhook target an external sender can invoke by POSTing to the returned `url` with the returned `secret` (shown once). Unlike a Routine, the op may declare required input: the sender supplies the body. Rejects a duplicate (app, op) pair and enforces a per-app and a per-owner cap from the owner's plan; read `limits` on `GET /api/v1/webhooks` for the caller's ceilings. The free defaults are 3 per app and 25 per owner.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "op"
+        ],
+        "properties": {
+          "op": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "op": "string"
+      }
+    },
+    "response": {
+      "description": "Webhook created. `secret` appears only in this response.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhook",
+          "secret",
+          "target"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhook": {
+            "type": "object",
+            "description": "A declared op an external sender invokes by POSTing to `url` with the Webhook secret. The body is the op’s input.",
+            "required": [
+              "id",
+              "app_id",
+              "op",
+              "name",
+              "url",
+              "secret_prefix",
+              "enabled",
+              "disabled_reason",
+              "last_run_at",
+              "last_outcome",
+              "last_error",
+              "consecutive_failures"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Public id, `webhook_<uuid>` form."
+              },
+              "app_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "op": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "description": "The owner’s label; defaults to the op’s title, description, or identifier."
+              },
+              "url": {
+                "type": "string",
+                "description": "The delivery URL an external sender POSTs to."
+              },
+              "secret_prefix": {
+                "type": "string",
+                "description": "First characters of the secret, for matching a stored copy by eye."
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "disabled_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "owner",
+                  null
+                ]
+              },
+              "last_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "last_outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_error": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "consecutive_failures": {
+                "type": "integer"
+              }
+            }
+          },
+          "secret": {
+            "type": "string",
+            "description": "The `chrm_hook_*` secret. Shown once; only its hash is stored."
+          },
+          "target": {
+            "type": "object",
+            "description": "The target op’s contract: the JSON body a sender must POST and the value it gets back, read from the app’s active code.",
+            "required": [
+              "op",
+              "input_schema",
+              "output_schema"
+            ],
+            "properties": {
+              "op": {
+                "type": "string"
+              },
+              "input_schema": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "output_schema": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request create-webhook --param appId=VALUE --body @body.json"
+  },
+  {
     "id": "decline-app-share",
     "method": "POST",
     "path": "/api/v1/apps/{appId}/shares/decline",
@@ -1424,6 +1612,96 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request delete-routine --param routineId=VALUE"
+  },
+  {
+    "id": "delete-webhook",
+    "method": "DELETE",
+    "path": "/api/v1/webhooks/{webhookId}",
+    "summary": "Delete a Webhook",
+    "description": "Session-gated; requires `app:write` on the webhook's app. Removes the Webhook; its secret stops working at once.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "webhookId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Webhook deleted."
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request delete-webhook --param webhookId=VALUE"
+  },
+  {
+    "id": "deliver-webhook",
+    "method": "POST",
+    "path": "/api/v1/hooks/{webhookId}",
+    "summary": "Deliver an event to a Webhook",
+    "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The JSON body is the target op's input, validated against its declared input schema; the response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "webhookId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "The Webhook secret, for senders that cannot set an Authorization header.",
+        "in": "query",
+        "name": "key",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": false,
+      "schema": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "The target op's input. Its shape is the op's declared input schema, returned as `target.input_schema` when the Webhook was created, so it cannot be closed here."
+      }
+    },
+    "response": {
+      "description": "The op's result envelope, `{ ok: true, value }`.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "value"
+        ],
+        "description": "The op's own result envelope, validated against its declared output schema.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "value": {
+            "description": "The op's return value."
+          }
+        }
+      }
+    },
+    "security": [],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request deliver-webhook --param webhookId=VALUE --body @body.json"
   },
   {
     "id": "describe-app",
@@ -4470,7 +4748,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/routines",
     "summary": "List the caller's Routines",
-    "description": "Session-gated. Lists every Routine on an app the caller personally owns.",
+    "description": "Session-gated. Lists every Routine on an app the caller can edit (holds `app:write` on): their own apps, their teams' apps, and apps shared with them as a collaborator.",
     "parameters": [],
     "requestBody": null,
     "response": {
@@ -4682,6 +4960,150 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request list-tokens"
+  },
+  {
+    "id": "list-webhooks",
+    "method": "GET",
+    "path": "/api/v1/webhooks",
+    "summary": "List the caller's Webhooks",
+    "description": "Session-gated. Lists every Webhook on an app the caller can edit (holds `app:write` on): their own apps, their teams' apps, and apps shared with them as a collaborator.",
+    "parameters": [],
+    "requestBody": null,
+    "response": {
+      "description": "The caller's Webhooks.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhooks",
+          "limits"
+        ],
+        "description": "The caller's Webhooks, and the Webhook ceilings their plan allows.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A declared op an external sender invokes by POSTing to `url` with the Webhook secret. The body is the op’s input.",
+              "required": [
+                "id",
+                "app_id",
+                "op",
+                "name",
+                "url",
+                "secret_prefix",
+                "enabled",
+                "disabled_reason",
+                "last_run_at",
+                "last_outcome",
+                "last_error",
+                "consecutive_failures"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Public id, `webhook_<uuid>` form."
+                },
+                "app_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "op": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The owner’s label; defaults to the op’s title, description, or identifier."
+                },
+                "url": {
+                  "type": "string",
+                  "description": "The delivery URL an external sender POSTs to."
+                },
+                "secret_prefix": {
+                  "type": "string",
+                  "description": "First characters of the secret, for matching a stored copy by eye."
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "disabled_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "owner",
+                    null
+                  ]
+                },
+                "last_run_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "last_outcome": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "last_error": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "required": [
+                    "kind",
+                    "message"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "consecutive_failures": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "description": "The caller's own Webhook ceilings, resolved from their plan. Read these rather than assuming a tier.",
+            "required": [
+              "webhooks_per_app",
+              "webhooks_per_owner"
+            ],
+            "properties": {
+              "webhooks_per_app": {
+                "type": "integer"
+              },
+              "webhooks_per_owner": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-webhooks"
   },
   {
     "id": "patch-app-source",
@@ -7811,6 +8233,164 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-routine --param routineId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-webhook",
+    "method": "PATCH",
+    "path": "/api/v1/webhooks/{webhookId}",
+    "summary": "Rename a Webhook, change its enabled state, or rotate its secret",
+    "description": "Session-gated; requires `app:write` on the webhook's app. Re-enable is `{enabled: true}` — not a separate action — and resets the consecutive-failure counter. `{rotate_secret: true}` replaces the secret immediately and returns the new one once. `name` relabels the Webhook.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "webhookId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rotate_secret": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "minProperties": 1,
+        "additionalProperties": false
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Webhook updated. `secret` is present only after a rotation.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "webhook"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "webhook": {
+            "type": "object",
+            "description": "A declared op an external sender invokes by POSTing to `url` with the Webhook secret. The body is the op’s input.",
+            "required": [
+              "id",
+              "app_id",
+              "op",
+              "name",
+              "url",
+              "secret_prefix",
+              "enabled",
+              "disabled_reason",
+              "last_run_at",
+              "last_outcome",
+              "last_error",
+              "consecutive_failures"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Public id, `webhook_<uuid>` form."
+              },
+              "app_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "op": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "description": "The owner’s label; defaults to the op’s title, description, or identifier."
+              },
+              "url": {
+                "type": "string",
+                "description": "The delivery URL an external sender POSTs to."
+              },
+              "secret_prefix": {
+                "type": "string",
+                "description": "First characters of the secret, for matching a stored copy by eye."
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "disabled_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "owner",
+                  null
+                ]
+              },
+              "last_run_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "last_outcome": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "last_error": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "required": [
+                  "kind",
+                  "message"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              },
+              "consecutive_failures": {
+                "type": "integer"
+              }
+            }
+          },
+          "secret": {
+            "type": "string",
+            "description": "Present only when the update rotated the secret. Shown once."
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-webhook --param webhookId=VALUE --body @body.json"
   },
   {
     "id": "upload-app-asset",
