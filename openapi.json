@@ -1145,6 +1145,10 @@
                     },
                     "label": {
                       "type": "string"
+                    },
+                    "handle": {
+                      "type": "string",
+                      "description": "The account grantee’s handle, which names their avatar at `/<handle>.png`. Absent for email invitations and accounts without a handle."
                     }
                   }
                 },
