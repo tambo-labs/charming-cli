@@ -22,6 +22,6 @@ export default class ApiRequest extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ApiRequest);
-    this.output(await runApi('request', [args.operationId], this.context(flags)));
+    this.output(await runApi('request', [args.operationId], await this.context(flags)));
   }
 }

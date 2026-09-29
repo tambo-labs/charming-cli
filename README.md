@@ -77,11 +77,69 @@ A runtime-issue handoff requires your personal access token, app-management perm
 
 ## Environment
 
-- `CHARMING_TOKEN`: user-token override.
+- `CHARMING_TOKEN`: user-token override on the production origin.
 - `CHARMING_BASE_URL`: API origin override.
-- `XDG_CONFIG_HOME`: config-directory override.
+- `CHARMING_PROFILE`: profile for this shell.
+- `CHARMING_CONFIG_DIR`: directory for `config.json` and `credentials.json`. Without it, the CLI uses `$XDG_CONFIG_HOME/charming`, then `~/.config/charming`.
 
-The CLI stores credentials in `$XDG_CONFIG_HOME/charming/config.json`, or `~/.config/charming/config.json`, with user-only permissions.
+## Profiles
+
+A profile is a name and an API origin. Each profile holds one signed-in account, so you can keep a personal and a work account, or production and a local server, side by side:
+
+```bash
+charming auth login                                  # creates the default profile
+charming auth login --profile work                   # saves and selects a second account
+charming auth login --profile local --base-url http://localhost:3000
+charming profile list
+charming profile current
+charming profile use work
+charming apps list --profile local
+```
+
+The CLI keeps profiles in two files in its config directory:
+
+- `config.json` holds profile names, their origins, and the selected profile. It holds no secrets.
+- `credentials.json` holds user tokens by profile name and app tokens by origin and app ID, with mode `600` in a `700` directory.
+
+The CLI still reads the single `config.json` that earlier versions wrote and moves its tokens into `credentials.json` the next time it saves. The earlier production token becomes the `default` profile, and a token saved for another origin becomes a profile named after that host, such as `localhost-3000`. If an earlier CLI version signs in again after the move, its token wins over the saved one on the next read, so that login isn't lost. An earlier version doesn't read `credentials.json`, though: going back to one means running `charming auth login` again, and unclaimed apps whose app token lives only in `credentials.json` are unreachable from it.
+
+Both files are replaced atomically, so an interrupted save leaves the previous file intact. The CLI keeps keys it doesn't recognize, and a credential whose profile is missing from `config.json`. It sets mode `700` only on a config directory it creates.
+
+### Project config
+
+A repository can pick the profile for everyone who works in it:
+
+```bash
+charming profile use work --project
+```
+
+Run it inside a git repository. It writes `.config/charming.json` at the git root, or edits the project file the CLI already found:
+
+```json
+{ "profile": "work" }
+```
+
+The CLI looks for `.config/charming.json` or `.charming/config.json` in the working directory and each parent up to the git root, and uses the nearest one. Outside a git repository, or in your home directory, it reads no project file, so a file planted in a shared directory such as `/tmp` can't pick your profile. A directory with both files is an error; keep `.config/charming.json`. The file may contain comments and trailing commas. It holds only `profile`: the CLI refuses a project file with a `token` key or a `chrm_` value, and one that tries to set an origin. Each person signs in to the named profile with `charming auth login --profile work`.
+
+### Which profile and credential a command uses
+
+| Setting | Resolved from, first match wins |
+| --- | --- |
+| Profile | `--profile NAME`, `CHARMING_PROFILE`, the nearest project config, `profile` in `config.json`, then `default` |
+| Origin | `--base-url`, `CHARMING_BASE_URL`, the profile's origin, then `https://charm.ing` |
+| Credential | `--token`; on the production origin `CHARMING_TOKEN`, then `BUILDY_USER_TOKEN`; the profile's token in `credentials.json`; for `default` on production, `~/.buildy/user-token` |
+
+A profile only sends its token to its own origin. When `--base-url` or `CHARMING_BASE_URL` names a different origin than the selected profile:
+
+- An explicit `--token`, or `CHARMING_TOKEN` on production, is used as is, and no saved profile is consulted.
+- A profile chosen with `--profile` or `CHARMING_PROFILE` fails before any request.
+- A profile chosen by a project config, `config.json`, or the `default` fallback gives way: the command uses the one profile saved for that origin, runs without a user token when none is saved, and asks for `--profile` when several are.
+
+A selected profile that isn't saved on this machine fails before any request; run `charming auth login --profile NAME` to create it. A profile name starts with a letter, contains only letters, numbers, `_`, or `-`, and is at most 64 characters.
+
+`auth login` signs in to the resolved profile with the resolved origin. With no profile selected, it creates `default`. With `--profile NAME`, it also selects `NAME` in `config.json`. When the origin override gives way and no profile exists for that origin, it saves one named after the host. `profile use NAME` selects a saved profile in `config.json`; `--project` writes it to the project config instead. Both print `current`, so you can see when a project config or `CHARMING_PROFILE` still takes precedence.
+
+`auth logout` removes the resolved profile. Logging out `default` also removes the app tokens saved for its origin, and so does logging out the last profile on an origin. Logging out another named profile keeps app tokens, and later commands fall back to `default`. Unclaimed apps whose app token is removed become unreachable from this machine.
 
 ## Activity feeds
 

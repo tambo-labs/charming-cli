@@ -11,7 +11,11 @@ import { currentDependencies, currentExitCode, withRuntime } from './runtime.js'
 
 export async function main(
   argv = process.argv.slice(2),
-  dependencies: { buildImpl?: () => void | Promise<void>; fetchImpl?: typeof fetch } = {},
+  dependencies: {
+    buildImpl?: () => void | Promise<void>;
+    cwd?: string;
+    fetchImpl?: typeof fetch;
+  } = {},
 ): Promise<number> {
   return withRuntime(dependencies, async () => {
     const root = packageRoot();

@@ -10,6 +10,6 @@ export default class AppsDescribe extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsDescribe);
-    this.output(await runApps('describe', [args.appId], this.context(flags)));
+    this.output(await runApps('describe', [args.appId], await this.context(flags)));
   }
 }

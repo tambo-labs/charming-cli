@@ -17,6 +17,6 @@ export default class AppsRename extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsRename);
-    this.output(await runApps('rename', [args.appId, args.name], this.context(flags)));
+    this.output(await runApps('rename', [args.appId, args.name], await this.context(flags)));
   }
 }

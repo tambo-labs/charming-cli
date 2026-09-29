@@ -6,6 +6,6 @@ export default class AuthStatus extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AuthStatus);
-    this.output(await runAuth('status', this.context(flags)));
+    this.output(await runAuth('status', await this.context(flags)));
   }
 }

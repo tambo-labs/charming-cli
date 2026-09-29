@@ -6,6 +6,6 @@ export default class Doctor extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(Doctor);
-    this.output(await runDoctor(this.context(flags)));
+    this.output(await runDoctor(await this.context(flags)));
   }
 }

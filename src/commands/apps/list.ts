@@ -13,6 +13,6 @@ export default class AppsList extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AppsList);
-    this.output(await runApps('list', [], this.context(flags)));
+    this.output(await runApps('list', [], await this.context(flags)));
   }
 }

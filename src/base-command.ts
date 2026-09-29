@@ -1,7 +1,7 @@
 import { Command, Flags, type Interfaces } from '@oclif/core';
 
 import { type CommandContext, redactSecrets } from './commands.js';
-import { PRODUCTION_BASE_URL } from './config.js';
+import { resolveSession, type SessionRequest } from './config.js';
 import { ApiError, TimeoutError } from './http.js';
 import { currentDependencies, setExitCode } from './runtime.js';
 
@@ -14,21 +14,39 @@ const MAX_OUTPUT_CHARS = 200_000;
 export abstract class CharmingCommand extends Command {
   static override baseFlags = {
     'base-url': Flags.string({ description: 'API origin' }),
+    profile: Flags.string({ description: 'Use a saved profile for this command.' }),
     timeout: Flags.string({ description: 'Request timeout in milliseconds.' }),
     token: Flags.string({ description: 'Override saved credentials' }),
   };
 
-  protected context(flags: Record<string, unknown>): CommandContext {
-    const { 'base-url': baseUrl, timeout, token, ...options } = flags;
+  protected async context(
+    flags: Record<string, unknown>,
+    purpose: SessionRequest['purpose'] = 'use',
+  ): Promise<CommandContext> {
+    const { options, request, timeoutMs } = this.sessionRequest(flags);
     return {
-      baseUrl:
-        typeof baseUrl === 'string'
-          ? baseUrl
-          : (process.env.CHARMING_BASE_URL ?? PRODUCTION_BASE_URL),
       fetchImpl: currentDependencies().fetchImpl,
+      options,
+      session: await resolveSession({ ...request, purpose }),
+      timeoutMs,
+    };
+  }
+
+  protected sessionRequest(flags: Record<string, unknown>): {
+    options: CommandContext['options'];
+    request: SessionRequest;
+    timeoutMs?: number;
+  } {
+    const { 'base-url': baseUrl, profile, timeout, token, ...options } = flags;
+    return {
       options: options as CommandContext['options'],
+      request: {
+        baseUrl: typeof baseUrl === 'string' ? baseUrl : undefined,
+        cwd: currentDependencies().cwd,
+        profile: typeof profile === 'string' ? profile : undefined,
+        token: typeof token === 'string' ? token : undefined,
+      },
       timeoutMs: parseTimeoutFlag(timeout),
-      token: typeof token === 'string' ? token : undefined,
     };
   }
 

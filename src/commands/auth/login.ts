@@ -12,6 +12,6 @@ export default class AuthLogin extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AuthLogin);
-    this.output(await runAuth('login', this.context(flags)));
+    this.output(await runAuth('login', await this.context(flags, 'login')));
   }
 }

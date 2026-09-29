@@ -20,7 +20,7 @@ export default class AppsCreate extends CharmingCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsCreate);
     this.output(
-      await runApps('create', args.directory ? [args.directory] : [], this.context(flags)),
+      await runApps('create', args.directory ? [args.directory] : [], await this.context(flags)),
     );
   }
 }

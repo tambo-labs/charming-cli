@@ -9,7 +9,7 @@ import { promisify } from 'node:util';
 import { captureOutput, runCommand as runOclifCommand } from '@oclif/test';
 import { describe, expect, test, vi } from 'vitest';
 
-import { fetchThatWaitsForAbort } from '../test-helpers.js';
+import { directoryOutsideAnyProject, fetchThatWaitsForAbort } from '../test-helpers.js';
 import { main } from './cli.js';
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
@@ -607,7 +607,9 @@ describe('main', () => {
       [['auth', 'status', '--token', 'chrm_user_test'], 0],
       [['doctor'], 0],
     ] as const) {
-      await expect(main([...argv], { fetchImpl })).resolves.toBe(expectedExitCode);
+      await expect(
+        main([...argv], { cwd: await directoryOutsideAnyProject(), fetchImpl }),
+      ).resolves.toBe(expectedExitCode);
     }
 
     expect(fetchImpl).toHaveBeenCalled();

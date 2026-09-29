@@ -6,6 +6,6 @@ export default class AgentContext extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AgentContext);
-    this.output(agentContext(this.context(flags).baseUrl));
+    this.output(agentContext((await this.context(flags, 'inspect')).session));
   }
 }

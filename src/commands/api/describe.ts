@@ -10,6 +10,6 @@ export default class ApiDescribe extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ApiDescribe);
-    this.output(await runApi('describe', [args.operationId], this.context(flags)));
+    this.output(await runApi('describe', [args.operationId], await this.context(flags, 'inspect')));
   }
 }

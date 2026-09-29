@@ -65,7 +65,9 @@ Run mutations with `--dry-run` first. Signed-in creates, deletions, share revoca
 
 Read JSON results from stdout. Login instructions and JSON errors use stderr. Branch on `error.kind`. Follow `error.recovery` when present. Never print tokens or `device_code` values. Show `user_code` only during login.
 
-`charming auth logout` removes the user credential and every app credential for the selected origin. Unclaimed apps that relied on those app credentials become unreachable.
+A profile is a name and an origin, with its token saved in the user's `credentials.json`. Run `charming profile current` to see which profile a command in this directory uses and why: `--profile`, `CHARMING_PROFILE`, the nearest `.config/charming.json` or `.charming/config.json` up to the git root, the user's selected profile, or `default`. If it names a profile that isn't saved, commands fail before any request; ask the user to run `charming auth login --profile NAME`. Never write a token into a project file; it holds only `{"profile": "NAME"}`, and the CLI refuses one with a credential. `charming profile use NAME --project` writes that file.
+
+An explicit `--token` or production `CHARMING_TOKEN` overrides a saved profile. A profile never sends its token to another origin: `--profile work --base-url URL` fails when `work` is saved for a different origin, and an unforced `--base-url` uses the one profile saved for that origin. Logging out `default`, or the last profile on an origin, also removes that origin's app credentials, so unclaimed apps that relied on them become unreachable. Logging out another named profile keeps them.
 
 ## ESM authoring
 

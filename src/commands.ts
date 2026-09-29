@@ -6,23 +6,23 @@ import { fileURLToPath } from 'node:url';
 
 import { type OptionValue, stringOption, stringOptions } from './args.js';
 import {
+  PRODUCTION_BASE_URL,
   loadAppToken,
-  loadToken,
-  removeCredentials,
-  resolveToken,
+  logout,
   saveAppToken,
-  saveToken,
+  saveLogin,
+  type Session,
 } from './config.js';
 import { findOperation, type Operation, operations } from './contract.js';
 import { readAppBundle, readJsonValue, writeAppBundle } from './files.js';
 import { ApiError, CharmingClient, isOpenableUrl } from './http.js';
+import { DEFAULT_PROFILE } from './profile-name.js';
 
 export type CommandContext = {
-  baseUrl: string;
   fetchImpl?: typeof fetch;
   options: Record<string, OptionValue>;
+  session: Session;
   timeoutMs?: number;
-  token?: string;
 };
 
 // Per-route default timeouts. `source` returns a full app bundle (module, ui,
@@ -78,40 +78,34 @@ export async function runAuth(
   action: string | undefined,
   context: CommandContext,
 ): Promise<unknown> {
+  const { session } = context;
   if (action === 'logout') {
-    if (context.token) {
+    if (session.tokenSource === 'flag') {
       throw new Error('Cannot log out while --token is set. Remove it and try again.');
     }
-    const resolved = await resolveToken({ baseUrl: context.baseUrl });
-    const activeSource = resolved.source;
-    if (!activeSource) {
-      const removed = await removeCredentials({ baseUrl: context.baseUrl });
-      return { ...removed, authenticated: false };
-    }
-    if (activeSource !== 'config') {
-      throw new Error(`Cannot log out while ${activeSource} is set. Unset it and try again.`);
-    }
-    if (resolved.fallbackSource) {
+    if (session.tokenSource === 'legacy' || session.legacyFallback) {
       throw new Error(
         'Cannot log out while a legacy credential exists at ~/.buildy/user-token. Remove it and try again.',
       );
     }
-    const removed = await removeCredentials({ baseUrl: context.baseUrl });
-    return { ...removed, authenticated: false };
+    if (session.tokenSource && session.tokenSource !== 'credentials') {
+      throw new Error(
+        `Cannot log out while ${session.tokenSource} is set. Unset it and try again.`,
+      );
+    }
+    return { ...(await logout(session)), authenticated: false };
   }
   if (action === 'status') {
-    const resolved = context.token
-      ? { source: '--token', token: context.token }
-      : await resolveToken({ baseUrl: context.baseUrl });
-    const token = resolved.token;
-    if (!token) return { authenticated: false };
-    const client = clientFor(context, token);
-    await client.request('GET', '/app?limit=1', {
+    const profile = session.profile ?? null;
+    if (!session.token) return { authenticated: false, origin: session.origin, profile };
+    await clientFor(context, session.token).request('GET', '/app?limit=1', {
       timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
     });
     return {
       authenticated: true,
-      source: resolved.source,
+      origin: session.origin,
+      profile,
+      source: session.tokenSource === 'flag' ? '--token' : session.tokenSource,
     };
   }
   if (action !== 'login') throw new Error('Usage: charming auth login|status|logout');
@@ -143,7 +137,7 @@ export async function runAuth(
       userCode: started.user_code,
     })}\n`,
   );
-  if (context.options['no-open'] !== true) openUrl(url, context.baseUrl);
+  if (context.options['no-open'] !== true) openUrl(url, session.origin);
 
   const deadline = Date.now() + Math.min(started.expires_in ?? 600, 600) * 1_000;
   const interval = Math.max(started.polling_interval ?? 5, 1) * 1_000;
@@ -165,8 +159,8 @@ export async function runAuth(
       );
     }
     if (typeof polled.token === 'string' && polled.token.length > 0) {
-      await saveToken(polled.token, { baseUrl: context.baseUrl });
-      return { authenticated: true };
+      await saveLogin(session, polled.token);
+      return { authenticated: true, origin: session.origin, profile: session.profile };
     }
     if (polled.already_delivered) {
       throw new Error(
@@ -201,7 +195,7 @@ export async function runApps(
   }
 
   if (action === 'create') {
-    const token = context.token ?? (await loadToken({ baseUrl: context.baseUrl }));
+    const token = context.session.token;
     const bundle = await readBundle(positionals[0], context.options);
     const body: Record<string, unknown> = { ...bundle };
     const description = stringOption(context.options, 'description');
@@ -228,8 +222,7 @@ export async function runApps(
       token?: string;
       [key: string]: unknown;
     };
-    if (data.id && data.token)
-      await saveAppToken(data.id, data.token, { baseUrl: context.baseUrl });
+    if (data.id && data.token) await saveAppToken(context.session.origin, data.id, data.token);
     return safeCreateResult(data);
   }
 
@@ -389,7 +382,7 @@ export async function runApi(
     );
   }
   const sessionOnly = acceptsOnlySessionCookie(operation);
-  if (sessionOnly && context.token) {
+  if (sessionOnly && context.session.tokenSource === 'flag') {
     throw new Error(
       `Operation ${operation.id} does not accept --token. It needs a signed-in Charming session cookie. Pass one with --header Cookie=NAME=VALUE, or do this in the Charming web app.`,
     );
@@ -505,11 +498,12 @@ function acceptsOnlySessionCookie(operation: Operation): boolean {
   );
 }
 
-export function agentContext(baseUrl: string): unknown {
+export function agentContext(session: Pick<Session, 'origin' | 'profile'>): unknown {
   return {
     schemaVersion: 1,
     cliVersion: CLI_VERSION,
-    baseUrl,
+    baseUrl: session.origin,
+    profile: session.profile ?? null,
     output: {
       format: 'json',
       errors: 'stderr',
@@ -518,12 +512,39 @@ export function agentContext(baseUrl: string): unknown {
     },
     auth: {
       command: 'charming auth login --no-open',
-      environment: ['CHARMING_TOKEN', 'CHARMING_BASE_URL'],
+      environment: [
+        'CHARMING_TOKEN',
+        'CHARMING_BASE_URL',
+        'CHARMING_PROFILE',
+        'CHARMING_CONFIG_DIR',
+      ],
       tokenKinds: ['chrm_user_*', 'chrm_app_*'],
+    },
+    profiles: {
+      flag: '--profile NAME',
+      name: 'starts with a letter; letters, numbers, _ or -; at most 64 characters',
+      precedence: [
+        '--profile NAME',
+        'CHARMING_PROFILE',
+        'project .config/charming.json or .charming/config.json "profile"',
+        'user config.json "profile"',
+        'default',
+      ],
+      projectFiles: ['.config/charming.json', '.charming/config.json'],
+      projectLookup:
+        'nearest directory from the working directory up to the git root; none outside a git repository or in the home directory',
+      userFiles: {
+        config:
+          '$CHARMING_CONFIG_DIR or $XDG_CONFIG_HOME/charming or ~/.config/charming, config.json',
+        credentials: 'same directory, credentials.json (mode 600)',
+      },
+      originOverride:
+        '--base-url or CHARMING_BASE_URL; a token override skips profiles; an explicit --profile or CHARMING_PROFILE on another origin fails; otherwise the one saved profile on that origin is used',
     },
     commands: {
       auth: ['login', 'status', 'logout'],
       apps: ['list', 'create', 'describe', 'source', 'update', 'call', 'delete', 'rename'],
+      profile: ['list', 'current', 'use'],
       generatedApiOperations: operations.length,
       generatedApiIndex: 'charming api list',
     },
@@ -536,7 +557,7 @@ export function agentContext(baseUrl: string): unknown {
 }
 
 export async function runDoctor(context: CommandContext): Promise<unknown> {
-  const token = context.token ?? (await loadToken({ baseUrl: context.baseUrl }));
+  const token = context.session.token;
   let spec;
   try {
     spec = await clientFor(context).request('GET', '/.well-known/openapi.json', {
@@ -546,7 +567,7 @@ export async function runDoctor(context: CommandContext): Promise<unknown> {
     if (error instanceof ApiError) throw error;
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `Could not reach ${context.baseUrl}: ${detail}. Check --base-url and your network connection.`,
+      `Could not reach ${context.session.origin}: ${detail}. Check --base-url and your network connection.`,
       { cause: error },
     );
   }
@@ -574,7 +595,7 @@ export async function runDoctor(context: CommandContext): Promise<unknown> {
     api: 'ok',
     apiVersion: document.info?.version ?? null,
     auth,
-    baseUrl: context.baseUrl,
+    baseUrl: context.session.origin,
     generatedOperations: operations.length,
     liveOperations: Object.values(document.paths ?? {}).reduce(
       (count, path) =>
@@ -610,9 +631,7 @@ async function rawRequestToken(
   appId: string | undefined,
 ): Promise<string | undefined> {
   return (
-    context.token ??
-    (await loadToken({ baseUrl: context.baseUrl })) ??
-    (appId ? await loadAppToken(appId, { baseUrl: context.baseUrl }) : undefined)
+    context.session.token ?? (appId ? await loadAppToken(context.session.origin, appId) : undefined)
   );
 }
 
@@ -760,25 +779,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function clientFor(context: CommandContext, token?: string): CharmingClient {
   return new CharmingClient({
-    baseUrl: context.baseUrl,
+    baseUrl: context.session.origin,
     fetchImpl: context.fetchImpl,
     token,
   });
 }
 
 async function requireUserToken(context: CommandContext): Promise<string> {
-  const token = context.token ?? (await loadToken({ baseUrl: context.baseUrl }));
-  if (!token) throw new Error('Not authenticated. Run `charming auth login`.');
+  const token = context.session.token;
+  if (!token) throw new Error(`Not authenticated. Run \`${loginCommand(context.session)}\`.`);
   return token;
 }
 
 async function tokenForApp(context: CommandContext, appId: string): Promise<string> {
-  const token =
-    context.token ??
-    (await loadToken({ baseUrl: context.baseUrl })) ??
-    (await loadAppToken(appId, { baseUrl: context.baseUrl }));
-  if (!token) throw new Error('No credential for this app. Run `charming auth login`.');
+  const token = context.session.token ?? (await loadAppToken(context.session.origin, appId));
+  if (!token) {
+    throw new Error(`No credential for this app. Run \`${loginCommand(context.session)}\`.`);
+  }
   return token;
+}
+
+function loginCommand(session: Session): string {
+  const profile =
+    session.profile && session.profile !== DEFAULT_PROFILE ? ` --profile ${session.profile}` : '';
+  const origin =
+    session.originSource !== 'profile' && session.origin !== PRODUCTION_BASE_URL
+      ? ` --base-url ${session.origin}`
+      : '';
+  return `charming auth login${profile}${origin}`;
 }
 
 async function readBundle(directory: string | undefined, options: Record<string, OptionValue>) {

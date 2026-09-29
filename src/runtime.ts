@@ -1,4 +1,8 @@
-type Dependencies = { buildImpl?: () => void | Promise<void>; fetchImpl?: typeof fetch };
+type Dependencies = {
+  buildImpl?: () => void | Promise<void>;
+  cwd?: string;
+  fetchImpl?: typeof fetch;
+};
 
 type Runtime = Dependencies & { exitCode?: number };
 

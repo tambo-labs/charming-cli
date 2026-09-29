@@ -6,6 +6,6 @@ export default class ApiList extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(ApiList);
-    this.output(await runApi('list', [], this.context(flags)));
+    this.output(await runApi('list', [], await this.context(flags, 'inspect')));
   }
 }

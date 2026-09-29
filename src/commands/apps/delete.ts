@@ -15,6 +15,6 @@ export default class AppsDelete extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsDelete);
-    this.output(await runApps('delete', [args.appId], this.context(flags)));
+    this.output(await runApps('delete', [args.appId], await this.context(flags)));
   }
 }

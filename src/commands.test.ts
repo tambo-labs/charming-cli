@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-import { fetchThatWaitsForAbort } from '../test-helpers.js';
+import { directoryOutsideAnyProject, fetchThatWaitsForAbort } from '../test-helpers.js';
 import {
   agentContext,
   redactSecrets,
@@ -14,12 +14,28 @@ import {
   runDoctor,
   type CommandContext,
 } from './commands.js';
-import { PRODUCTION_BASE_URL } from './config.js';
+import { PRODUCTION_BASE_URL, resolveSession } from './config.js';
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
 
-async function runCommand(context: CommandContext & { command: string[] }): Promise<unknown> {
-  const [topic, action, ...positionals] = context.command;
+type TestCommand = Omit<CommandContext, 'session'> & {
+  baseUrl?: string;
+  command: string[];
+  token?: string;
+};
+
+async function runCommand({ baseUrl, token, ...rest }: TestCommand): Promise<unknown> {
+  const [topic, action, ...positionals] = rest.command;
+  const context: CommandContext = {
+    ...rest,
+    session: await resolveSession({
+      baseUrl,
+      cwd: await directoryOutsideAnyProject(),
+      env: { ...process.env, CHARMING_PROFILE: '' },
+      purpose: topic === 'auth' && action === 'login' ? 'login' : 'use',
+      token,
+    }),
+  };
   const result =
     topic === 'auth'
       ? await runAuth(action, context)
@@ -30,9 +46,9 @@ async function runCommand(context: CommandContext & { command: string[] }): Prom
           : topic === 'doctor'
             ? await runDoctor(context)
             : topic === 'agent-context'
-              ? agentContext(context.baseUrl)
+              ? agentContext(context.session)
               : (() => {
-                  throw new Error(`Unknown command: ${context.command.join(' ') || '(none)'}`);
+                  throw new Error(`Unknown command: ${rest.command.join(' ') || '(none)'}`);
                 })();
   return redactSecrets(result);
 }
@@ -124,25 +140,30 @@ describe('runCommand', () => {
       const fetchImpl = vi
         .fn<typeof fetch>()
         .mockImplementation(async () => Response.json({ ok: true }));
-      const context: CommandContext = {
+      const context = {
         baseUrl: 'https://charming.test',
         fetchImpl,
         options: { param, ...(body ? { body } : {}), ...(header ? { header } : {}) },
         ...(header ? {} : { token: 'chrm_user_fixture' }),
       };
-      await expect(runApi('request', [operation], context)).rejects.toThrow(
-        new Error('This action requires --yes. Use --dry-run to preview it.'),
-      );
+      await expect(
+        runCommand({ ...context, command: ['api', 'request', operation] }),
+      ).rejects.toThrow(new Error('This action requires --yes. Use --dry-run to preview it.'));
       expect(fetchImpl).not.toHaveBeenCalled();
       await expect(
-        runApi('request', [operation], {
+        runCommand({
+          command: ['api', 'request', operation],
           ...context,
           options: { ...context.options, 'dry-run': true },
         }),
       ).resolves.toMatchObject({ dryRun: true, method, path });
       expect(fetchImpl).not.toHaveBeenCalled();
       await expect(
-        runApi('request', [operation], { ...context, options: { ...context.options, yes: true } }),
+        runCommand({
+          command: ['api', 'request', operation],
+          ...context,
+          options: { ...context.options, yes: true },
+        }),
       ).resolves.toEqual({ ok: true });
       expect(fetchImpl).toHaveBeenCalledOnce();
       expect(fetchImpl.mock.calls[0]?.[0]).toBe(`https://charming.test${path}`);
@@ -163,7 +184,8 @@ describe('runCommand', () => {
         .mockImplementation(async () => Response.json({ ok: true }));
 
       const result = await withSavedToken(baseUrl, 'chrm_user_expired', () =>
-        runApi('request', ['update-team-member'], {
+        runCommand({
+          command: ['api', 'request', 'update-team-member'],
           baseUrl,
           fetchImpl,
           options: { ...updateMember, header: [`cookie=${SESSION_COOKIE}`] },
@@ -183,7 +205,8 @@ describe('runCommand', () => {
 
       await expect(
         withSavedToken(baseUrl, 'chrm_user_saved', () =>
-          runApi('request', ['update-team-member'], {
+          runCommand({
+            command: ['api', 'request', 'update-team-member'],
             baseUrl,
             fetchImpl,
             options: updateMember,
@@ -197,7 +220,8 @@ describe('runCommand', () => {
       const fetchImpl = vi.fn<typeof fetch>();
 
       await expect(
-        runApi('request', ['update-team-member'], {
+        runCommand({
+          command: ['api', 'request', 'update-team-member'],
           baseUrl,
           fetchImpl,
           options: { ...updateMember, header: [`Cookie=${SESSION_COOKIE}`] },
@@ -211,7 +235,8 @@ describe('runCommand', () => {
       const fetchImpl = vi.fn<typeof fetch>();
 
       await expect(
-        runApi('request', ['update-team-member'], {
+        runCommand({
+          command: ['api', 'request', 'update-team-member'],
           baseUrl,
           fetchImpl,
           options: { ...updateMember, 'dry-run': true },
@@ -231,7 +256,8 @@ describe('runCommand', () => {
         .mockImplementation(async () => Response.json({ apps: [] }));
 
       await withSavedToken(baseUrl, 'chrm_user_saved', () =>
-        runApi('request', ['list-team-apps'], {
+        runCommand({
+          command: ['api', 'request', 'list-team-apps'],
           baseUrl,
           fetchImpl,
           options: { param: ['teamId=team-1'] },
@@ -576,6 +602,7 @@ describe('runCommand', () => {
       token: 'chrm_app_test',
     });
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'timeout', timeoutMs: 10_000 });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled());
     await vi.advanceTimersByTimeAsync(10_000);
     await assertion;
   });
@@ -593,6 +620,7 @@ describe('runCommand', () => {
       token: 'chrm_user_test',
     });
     const assertion = expect(pending).rejects.toMatchObject({ kind: 'timeout', timeoutMs: 500 });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalled());
     await vi.advanceTimersByTimeAsync(500);
     await assertion;
   });
@@ -825,12 +853,20 @@ describe('runCommand', () => {
       fetchImpl,
       options: { 'no-open': true },
     });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(2_000);
 
-    await expect(login).resolves.toEqual({ authenticated: true });
-    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
-      token: 'chrm_user_saved-token',
+    await expect(login).resolves.toEqual({
+      authenticated: true,
+      origin: PRODUCTION_BASE_URL,
+      profile: 'default',
     });
+    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
+      profiles: { default: { origin: PRODUCTION_BASE_URL } },
+    });
+    expect(
+      JSON.parse(await readFile(join(directory, 'charming', 'credentials.json'), 'utf8')),
+    ).toEqual({ profiles: { default: { token: 'chrm_user_saved-token' } } });
   });
 
   test('stores a device-login token under its non-production origin', async () => {
@@ -851,12 +887,20 @@ describe('runCommand', () => {
       fetchImpl,
       options: { 'no-open': true },
     });
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(1_000);
 
-    await expect(login).resolves.toEqual({ authenticated: true });
-    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
-      tokens: { 'https://preview.example': 'chrm_user_preview-token' },
+    await expect(login).resolves.toEqual({
+      authenticated: true,
+      origin: 'https://preview.example',
+      profile: 'default',
     });
+    expect(JSON.parse(await readFile(join(directory, 'charming', 'config.json'), 'utf8'))).toEqual({
+      profiles: { default: { origin: 'https://preview.example' } },
+    });
+    expect(
+      JSON.parse(await readFile(join(directory, 'charming', 'credentials.json'), 'utf8')),
+    ).toEqual({ profiles: { default: { token: 'chrm_user_preview-token' } } });
   });
 
   test.each([
@@ -882,6 +926,7 @@ describe('runCommand', () => {
       options: { 'no-open': true },
     });
     const rejection = expect(login).rejects.toThrow(message);
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(1_000);
 
     await rejection;
@@ -955,6 +1000,7 @@ describe('runCommand', () => {
       options: { 'no-open': true },
     });
     const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(1_000);
 
     await rejection;
@@ -977,6 +1023,7 @@ describe('runCommand', () => {
       options: { 'no-open': true },
     });
     const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(1_000);
 
     await rejection;
@@ -997,6 +1044,7 @@ describe('runCommand', () => {
       options: { 'no-open': true },
     });
     const rejection = expect(login).rejects.toThrow('Pairing code expired');
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     await vi.advanceTimersByTimeAsync(600_000);
 
     await rejection;
@@ -1057,7 +1105,34 @@ describe('runCommand', () => {
     }
   });
 
-  test('logout removes all credentials for the selected origin only', async () => {
+  test('does not delete a saved token while a legacy ~/.buildy credential would keep signing in', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
+    const configDirectory = join(directory, 'charming');
+    const credentialsPath = join(configDirectory, 'credentials.json');
+    await mkdir(join(directory, 'home', '.buildy'), { recursive: true });
+    await writeFile(join(directory, 'home', '.buildy', 'user-token'), 'chrm_user_legacy\n');
+    await mkdir(configDirectory);
+    await writeFile(
+      join(configDirectory, 'config.json'),
+      JSON.stringify({ profiles: { default: { origin: PRODUCTION_BASE_URL } } }),
+    );
+    await writeFile(
+      credentialsPath,
+      JSON.stringify({ profiles: { default: { token: 'chrm_user_saved' } } }),
+    );
+    const before = await readFile(credentialsPath, 'utf8');
+    vi.stubEnv('XDG_CONFIG_HOME', directory);
+    vi.stubEnv('HOME', join(directory, 'home'));
+    vi.stubEnv('CHARMING_TOKEN', '');
+    vi.stubEnv('BUILDY_USER_TOKEN', '');
+
+    await expect(
+      runCommand({ baseUrl: PRODUCTION_BASE_URL, command: ['auth', 'logout'], options: {} }),
+    ).rejects.toThrow('Cannot log out while a legacy credential exists at ~/.buildy/user-token');
+    expect(await readFile(credentialsPath, 'utf8')).toBe(before);
+  });
+
+  test('logout of the only profile on an origin removes its app credentials and nothing else', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
     const configDirectory = join(directory, 'charming');
     const configPath = join(configDirectory, 'config.json');
@@ -1085,14 +1160,26 @@ describe('runCommand', () => {
         command: ['auth', 'logout'],
         options: {},
       }),
-    ).resolves.toEqual({ appTokensRemoved: 1, authenticated: false });
+    ).resolves.toEqual({
+      appTokensRemoved: 1,
+      authenticated: false,
+      profile: 'preview-example',
+    });
     expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
-      appTokens: {
-        'https://other.example|other-app': 'other-app-token',
-        [`${PRODUCTION_BASE_URL}|production-app`]: 'production-app-token',
+      profiles: {
+        default: { origin: PRODUCTION_BASE_URL },
+        'other-example': { origin: 'https://other.example' },
       },
-      token: 'production-user-token',
-      tokens: { 'https://other.example': 'other-user-token' },
+    });
+    expect(JSON.parse(await readFile(join(configDirectory, 'credentials.json'), 'utf8'))).toEqual({
+      profiles: {
+        default: { token: 'production-user-token' },
+        'other-example': { token: 'other-user-token' },
+      },
+      apps: {
+        'https://other.example': { 'other-app': 'other-app-token' },
+        [PRODUCTION_BASE_URL]: { 'production-app': 'production-app-token' },
+      },
     });
   });
 
@@ -1118,9 +1205,10 @@ describe('runCommand', () => {
         command: ['auth', 'logout'],
         options: {},
       }),
-    ).resolves.toEqual({ appTokensRemoved: 1, authenticated: false });
-    expect(JSON.parse(await readFile(configPath, 'utf8'))).toEqual({
-      appTokens: { 'https://other.example|other-app': 'other-app-token' },
+    ).resolves.toEqual({ appTokensRemoved: 1, authenticated: false, profile: 'default' });
+    await expect(readFile(configPath, 'utf8')).rejects.toThrow('ENOENT');
+    expect(JSON.parse(await readFile(join(configDirectory, 'credentials.json'), 'utf8'))).toEqual({
+      apps: { 'https://other.example': { 'other-app': 'other-app-token' } },
     });
   });
 

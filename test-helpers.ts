@@ -1,3 +1,13 @@
+import { mkdir, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+export async function directoryOutsideAnyProject(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'charming-cwd-'));
+  await mkdir(join(directory, '.git'));
+  return directory;
+}
+
 export function fetchThatWaitsForAbort(
   _input: string | URL | Request,
   init?: RequestInit,

@@ -25,7 +25,7 @@ export default class AppsUpdate extends CharmingCommand {
       await runApps(
         'update',
         [args.appId, ...(args.directory ? [args.directory] : [])],
-        this.context(flags),
+        await this.context(flags),
       ),
     );
   }

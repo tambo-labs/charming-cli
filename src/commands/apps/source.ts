@@ -12,6 +12,6 @@ export default class AppsSource extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsSource);
-    this.output(await runApps('source', [args.appId], this.context(flags)));
+    this.output(await runApps('source', [args.appId], await this.context(flags)));
   }
 }

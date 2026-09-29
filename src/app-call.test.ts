@@ -31,9 +31,16 @@ function fixture(options: CommandContext['options'] = {}) {
         : Response.json({ ok: true, method: init?.method }),
     );
   const context: CommandContext = {
-    baseUrl: 'https://charming.test',
-    token: 'chrm_user_fixture',
     options,
+    session: {
+      legacyFallback: false,
+      origin: 'https://charming.test',
+      originSource: 'flag',
+      profileSource: 'origin',
+      saved: false,
+      token: 'chrm_user_fixture',
+      tokenSource: 'flag',
+    },
     fetchImpl,
   };
   return { context, fetchImpl };
