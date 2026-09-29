@@ -250,19 +250,6 @@ export async function runApps(
     };
   }
 
-  if (action === 'call' && context.options['dry-run'] === true) {
-    const operation = positionals[1];
-    if (!operation) throw new Error('Usage: charming apps call <APP_ID> <OPERATION>');
-    const input = stringOption(context.options, 'input');
-    const body = input ? await readJsonValue(input) : {};
-    return {
-      dryRun: true,
-      method: 'POST',
-      path: `/app/${encodeURIComponent(appId)}/api/${encodeURIComponent(operation)}`,
-      body,
-    };
-  }
-
   if (action === 'delete' && context.options['dry-run'] === true) {
     return {
       dryRun: true,
@@ -337,40 +324,16 @@ export async function runApps(
   if (action === 'call') {
     const operation = positionals[1];
     if (!operation) throw new Error('Usage: charming apps call <APP_ID> <OPERATION>');
-    const input = stringOption(context.options, 'input');
-    const body = (input ? await readJsonValue(input) : {}) as Record<string, unknown>;
-    const path = `/app/${encodeURIComponent(appId)}/api/${encodeURIComponent(operation)}`;
-    try {
-      return (
-        await client.request('POST', path, {
-          body,
-          timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
-        })
-      ).data;
-    } catch (error) {
-      // A read-only route is registered GET-only, so the POST above never
-      // matches and the server's route matcher falls through to its generic
-      // "exposes no operation named X" 404 — indistinguishable, from here,
-      // from a genuinely unknown op. Retry once over GET (input as query
-      // params, matching the server's readRouteInput for GET/HEAD) before
-      // surfacing the original error, so `apps call <id> list` (the
-      // documented smoke-test step) works without the caller needing to
-      // already know each op's declared method.
-      if (error instanceof ApiError && error.kind === 'operation_not_found') {
-        const query = new URLSearchParams();
-        for (const [key, value] of Object.entries(body)) {
-          if (value === undefined) continue;
-          query.set(key, typeof value === 'string' ? value : JSON.stringify(value));
-        }
-        const qs = query.toString();
-        return (
-          await client.request('GET', qs ? `${path}?${qs}` : path, {
-            timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
-          })
-        ).data;
-      }
-      throw error;
-    }
+    const inputOption = stringOption(context.options, 'input');
+    const input = inputOption ? await readJsonValue(inputOption) : {};
+    const request = await resolveOperationRequest(client, context, appId, operation, input);
+    if (context.options['dry-run'] === true) return { dryRun: true, ...request };
+    return (
+      await client.request(request.method, request.path, {
+        body: request.body,
+        timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
+      })
+    ).data;
   }
 
   if (action === 'rename') {
@@ -619,6 +582,103 @@ async function multipartBody(body: unknown, filePath: string): Promise<FormData>
   const path = resolve(filePath);
   form.set('file', new File([await readFile(path)], basename(path)));
   return form;
+}
+
+type OperationRequest = { method: string; path: string; body?: unknown };
+
+type DeclaredOperation = { op: string; method: string; path: string; fromRoutes: boolean };
+
+async function resolveOperationRequest(
+  client: CharmingClient,
+  context: CommandContext,
+  appId: string,
+  operation: string,
+  input: unknown,
+): Promise<OperationRequest> {
+  const appPath = `/app/${encodeURIComponent(appId)}`;
+  const descriptor = (
+    await client.request('GET', `${appPath}/agent.json`, {
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+    })
+  ).data;
+  const declared = declaredOperations(descriptor);
+  const match = declared.find((candidate) => candidate.op === operation);
+  if (!match) {
+    if (declared.some((candidate) => candidate.fromRoutes)) {
+      throw new Error(
+        `App ${appId} has no operation named \`${operation}\` that this credential can see. Known operations: ${declared.map((candidate) => candidate.op).join(', ')}.`,
+      );
+    }
+    return {
+      method: 'POST',
+      path: `${appPath}/api/${encodeURIComponent(operation)}`,
+      body: input,
+    };
+  }
+  const path = `${appPath}${match.path}`;
+  const resolved = new URL(path, 'http://charming.invalid');
+  if (
+    resolved.search !== '' ||
+    resolved.hash !== '' ||
+    (resolved.pathname !== `${appPath}/api` && !resolved.pathname.startsWith(`${appPath}/api/`))
+  ) {
+    throw new Error(
+      `Operation \`${operation}\` declares path ${JSON.stringify(match.path)}, which is not under the app's /api routes.`,
+    );
+  }
+  if (match.method !== 'GET') return { method: match.method, path, body: input };
+  const query = queryFromInput(operation, input);
+  return { method: 'GET', path: query.size > 0 ? `${path}?${query}` : path };
+}
+
+function declaredOperations(descriptor: unknown): DeclaredOperation[] {
+  if (!isRecord(descriptor) || !Array.isArray(descriptor.operations)) return [];
+  return descriptor.operations.flatMap((entry: unknown) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.op !== 'string' ||
+      typeof entry.method !== 'string' ||
+      typeof entry.path !== 'string'
+    ) {
+      return [];
+    }
+    return [
+      {
+        op: entry.op,
+        method: entry.method.toUpperCase(),
+        path: entry.path,
+        fromRoutes:
+          Array.isArray(entry.discoveredFrom) && entry.discoveredFrom.includes('routes_export'),
+      },
+    ];
+  });
+}
+
+function queryFromInput(operation: string, input: unknown): URLSearchParams {
+  if (!isRecord(input)) {
+    throw new Error(
+      `Operation \`${operation}\` is a GET, so its --input is sent as query parameters and must be a JSON object.`,
+    );
+  }
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length === 0 || !values.every(isQueryScalar)) {
+      throw new Error(
+        `Operation \`${operation}\` is a GET, so --input.${key} must be a string, number, boolean, or non-empty array of those to fit in a query parameter.`,
+      );
+    }
+    for (const item of values) query.append(key, String(item));
+  }
+  return query;
+}
+
+function isQueryScalar(value: unknown): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function clientFor(context: CommandContext, token?: string): CharmingClient {

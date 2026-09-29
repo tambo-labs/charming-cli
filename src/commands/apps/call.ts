@@ -12,8 +12,13 @@ export default class AppsCall extends CharmingCommand {
   static override description = 'Call an app operation.';
 
   static override flags = {
-    'dry-run': Flags.boolean({ description: 'Print the request without sending it.' }),
-    input: Flags.string({ description: 'JSON input or @file.' }),
+    'dry-run': Flags.boolean({
+      description:
+        "Print the operation request without sending it. Still reads the app's descriptor to resolve the operation's method.",
+    }),
+    input: Flags.string({
+      description: 'JSON input or @file. A GET operation receives it as query parameters.',
+    }),
     output: Flags.string({
       description: 'Output format. compact skips pretty-printing for large responses.',
       options: ['json', 'compact'],

@@ -121,6 +121,7 @@
                   "not_found",
                   "unknown_operation",
                   "operation_not_found",
+                  "method_not_allowed",
                   "operation_failed",
                   "app_busy",
                   "service_busy",
@@ -6003,6 +6004,24 @@
           },
           "404": {
             "description": "Either the app id is unknown, or the app has no handler for that operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "The app declares this operation under a different method (`method_not_allowed`). Retry with a method from the `Allow` header, which `error.allowedMethods` repeats.",
+            "headers": {
+              "Allow": {
+                "description": "Comma-separated methods the app declares for this operation.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

@@ -13,6 +13,11 @@ import { fetchThatWaitsForAbort } from '../test-helpers.js';
 import { main } from './cli.js';
 
 const APP_ID = '00000000-0000-4000-8000-000000000001';
+const ECHO_DESCRIPTOR = {
+  operations: [
+    { op: 'echo', method: 'POST', path: '/api/echo', discoveredFrom: ['routes_export'] },
+  ],
+};
 
 describe('main', () => {
   test('renders generated help for a mutation command', async () => {
@@ -128,28 +133,46 @@ describe('main', () => {
   });
 
   test('apps call --output compact prints single-line JSON', async () => {
-    const output = await runBinary([
-      'apps',
-      'call',
-      APP_ID,
-      'echo',
-      '--input',
-      '{"a":1}',
-      '--output',
-      'compact',
-      '--dry-run',
-    ]);
+    await withJsonServer(ECHO_DESCRIPTOR, async (baseUrl) => {
+      const output = await runBinary([
+        'apps',
+        'call',
+        APP_ID,
+        'echo',
+        '--input',
+        '{"a":1}',
+        '--output',
+        'compact',
+        '--base-url',
+        baseUrl,
+        '--token',
+        'chrm_user_test',
+        '--dry-run',
+      ]);
 
-    expect(output.stdout.trim()).toBe(
-      '{"dryRun":true,"method":"POST","path":"/app/00000000-0000-4000-8000-000000000001/api/echo","body":{"a":1}}',
-    );
-    expect(output.stdout).not.toContain('\n  ');
+      expect(output.stdout.trim()).toBe(
+        '{"dryRun":true,"method":"POST","path":"/app/00000000-0000-4000-8000-000000000001/api/echo","body":{"a":1}}',
+      );
+      expect(output.stdout).not.toContain('\n  ');
+    });
   });
 
   test('apps call without --output pretty-prints', async () => {
-    const output = await runBinary(['apps', 'call', APP_ID, 'echo', '--dry-run']);
+    await withJsonServer(ECHO_DESCRIPTOR, async (baseUrl) => {
+      const output = await runBinary([
+        'apps',
+        'call',
+        APP_ID,
+        'echo',
+        '--base-url',
+        baseUrl,
+        '--token',
+        'chrm_user_test',
+        '--dry-run',
+      ]);
 
-    expect(output.stdout).toContain('\n  "dryRun": true');
+      expect(output.stdout).toContain('\n  "dryRun": true');
+    });
   });
 
   test('apps call rejects an app name locally and points to the listed app ID', async () => {
@@ -456,8 +479,21 @@ describe('main', () => {
       [['apps', 'describe', APP_ID, '--token', 'chrm_app_test'], 0],
       [['apps', 'source', APP_ID, '--token', 'chrm_app_test'], 0],
       [['apps', 'update', APP_ID, directory, '--dry-run'], 0],
-      [['apps', 'call', APP_ID, 'echo', '--dry-run'], 0],
-      [['apps', 'call', APP_ID, 'echo', '--output', 'compact', '--dry-run'], 0],
+      [['apps', 'call', APP_ID, 'echo', '--token', 'chrm_app_test', '--dry-run'], 0],
+      [
+        [
+          'apps',
+          'call',
+          APP_ID,
+          'echo',
+          '--output',
+          'compact',
+          '--token',
+          'chrm_app_test',
+          '--dry-run',
+        ],
+        0,
+      ],
       [['apps', 'delete', APP_ID, '--dry-run'], 0],
       [['apps', 'rename', APP_ID, 'new-name', '--dry-run'], 0],
       [['auth', 'login', '--no-open'], 2],
