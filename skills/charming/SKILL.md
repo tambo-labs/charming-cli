@@ -128,7 +128,8 @@ const items = await api.list({}); // the value itself; throws on failure
 
 Sandbox rules that silently break apps:
 
-- `alert`, `confirm`, and `prompt` do nothing. Build inline UI instead.
+- In chat embeds, `confirm` and `prompt` show Charming's dialog and return a Promise; on the web they are the browser's own. Build inline UI, or `await` them.
+- On the web, pointer lock works for every app; fullscreen and a click-started `window.top.location` redirect need a claimed app. Chat embeds block all three.
 - Chat embeds block external `<script>` tags and CDN imports; on the web only, pinned scripts from cdnjs, unpkg, or jsDelivr load. Prefer inlining a UMD build if a library is truly needed.
 - Prevent native form submission and handle it in JavaScript.
 - Set `#app` innerHTML **before** attaching listeners, and re-bind after every re-render. Re-render narrow containers, not the whole root, or a refresh wipes half-typed input.
@@ -155,7 +156,7 @@ Apps are shared by link, usually into a chat, so a large share of first opens ar
 
 ## Patterns that keep biting
 
-- **Undo-toast deletes** beat confirm dialogs (which no-op here): delete immediately, show "Removed · Undo" for ~6s, and have Undo call a `restore` op that upserts by id. The CRUD template includes this.
+- **Undo-toast deletes** beat confirm dialogs (a Promise in chat, a boolean on the web): delete immediately, show "Removed · Undo" for ~6s, and have Undo call a `restore` op that upserts by id. The CRUD template includes this.
 - **Inline confirm** for genuinely destructive actions: swap the button for "Delete? [Delete] [Cancel]".
 - **Migration discipline**: a versioned storage key (`items_v1`) plus a `normalize()` on read that fills defaults for new fields. On a shape change, write `migrate(old)` and keep the old key one cycle.
 - **Live updates**: `window.charming.onStateChange?.(() => refresh())`, with a ~4s `setInterval` as a backstop.

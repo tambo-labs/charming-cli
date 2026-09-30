@@ -1,5 +1,25 @@
 # usecharming
 
+## 0.2.1
+
+### Patch Changes
+
+- [#6426](https://github.com/tambo-ai/charming/pull/6426) [`fd0d6c7`](https://github.com/tambo-ai/charming/commit/fd0d6c7e6b364a1ffe63652473468f56e8a232fd) Thanks [@lachieh](https://github.com/lachieh)! - Let apps opened in a browser use `eval`, `new Function`, and WebAssembly, and load scripts from cdnjs, unpkg, and jsDelivr. Scripts from every other origin stay blocked, and chat embeds keep the narrower policy.
+
+- [#6409](https://github.com/tambo-ai/charming/pull/6409) [`f9548e2`](https://github.com/tambo-ai/charming/commit/f9548e2c5c372aa849c8597b43be016830534f6e) Thanks [@lachieh](https://github.com/lachieh)! - Run every app opened in a browser at its own capability origin, whether or not it imports a browser capability and whether or not it is claimed, so `localStorage` and IndexedDB work on the web for every app. Chat hosts keep the null-origin frame, and camera, microphone, and other device access still need the import and a claimed app. A browser that sends no Fetch Metadata, such as Safari before 16.4, also keeps the null-origin frame, so camera and microphone apps no longer get device access there, even for their owners.
+
+  A signed-in reader whose frame gets no run credential, such as a read-only grantee, an audience member, or a signed-in visitor to a public app, now opens the frame with a short-lived frame token, so the same people read and write the same data as before.
+
+  A signed-in visitor to an unclaimed app framed at its capability origin now gets no identity in the frame, so `window.charming.user` is `null` where it used to name them. The null-origin frame keeps naming them.
+
+  A custom-domain grantee who can run an app now reaches its handlers as themselves, so `env.user` names them where it used to be `null`.
+
+  The app runtime now removes a frame token from the frame's address along with the render token, so app code cannot read it from `location`.
+
+  The app's owner now gets `window.charming.viewer.role` of `owner` whenever the render token names them, including in the capability frame and in chat hosts, where it used to be `collaborator`.
+
+  A reader without a render token in the capability frame, such as a read-only grantee, now receives live state changes through the shell's session relay.
+
 ## 0.2.0
 
 ### Minor Changes

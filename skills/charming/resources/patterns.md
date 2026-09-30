@@ -6,7 +6,7 @@ For data that needs research (a place, a book, a company), store a stub record i
 
 ## Undo-toast deletes
 
-Preferred over confirm dialogs, which no-op in the sandbox. Delete immediately, show a bottom-center toast — "Removed · Undo" — for about six seconds, and have Undo call a `restore` op that upserts the full record back by id:
+Preferred over confirm dialogs, which return a Promise in chat embeds and a boolean on the web. Delete immediately, show a bottom-center toast — "Removed · Undo" — for about six seconds, and have Undo call a `restore` op that upserts the full record back by id:
 
 ```js
 async function removeItem(id) {
@@ -27,7 +27,7 @@ async function removeItem(id) {
 
 ## Inline confirm
 
-For destructive actions big enough to want a confirmation but where a modal `confirm()` would no-op — delete-all, delete-list — swap the trigger button's own label and handler instead of opening a dialog:
+For destructive actions big enough to want a confirmation but where a modal `confirm()` would return a Promise in chat and a boolean on the web — delete-all, delete-list — swap the trigger button's own label and handler instead of opening a dialog:
 
 ```js
 button.textContent = 'Delete?';
