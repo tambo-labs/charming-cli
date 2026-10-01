@@ -130,7 +130,7 @@ Sandbox rules that silently break apps:
 
 - In chat embeds, `confirm` and `prompt` show Charming's dialog and return a Promise; on the web they are the browser's own. Build inline UI, or `await` them.
 - On the web, pointer lock works for every app; fullscreen and a click-started `window.top.location` redirect need a claimed app. Chat embeds block all three.
-- Chat embeds block external `<script>` tags and CDN imports; on the web only, pinned scripts from cdnjs, unpkg, or jsDelivr load. Prefer inlining a UMD build if a library is truly needed.
+- Chat embeds block external `<script>` tags and CDN imports; on the web only, scripts from cdnjs, unpkg, or jsDelivr load when `ui` writes the full URL with an exact package version (`leaflet@1.9.4`); anything looser fails create/update with `unpinned_cdn_script`. Prefer inlining a UMD build if a library is truly needed.
 - Prevent native form submission and handle it in JavaScript.
 - Set `#app` innerHTML **before** attaching listeners, and re-bind after every re-render. Re-render narrow containers, not the whole root, or a refresh wipes half-typed input.
 - Reserve the bottom-right 64px square — Charming's widget button sits there. Do not build a Charming badge, share button, app switcher, or account nav inside the app; the outer shell owns those.
