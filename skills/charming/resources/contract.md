@@ -11,14 +11,10 @@ Declare only the capabilities the app actually uses in `manifest.capabilities.im
 | `charming:secrets/fetch@1.0` | `env.fetch` (sealed, secret-substituting) | Claimed apps only. |
 | `charming:logging/emit@1.0` | `env.logging` | Structured event logging visible to the app owner. |
 | `charming:browser/storage@1.0` | `localStorage` / `sessionStorage` / `IndexedDB` | Web-only. Empty inside Claude/ChatGPT. |
-| `charming:browser/microphone@1.0` | `getUserMedia` audio | Claim-gated. |
-| `charming:browser/camera@1.0` | `getUserMedia` video | Claim-gated. |
-| `charming:browser/geolocation@1.0` | geolocation | Claim-gated. |
-| `charming:browser/clipboard-read@1.0` | reading the clipboard | Claim-gated. |
-| `charming:browser/display-capture@1.0` | `getDisplayMedia` screen share | Claim-gated. |
-| `charming:browser/midi@1.0` | Web MIDI (`navigator.requestMIDIAccess`) | Claim-gated. |
 | `charming:browser/device-motion@1.0` | device orientation/motion | Claim-gated. |
 | `charming:browser/ambient-light@1.0` | ambient light sensor | Claim-gated. |
+
+Camera, microphone, location, screen capture, clipboard reading, and MIDI need no import and no claim. Charming finds these calls in `ui` when the app is published, and on the web it asks each viewer before the app gets the device. The older `charming:browser/<device>@1.0` imports for them are still accepted, and are needed when a client dependency, not `ui` itself, makes the call. Handle `NotAllowedError`: the viewer can block, dismiss, or later reset the request.
 
 There is no capability `exports` array in the current contract. `routes` is the only way to expose an operation to callers.
 
