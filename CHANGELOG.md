@@ -1,5 +1,35 @@
 # usecharming
 
+## 0.2.2
+
+### Patch Changes
+
+- [#6540](https://github.com/tambo-ai/charming/pull/6540) [`5161e3a`](https://github.com/tambo-ai/charming/commit/5161e3a2ab6428b634a4cf8de6529ba0be8feb7e) Thanks [@lachieh](https://github.com/lachieh)! - Allow a cdnjs, unpkg, or jsDelivr script at an app's capability origin only at the exact package version whose full URL the app's `ui` writes, instead of any script on those hosts. Every app policy now names the UnoCSS runtime by its exact URL rather than all of jsDelivr.
+
+  Create and update reject a `ui` that names one of these CDN URLs without an exact version with `unpinned_cdn_script` (HTTP 422), listing each URL in `unpinnedUrls`.
+
+- [#6486](https://github.com/tambo-ai/charming/pull/6486) [`5ac4664`](https://github.com/tambo-ai/charming/commit/5ac46645ecf55dd5627b0deb4a1f34a56121f9e2) Thanks [@lachieh](https://github.com/lachieh)! - Update the bundled Charming skill: `alert`, `confirm`, and `prompt` are the browser's own dialogs on the web, and in chat embeds `confirm` and `prompt` return a Promise from Charming's dialog. Prefer inline UI, or `await` them. On the web, pointer lock works for every app, while fullscreen and a click-started redirect need a claimed app.
+
+- [#6542](https://github.com/tambo-ai/charming/pull/6542) [`a77232b`](https://github.com/tambo-ai/charming/commit/a77232b7f29ab8af9582d9d68068bc0e96285181) Thanks [@lachieh](https://github.com/lachieh)! - Let apps embed other sites. An app lists exact HTTPS origins such as `https://www.youtube.com` in `permissions.browser["frame-src"]`, and at the standalone app URL those origins join the app's CSP `frame-src`, so an `<iframe>` pointing at `https://www.youtube.com/embed/<video-id>` plays. Undeclared origins stay blocked, and a malformed, non-HTTPS, local, or private origin fails create or update with `invalid_manifest_schema`. No declared origin list (`img-src`, `frame-src`, or server `fetch`) accepts a Charming app capability host, so an app cannot frame, load from, or call another app's origin.
+
+  An app that declares a frame origin sends `Referrer-Policy: strict-origin` from its capability origin, so the embedded site receives only `https://<app-origin>/`. `get_app_source`, `list_apps`, and the HTTP source route report the declared origins as `capabilities.frameHosts`.
+
+- [#6547](https://github.com/tambo-ai/charming/pull/6547) [`408ce1a`](https://github.com/tambo-ai/charming/commit/408ce1a30eea5868d818ef3507830b3a4124879d) Thanks [@lachieh](https://github.com/lachieh)! - Let web apps use the camera, microphone, location, screen capture, clipboard reading, and MIDI without a manifest import or a claim. Publishing no longer rejects these calls with a `missing_browser_*_capability` error; Charming finds them in the app's code, and on the web the first call opens a dialog asking the viewer whether this app may use the device. The viewer's answer is kept for that app in that browser, and the widget's new Device access tab lists it with Reset. Apps can open that tab from a click with `window.charming.openDeviceAccess()`.
+
+  A blocked or dismissed request reaches the app as `NotAllowedError` (`PERMISSION_DENIED` for location). Allowing a device restarts the app once, and resetting an allowed one restarts it without the device. Device motion, ambient light, and client storage still need their imports.
+
+- [#6563](https://github.com/tambo-ai/charming/pull/6563) [`cd3abd5`](https://github.com/tambo-ai/charming/commit/cd3abd51a7541e21c707f8ad048bb760c0e633ef) Thanks [@lachieh](https://github.com/lachieh)! - Hide the npm and platform imports guide until the feature is generally available. `/docs/guides/npm-and-platform-imports` no longer publishes, and the docs, MCP build guide, generated build guides, discovery index, and CLI skill no longer link to it.
+
+- [#6601](https://github.com/tambo-ai/charming/pull/6601) [`6e6832a`](https://github.com/tambo-ai/charming/commit/6e6832a088088b09e416975ae7516348e2ae2dca) Thanks [@renovate](https://github.com/apps/renovate)! - Update OCLIF (major)
+
+- [#6610](https://github.com/tambo-ai/charming/pull/6610) [`a454c45`](https://github.com/tambo-ai/charming/commit/a454c456d249528be24664d5b26292e77945710d) Thanks [@lachieh](https://github.com/lachieh)! - Create a personal access token from Account settings → Connections, and choose whether it lasts 7, 30, or 90 days or until a custom date up to a year away. `POST /api/token` and `POST /api/v1/tokens` accept `expiresInDays`, a whole number from 1 to 365 (default 7), and refuse any other value with `invalid_request`, so an MCP client that only holds a static bearer token, such as one connecting to a per-app MCP URL, can keep working past a week.
+
+  Only a sign-in session can choose a lifetime other than 7 days; a request authenticated with a `chrm_user_*` token can create only 7-day tokens and gets `403 forbidden` otherwise. Both routes now enforce the published 80-character `label` limit, so `POST /api/token` refuses a longer label with `invalid_request` where it used to accept it.
+
+- [#6620](https://github.com/tambo-ai/charming/pull/6620) [`4f8e3fb`](https://github.com/tambo-ai/charming/commit/4f8e3fb772738809e325dfe6f4b85bbd16095227) Thanks [@lachieh](https://github.com/lachieh)! - Webhook delivery URLs accept `multipart/form-data` and `application/x-www-form-urlencoded` bodies as well as JSON. Each text field becomes a property of the op's input, converted to the type the op's input schema declares, so a sender such as a Pebble ring or a form tool works without a JSON adapter. File parts are dropped, and the delivery record lists each one's field, filename, and size in place of its bytes.
+
+  `@buildy/sandbox` exports `coerceInputToSchema`, the conversion GET query strings already use.
+
 ## 0.2.1
 
 ### Patch Changes
