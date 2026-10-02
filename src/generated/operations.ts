@@ -1457,7 +1457,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/token",
     "summary": "Mint a personal access token (`chrm_user_*`)",
-    "description": "Plaintext returned exactly once. 7-day TTL. The legacy `/token` path 308s here.",
+    "description": "Plaintext returned exactly once. 7-day TTL unless `expiresInDays` picks another lifetime. The legacy `/token` path 308s here.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
@@ -1468,6 +1468,16 @@ export const generatedOperations = [
           "label": {
             "type": "string",
             "maxLength": 80
+          },
+          "expiresInDays": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 365,
+            "default": 7,
+            "description": "Whole days until the token expires. Choose a longer lifetime for a client that can only hold a static bearer token. A caller using a personal access token can create only default-lifetime tokens; a longer one needs a sign-in session."
           }
         }
       },
