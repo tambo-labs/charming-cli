@@ -1674,7 +1674,7 @@ export const generatedOperations = [
           },
           "target": {
             "type": "object",
-            "description": "The target op’s contract: the JSON body a sender must POST and the value it gets back, read from the app’s active code.",
+            "description": "The target op’s contract: the body a sender must POST (as JSON or form fields) and the value it gets back, read from the app’s active code.",
             "required": [
               "op",
               "input_schema",
@@ -2021,7 +2021,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/hooks/{webhookId}",
     "summary": "Deliver an event to a Webhook",
-    "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The JSON body is the target op's input, validated against its declared input schema; the response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
+    "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The body is the target op's input, validated against its declared input schema: a JSON object, or a `multipart/form-data` or `application/x-www-form-urlencoded` form whose text fields become the input, each converted to the type the schema declares. File parts are dropped and listed in the delivery record. The response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
     "parameters": [
       {
         "description": "",
