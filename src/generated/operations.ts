@@ -1803,7 +1803,7 @@ export const generatedOperations = [
     "method": "DELETE",
     "path": "/app/{id}",
     "summary": "Delete an app",
-    "description": "Permanently removes the app row. Bearer must authorize this app (`chrm_app_*` for the same id, or the owning user). Pass `?purge=storage` to also wipe the app’s key-value rows; without it, the storage table is left as-is for forensic readability.",
+    "description": "Permanently removes the app row. Bearer must authorize this app (`chrm_app_*` for the same id, or the owning user). Pass `?purge=storage` to also wipe the app’s key-value rows and secrets; without it, the secrets are kept and an hourly cleanup clears the key-value rows.",
     "parameters": [
       {
         "description": "",
@@ -1815,7 +1815,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Pass `?purge=storage` to also wipe the app’s key-value rows.",
+        "description": "Pass `?purge=storage` to also wipe the app’s key-value rows and secrets.",
         "in": "query",
         "name": "purge",
         "required": false,
