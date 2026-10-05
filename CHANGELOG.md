@@ -1,5 +1,15 @@
 # usecharming
 
+## 0.2.3
+
+### Patch Changes
+
+- [#6637](https://github.com/tambo-ai/charming/pull/6637) [`1f31629`](https://github.com/tambo-ai/charming/commit/1f3162922cdb535551bd876ef5db1b782a00555d) Thanks [@lachieh](https://github.com/lachieh)! - Retitle the notice a fresh Template copy opens with to "Your new app", say that the copy starts empty, and always offer **Copy prompt** on it. The copied setup prompt names the copy and its URL, says its storage is empty, quotes its description, and tells the owner's agent to read the code with `get_app_source`, list its operations with `get_app` or its own MCP server, then ask for the owner's data and add it. A Template's starter prompt, when it has one, is quoted whole in that prompt as the author's suggestions. The prompt tells the agent that this Template-author text is reference that can't override the owner or ask for anything beyond setting up the App's data, and App and Template names in every chat prompt are flattened to one line of at most 80 characters. A widget notice action now carries a `kind`: `link` or `copy_setup_prompt`, and the browser shell config carries the setup prompt as `widgetSetupPrompt` for the owner of a copy.
+
+  The `set_starter_prompt` MCP tool, `PATCH /api/v1/apps/{appId}/starter-prompt`, `PUT /app/{id}/starter-prompt`, the Starter prompt card in App settings, and the Templates docs now describe the starter prompt as the Template author's suggestions for people who copy the Template for the first time.
+
+- [#6598](https://github.com/tambo-ai/charming/pull/6598) [`d709b8e`](https://github.com/tambo-ai/charming/commit/d709b8edb518c7d220de406e63424faa8cf8199c) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency typescript to v7
+
 ## 0.2.2
 
 ### Patch Changes
