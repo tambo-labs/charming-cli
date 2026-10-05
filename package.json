@@ -39,8 +39,8 @@
     "build:test": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json --sourceMap false --declarationMap false",
     "build:tsc": "rm -rf dist && node node_modules/typescript/bin/tsc -p tsconfig.build.json --sourceMap false --declarationMap false",
     "check": "bun run openapi:check && bun run test && bun run typecheck && bun run build",
-    "openapi:gen": "bun scripts/generate.ts",
-    "openapi:check": "bun scripts/generate.ts --check",
+    "openapi:gen": "bun --preload ./scripts/typescript-compiler-api-preload.mjs scripts/generate.ts",
+    "openapi:check": "bun --preload ./scripts/typescript-compiler-api-preload.mjs scripts/generate.ts --check",
     "prepack": "npm run build:tsc",
     "test": "bun run build:test && vitest run",
     "test:coverage": "bun run build:test && vitest run --coverage",
@@ -56,7 +56,8 @@
     "@oclif/test": "5.0.1",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "typescript": "6.0.3",
+    "typescript": "7.0.2",
+    "typescript-compiler-api": "npm:typescript@6.0.3",
     "vitest": "^4.1.11"
   },
   "oclif": {
