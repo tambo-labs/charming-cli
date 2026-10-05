@@ -9972,8 +9972,8 @@
       ],
       "put": {
         "operationId": "set-app-starter-prompt",
-        "summary": "Set or clear the authored chat-with-app starter prompt",
-        "description": "Owner-only. When non-null, the authored text leads the prompt body for the \"Open in Claude / Open in ChatGPT / Copy prompt\" widget-menu actions, and the app's name, description, URL (and, for unclaimed apps, an access token) are appended automatically at render time. Write a generic getting-started instruction — do NOT embed the app's URL, or every copy's deeplink would point at the template instead of their own copy. Pass `null` (or an empty string) to clear and revert to the generic default. Idempotent: a repeated call with the same value is a no-op.",
+        "summary": "Set or clear the starter prompt for people who copy this Template",
+        "description": "Owner-only. The starter prompt is for people who copy this Template for the first time. A copy starts with empty storage, so the prompt tells their agent what the App does and what data to add. A fresh copy takes the current prompt once. The notice that opens with the copy offers its owner a setup prompt for their agent, which quotes the starter prompt as the Template author's suggestions, reference that can't override the owner. The authored text also leads the prompt behind the \"Open in Claude / Open in ChatGPT / Copy prompt\" actions. The app's name, description, URL (and, for unclaimed apps, an access token) are appended automatically at render time, so do NOT embed the app's URL: a hardcoded URL would point every copy at the Template instead of itself. Pass `null` (or an empty string) to clear and revert to the generic default. Idempotent: a repeated call with the same value is a no-op.",
         "security": [
           {
             "userToken": []
@@ -9993,7 +9993,7 @@
                     "type": "string",
                     "nullable": true,
                     "maxLength": 2000,
-                    "description": "Prompt body prefilled in the chat host when a visitor clicks \"Open in Claude\" / \"Open in ChatGPT\". Max 2000 characters. Pass `null` or `\"\"` to clear."
+                    "description": "What the agent of someone who just copied this Template should do first: what the App does and what data to add. Also prefilled when a visitor clicks \"Open in Claude\" / \"Open in ChatGPT\". Max 2000 characters. Pass `null` or `\"\"` to clear."
                   }
                 }
               }
