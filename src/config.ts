@@ -7,10 +7,11 @@ import { DEFAULT_PROFILE, validateProfileName } from './profile-name.js';
 import { findProjectConfig, writeProjectProfile } from './project-config.js';
 import {
   configPath,
+  deleteAppSecret,
   isMissingFile,
   originProfileName,
   readStore,
-  setAppToken,
+  setAppSecret,
   type Store,
   type StoreOptions,
   writeStore,
@@ -93,6 +94,7 @@ export async function saveLogin(session: Session, token: string): Promise<void> 
   const name = requireProfile(session);
   const store = await readStore({});
   store.profiles[name] = { origin: session.origin, token };
+  delete store.pairings[session.origin];
   if (session.profileSource === 'flag') store.selected = name;
   await writeStore(store, {});
 }
@@ -116,6 +118,7 @@ export async function logout(
   if (name === undefined || name === DEFAULT_PROFILE || !originStillSignedIn) {
     appTokensRemoved = Object.keys(store.appTokens[session.origin] ?? {}).length;
     delete store.appTokens[session.origin];
+    delete store.pairings[session.origin];
   }
   await writeStore(store, {});
   return { appTokensRemoved, profile: name ?? null };
@@ -201,8 +204,34 @@ export async function saveAppToken(
   options: StoreOptions = {},
 ): Promise<void> {
   const store = await readStore(options);
-  setAppToken(store, origin, appId, token);
+  setAppSecret(store.appTokens, origin, appId, token);
   await writeStore(store, options);
+}
+
+export async function savePairing(
+  origin: string,
+  appId: string,
+  deviceCode: string,
+): Promise<void> {
+  const store = await readStore({});
+  setAppSecret(store.pairings, origin, appId, deviceCode);
+  await writeStore(store, {});
+}
+
+export async function loadPairings(origin: string): Promise<Record<string, string>> {
+  return (await readStore({})).pairings[origin] ?? {};
+}
+
+export async function dropPairing(origin: string, appId: string): Promise<void> {
+  const store = await readStore({});
+  deleteAppSecret(store.pairings, origin, appId);
+  await writeStore(store, {});
+}
+
+export async function dropAppToken(origin: string, appId: string): Promise<void> {
+  const store = await readStore({});
+  deleteAppSecret(store.appTokens, origin, appId);
+  await writeStore(store, {});
 }
 
 async function selectProfile(

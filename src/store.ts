@@ -12,8 +12,11 @@ export type StoreOptions = {
 
 type Profile = { origin: string; token?: string };
 
+type AppSecrets = Record<string, Record<string, string>>;
+
 export type Store = {
-  appTokens: Record<string, Record<string, string>>;
+  appTokens: AppSecrets;
+  pairings: AppSecrets;
   profiles: Record<string, Profile>;
   selected?: string;
   unknown: {
@@ -39,6 +42,7 @@ export async function readStore(options: StoreOptions): Promise<Store> {
   const credentials = (await readJson(credentialsFile)) ?? {};
   const store: Store = {
     appTokens: {},
+    pairings: {},
     profiles: {},
     unknown: { config: {}, credentials: {}, credentialProfiles: {} },
   };
@@ -58,7 +62,7 @@ export async function readStore(options: StoreOptions): Promise<Store> {
     if (!LEGACY_CONFIG_KEYS.has(key)) store.unknown.config[key] = value;
   }
 
-  const { apps, profiles: tokens, ...restCredentials } = credentials;
+  const { apps, pairings, profiles: tokens, ...restCredentials } = credentials;
   store.unknown.credentials = restCredentials;
   for (const [name, entry] of Object.entries(record(tokens, credentialsFile, 'profiles'))) {
     if (!isRecord(entry) || typeof entry.token !== 'string') {
@@ -67,15 +71,8 @@ export async function readStore(options: StoreOptions): Promise<Store> {
     if (store.profiles[name]) store.profiles[name].token = entry.token;
     else store.unknown.credentialProfiles[name] = entry;
   }
-  for (const [origin, appTokens] of Object.entries(record(apps, credentialsFile, 'apps'))) {
-    for (const [appId, token] of Object.entries(
-      record(appTokens, credentialsFile, `apps.${origin}`),
-    )) {
-      if (typeof token !== 'string')
-        invalid(credentialsFile, `apps.${origin}.${appId} must be a string`);
-      setAppToken(store, normalizeOrigin(origin), appId, token);
-    }
-  }
+  readAppSecrets(store.appTokens, apps, credentialsFile, 'apps');
+  readAppSecrets(store.pairings, pairings, credentialsFile, 'pairings');
 
   migrateLegacy(config, store);
   return store;
@@ -93,15 +90,15 @@ export async function writeStore(store: Store, options: StoreOptions): Promise<v
         .map(([name, profile]) => [name, { token: profile.token }]),
     ),
   };
-  const apps = Object.fromEntries(
-    Object.entries(store.appTokens).filter(([, tokens]) => Object.keys(tokens).length > 0),
-  );
+  const apps = nonEmpty(store.appTokens);
+  const pairings = nonEmpty(store.pairings);
   await writeAtomically(
     join(directory, CREDENTIALS_FILE),
     {
       ...store.unknown.credentials,
       ...(Object.keys(profileTokens).length > 0 ? { profiles: profileTokens } : {}),
       ...(Object.keys(apps).length > 0 ? { apps } : {}),
+      ...(Object.keys(pairings).length > 0 ? { pairings } : {}),
     },
     0o600,
   );
@@ -120,8 +117,32 @@ export async function writeStore(store: Store, options: StoreOptions): Promise<v
   );
 }
 
-export function setAppToken(store: Store, origin: string, appId: string, token: string): void {
-  store.appTokens[origin] = { ...store.appTokens[origin], [appId]: token };
+export function setAppSecret(
+  secrets: AppSecrets,
+  origin: string,
+  appId: string,
+  value: string,
+): void {
+  secrets[origin] = { ...secrets[origin], [appId]: value };
+}
+
+export function deleteAppSecret(secrets: AppSecrets, origin: string, appId: string): void {
+  delete secrets[origin]?.[appId];
+}
+
+function readAppSecrets(target: AppSecrets, value: unknown, path: string, key: string): void {
+  for (const [origin, secrets] of Object.entries(record(value, path, key))) {
+    for (const [appId, secret] of Object.entries(record(secrets, path, `${key}.${origin}`))) {
+      if (typeof secret !== 'string') invalid(path, `${key}.${origin}.${appId} must be a string`);
+      setAppSecret(target, normalizeOrigin(origin), appId, secret);
+    }
+  }
+}
+
+function nonEmpty(secrets: AppSecrets): AppSecrets {
+  return Object.fromEntries(
+    Object.entries(secrets).filter(([, entries]) => Object.keys(entries).length > 0),
+  );
 }
 
 export function originProfileName(origin: string, profiles: Store['profiles']): string {
@@ -159,9 +180,14 @@ function migrateLegacy(config: Record<string, unknown>, store: Store): void {
   for (const [key, token] of Object.entries(isRecord(config.appTokens) ? config.appTokens : {})) {
     if (typeof token !== 'string' || token.length === 0) continue;
     const separator = key.lastIndexOf('|');
-    if (separator === -1) setAppToken(store, PRODUCTION_BASE_URL, key, token);
+    if (separator === -1) setAppSecret(store.appTokens, PRODUCTION_BASE_URL, key, token);
     else
-      setAppToken(store, normalizeOrigin(key.slice(0, separator)), key.slice(separator + 1), token);
+      setAppSecret(
+        store.appTokens,
+        normalizeOrigin(key.slice(0, separator)),
+        key.slice(separator + 1),
+        token,
+      );
   }
 }
 

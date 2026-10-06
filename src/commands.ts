@@ -8,9 +8,13 @@ import { type OptionValue, stringOption, stringOptions } from './args.js';
 import {
   PRODUCTION_BASE_URL,
   loadAppToken,
+  dropAppToken,
+  dropPairing,
+  loadPairings,
   logout,
   saveAppToken,
   saveLogin,
+  savePairing,
   type Session,
 } from './config.js';
 import { findOperation, type Operation, operations } from './contract.js';
@@ -96,16 +100,18 @@ export async function runAuth(
     return { ...(await logout(session)), authenticated: false };
   }
   if (action === 'status') {
-    const profile = session.profile ?? null;
-    if (!session.token) return { authenticated: false, origin: session.origin, profile };
-    await clientFor(context, session.token).request('GET', '/app?limit=1', {
+    await collectPairings(context);
+    const current = context.session;
+    const profile = current.profile ?? null;
+    if (!current.token) return { authenticated: false, origin: current.origin, profile };
+    await clientFor(context, current.token).request('GET', '/app?limit=1', {
       timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
     });
     return {
       authenticated: true,
-      origin: session.origin,
+      origin: current.origin,
       profile,
-      source: session.tokenSource === 'flag' ? '--token' : session.tokenSource,
+      source: current.tokenSource === 'flag' ? '--token' : current.tokenSource,
     };
   }
   if (action !== 'login') throw new Error('Usage: charming auth login|status|logout');
@@ -219,10 +225,17 @@ export async function runApps(
       })
     ).data as {
       id?: string;
+      pairing?: { device_code?: unknown };
       token?: string;
       [key: string]: unknown;
     };
-    if (data.id && data.token) await saveAppToken(context.session.origin, data.id, data.token);
+    if (data.id && data.token) {
+      await saveAppToken(context.session.origin, data.id, data.token);
+      const deviceCode = data.pairing?.device_code;
+      if (typeof deviceCode === 'string' && deviceCode.length > 0) {
+        await savePairing(context.session.origin, data.id, deviceCode);
+      }
+    }
     return safeCreateResult(data);
   }
 
@@ -630,9 +643,9 @@ async function rawRequestToken(
   context: CommandContext,
   appId: string | undefined,
 ): Promise<string | undefined> {
-  return (
-    context.session.token ?? (appId ? await loadAppToken(context.session.origin, appId) : undefined)
-  );
+  if (appId) return appCredential(context, appId);
+  await collectPairings(context);
+  return context.session.token;
 }
 
 async function callAppOperation(
@@ -786,17 +799,104 @@ function clientFor(context: CommandContext, token?: string): CharmingClient {
 }
 
 async function requireUserToken(context: CommandContext): Promise<string> {
+  await collectPairings(context);
   const token = context.session.token;
   if (!token) throw new Error(`Not authenticated. Run \`${loginCommand(context.session)}\`.`);
   return token;
 }
 
 async function tokenForApp(context: CommandContext, appId: string): Promise<string> {
-  const token = context.session.token ?? (await loadAppToken(context.session.origin, appId));
+  const token = await appCredential(context, appId);
   if (!token) {
     throw new Error(`No credential for this app. Run \`${loginCommand(context.session)}\`.`);
   }
   return token;
+}
+
+// An app token on disk always comes from a no-login create on this machine, so
+// the app is still unclaimed. With a saved account token at hand, claim the app
+// before using it: an account token cannot reach an unclaimed app, and the
+// claim revokes the app token. A failed claim falls back to the app token and
+// the next command tries again.
+async function appCredential(context: CommandContext, appId: string): Promise<string | undefined> {
+  await collectPairings(context, appId);
+  const { token: userToken, tokenSource } = context.session;
+  const saved = tokenSource === 'credentials' || tokenSource === 'legacy';
+  if (userToken && (!saved || !isUserToken(userToken))) return userToken;
+  const appToken = await loadAppToken(context.session.origin, appId);
+  if (!userToken || !appToken) return userToken ?? appToken;
+  return (await claimSavedApp(context, appId, userToken, appToken)) ? userToken : appToken;
+}
+
+// A no-login create saves the pairing the server bound to the new app. Once the
+// user approves its code or claims the app, the next command collects the
+// account token. The pickup is one-shot, so the token is saved before anything
+// else can fail.
+async function collectPairings(context: CommandContext, onlyAppId?: string): Promise<void> {
+  if (context.session.token || !context.session.profile) return;
+  const pairings = Object.entries(await loadPairings(context.session.origin)).filter(
+    ([appId]) => onlyAppId === undefined || appId === onlyAppId,
+  );
+  for (const [appId, deviceCode] of pairings) {
+    await collectPairing(context, appId, deviceCode, onlyAppId === undefined);
+    if (context.session.token) return;
+  }
+}
+
+async function collectPairing(
+  context: CommandContext,
+  appId: string,
+  deviceCode: string,
+  claim: boolean,
+): Promise<void> {
+  let polled: { status?: unknown; token?: unknown };
+  try {
+    polled = (
+      await clientFor(context).request('POST', '/api/pair/poll', {
+        body: { device_code: deviceCode },
+        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+      })
+    ).data as typeof polled;
+  } catch {
+    return;
+  }
+  if (polled.status !== 'approved' && polled.status !== 'expired') return;
+  if (typeof polled.token !== 'string' || polled.token.length === 0) {
+    return dropPairing(context.session.origin, appId);
+  }
+
+  const userToken = polled.token;
+  await saveLogin(context.session, userToken);
+  context.session = { ...context.session, token: userToken, tokenSource: 'credentials' };
+  const appToken = claim ? await loadAppToken(context.session.origin, appId) : undefined;
+  if (appToken) await claimSavedApp(context, appId, userToken, appToken);
+}
+
+async function claimSavedApp(
+  context: CommandContext,
+  appId: string,
+  userToken: string,
+  appToken: string,
+): Promise<boolean> {
+  try {
+    await clientFor(context, userToken).request('POST', `/app/${encodeURIComponent(appId)}/claim`, {
+      body: { token: appToken },
+      timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError && error.kind === 'already_claimed')) {
+      process.stderr.write(
+        `${JSON.stringify({
+          event: 'app_claim_failed',
+          appId,
+          message: `Could not claim this app into your account: ${error instanceof Error ? error.message : String(error)} This command used the app's own credential, and the next command on the app tries the claim again.`,
+        })}\n`,
+      );
+      return false;
+    }
+  }
+  await dropAppToken(context.session.origin, appId);
+  return true;
 }
 
 function loginCommand(session: Session): string {

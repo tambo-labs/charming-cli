@@ -44,7 +44,7 @@ For `<app-id>`, use the UUID returned by `apps create` or the `id` field from `a
 
 `--yes` is required on a signed-in create because a create whose `manifest.id` already exists **replaces that app in place**. Ask the user before running it, and keep `manifest.id` stable and unique per app.
 
-Without a saved token, `charming apps create` still works: it pairs the new app to this machine and stores an app-scoped credential locally, so later `update` and `call` on that app work from the same machine without `charming auth login`.
+Without a saved token, `charming apps create` still works: it stores an app-scoped credential locally, so later `update` and `call` on that app work from the same machine without `charming auth login`. Show the user `pairing.user_code` and `pairing.verification_url` from its output. If they approve the code within 10 minutes, the next command on that app or `charming auth status` saves their account token and claims the app for them. If a claim fails, the CLI writes an `app_claim_failed` event to stderr, uses the app's own credential, and retries the claim on the next command.
 
 ## Iterate
 
