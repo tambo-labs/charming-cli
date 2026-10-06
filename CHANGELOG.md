@@ -1,5 +1,25 @@
 # usecharming
 
+## 0.2.4
+
+### Patch Changes
+
+- [#6700](https://github.com/tambo-ai/charming/pull/6700) [`b7297e4`](https://github.com/tambo-ai/charming/commit/b7297e44b76261f6d04b18b83494f51d25826e89) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Collect the pairing from a no-login `charming apps create`. The CLI now saves the pairing privately next to the app credential. Once the user approves the printed code, or claims the app, within 10 minutes, the next command on that app or `charming auth status` saves their account token and claims the app with it. Before this, the approval minted a token the CLI never collected, and a later claim cut the CLI off from the app it created.
+
+  A CLI signed in with `charming auth login` now also claims an app it created without a login the next time a command uses it. If a claim fails, the command runs on the app's own credential, writes an `app_claim_failed` event to stderr, and the next command retries.
+
+- [#6707](https://github.com/tambo-ai/charming/pull/6707) [`10e1e5f`](https://github.com/tambo-ai/charming/commit/10e1e5f2ece8a19d2c6feecd9ae46cd637789237) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Stop losing CLI credentials when commands run in parallel. Every write to `credentials.json` now holds a lock file, so two commands can no longer overwrite each other's saved tokens.
+
+  An app token whose app was deleted, expired, or claimed by someone else is now dropped, so the CLI stops printing `app_claim_failed` for it on every command. A no-login `charming apps create` also picks up an approved pairing first, so a second create goes into the user's account instead of making another unclaimed app.
+
+- [#6691](https://github.com/tambo-ai/charming/pull/6691) [`e821ebf`](https://github.com/tambo-ai/charming/commit/e821ebfb170331e089d3dfacc351f16fc853e807) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Add a Delete app card to each app's settings page, so an owner or team admin can permanently delete an app without an agent. The dialog asks for the app's slug, then deletes the app with its data and secrets through the new `DELETE /api/v1/apps/{appId}` route.
+
+  `DELETE /app/{id}?purge=storage` now deletes the app's secrets along with its key-value data, matching MCP `delete_app` with `purge_storage: true`. If the purge fails on any delete path, the app stays in place so a retry can finish. The `delete_app` and `DELETE /app/{id}` descriptions now say what a delete without the purge leaves: the secrets are kept, and an hourly cleanup clears the key-value data.
+
+- [#6699](https://github.com/tambo-ai/charming/pull/6699) [`c7e7898`](https://github.com/tambo-ai/charming/commit/c7e78986764d793966aabe65e608bd09c056d0fe) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Approving the pairing code of an app created with `pair: true` at `/pair` now claims that app for the approver, the same as claiming the app approves its pairing. Before, approval minted the agent's token but left the app unclaimed, so it missed the user's Account Home and expired. `/pair` names the app before you approve. A claim the user cannot take leaves the app as it is, and the approval still goes through.
+
+  No claim path hands you a copy of a template you own: `POST /app/:id/claim` refuses it with `409 duplicate_remix` pointing at the template, as it already did for a second copy. Approving a code and looking one up at `/pair?code=` now share one budget: 20 a minute per account and 60 a minute per address. Past it, `/pair` says "Too many codes tried." A code bound to an app another user owns is refused with `409 already_approved`. While too many codes are missing across all callers, a code bound to an unclaimed app answers a retryable `429` instead of being approved without its app. `POST /api/pair/approve` now returns `{ ok, claimed }`.
+
 ## 0.2.3
 
 ### Patch Changes
