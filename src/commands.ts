@@ -201,6 +201,7 @@ export async function runApps(
   }
 
   if (action === 'create') {
+    if (context.options['dry-run'] !== true) await collectPairings(context);
     const token = context.session.token;
     const bundle = await readBundle(positionals[0], context.options);
     const body: Record<string, unknown> = { ...bundle };
@@ -813,18 +814,20 @@ async function tokenForApp(context: CommandContext, appId: string): Promise<stri
   return token;
 }
 
-// An app token on disk always comes from a no-login create on this machine, so
-// the app is still unclaimed. With a saved account token at hand, claim the app
-// before using it: an account token cannot reach an unclaimed app, and the
-// claim revokes the app token. A failed claim falls back to the app token and
-// the next command tries again.
+// An app token on disk always comes from a no-login create on this machine. With
+// a saved account token at hand, claim the app before using it: an account token
+// cannot reach an unclaimed app. A 409 already_claimed means someone claimed it
+// already, which revoked the app token. A failed claim falls back to the app
+// token and the next command tries again.
 async function appCredential(context: CommandContext, appId: string): Promise<string | undefined> {
   await collectPairings(context, appId);
-  const { token: userToken, tokenSource } = context.session;
+  const { origin, token: userToken, tokenSource } = context.session;
   const saved = tokenSource === 'credentials' || tokenSource === 'legacy';
-  if (userToken && (!saved || !isUserToken(userToken))) return userToken;
-  const appToken = await loadAppToken(context.session.origin, appId);
-  if (!userToken || !appToken) return userToken ?? appToken;
+  if (!saved || !userToken || !isUserToken(userToken)) {
+    return userToken ?? (await loadAppToken(origin, appId));
+  }
+  const appToken = await loadAppToken(origin, appId);
+  if (!appToken) return userToken;
   return (await claimSavedApp(context, appId, userToken, appToken)) ? userToken : appToken;
 }
 
@@ -838,8 +841,13 @@ async function collectPairings(context: CommandContext, onlyAppId?: string): Pro
     ([appId]) => onlyAppId === undefined || appId === onlyAppId,
   );
   for (const [appId, deviceCode] of pairings) {
-    await collectPairing(context, appId, deviceCode, onlyAppId === undefined);
-    if (context.session.token) return;
+    const userToken = await collectPairing(context, appId, deviceCode);
+    if (!userToken) continue;
+    const appToken = await loadAppToken(context.session.origin, appId);
+    if (onlyAppId === undefined && appToken) {
+      await claimSavedApp(context, appId, userToken, appToken);
+    }
+    return;
   }
 }
 
@@ -847,8 +855,7 @@ async function collectPairing(
   context: CommandContext,
   appId: string,
   deviceCode: string,
-  claim: boolean,
-): Promise<void> {
+): Promise<string | undefined> {
   let polled: { status?: unknown; token?: unknown };
   try {
     polled = (
@@ -858,20 +865,22 @@ async function collectPairing(
       })
     ).data as typeof polled;
   } catch {
-    return;
+    return undefined;
   }
-  if (polled.status !== 'approved' && polled.status !== 'expired') return;
-  if (typeof polled.token !== 'string' || polled.token.length === 0) {
-    return dropPairing(context.session.origin, appId);
+  const delivered = typeof polled.token === 'string' && polled.token.length > 0;
+  if (polled.status === 'expired' || (polled.status === 'approved' && !delivered)) {
+    await dropPairing(context.session.origin, appId);
+    return undefined;
   }
+  if (polled.status !== 'approved' || typeof polled.token !== 'string') return undefined;
 
-  const userToken = polled.token;
-  await saveLogin(context.session, userToken);
-  context.session = { ...context.session, token: userToken, tokenSource: 'credentials' };
-  const appToken = claim ? await loadAppToken(context.session.origin, appId) : undefined;
-  if (appToken) await claimSavedApp(context, appId, userToken, appToken);
+  await saveLogin(context.session, polled.token);
+  context.session = { ...context.session, token: polled.token, tokenSource: 'credentials' };
+  return polled.token;
 }
 
+// Resolves to true once the app token is retired: the claim landed, someone
+// else claimed the app, or the app or its token is gone.
 async function claimSavedApp(
   context: CommandContext,
   appId: string,
@@ -884,7 +893,7 @@ async function claimSavedApp(
       timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
     });
   } catch (error) {
-    if (!(error instanceof ApiError && error.kind === 'already_claimed')) {
+    if (!isRetiredAppToken(error)) {
       process.stderr.write(
         `${JSON.stringify({
           event: 'app_claim_failed',
@@ -897,6 +906,15 @@ async function claimSavedApp(
   }
   await dropAppToken(context.session.origin, appId);
   return true;
+}
+
+function isRetiredAppToken(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error.kind === 'already_claimed') return true;
+  if (error.status === 404 && error.kind === 'not_found') return true;
+  return (
+    error.status === 401 && error.kind === 'unauthorized' && error.message === 'Token mismatch'
+  );
 }
 
 function loginCommand(session: Session): string {

@@ -1,4 +1,5 @@
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { chmod, link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -28,6 +29,10 @@ export type Store = {
 
 const CONFIG_FILE = 'config.json';
 const CREDENTIALS_FILE = 'credentials.json';
+const LOCK_FILE = 'credentials.lock';
+const LOCK_RETRY_MS = 20;
+const LOCK_STALE_MS = 10_000;
+const LOCK_NOTICE_MS = 2_000;
 const LEGACY_CONFIG_KEYS = new Set(['activeProfiles', 'appTokens', 'token', 'tokens']);
 
 export function configPath(options: StoreOptions): string {
@@ -78,9 +83,87 @@ export async function readStore(options: StoreOptions): Promise<Store> {
   return store;
 }
 
-export async function writeStore(store: Store, options: StoreOptions): Promise<void> {
+// Parallel CLI commands share one store, so every read-modify-write holds a lock
+// file carrying a per-holder nonce. A lock older than LOCK_STALE_MS belongs to a
+// process that died holding it.
+export async function updateStore<T>(
+  options: StoreOptions,
+  mutate: (store: Store) => T,
+): Promise<T> {
   const directory = configDirectory(options);
+  await ensureDirectory(directory);
+  const lock = join(directory, LOCK_FILE);
+  const nonce = `${process.pid}-${randomUUID()}`;
+  await acquireLock(lock, nonce);
+  try {
+    const store = await readStore(options);
+    const result = mutate(store);
+    await writeStore(store, options);
+    return result;
+  } finally {
+    if ((await readLock(lock)) === nonce) await rm(lock, { force: true });
+  }
+}
+
+async function acquireLock(path: string, nonce: string): Promise<void> {
+  const startedAt = Date.now();
+  let announced = false;
+  while (true) {
+    try {
+      await writeFile(path, nonce, { flag: 'wx', mode: 0o600 });
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    const holder = await readLock(path);
+    const lockedAt = await stat(path).then(
+      ({ mtimeMs }) => mtimeMs,
+      () => undefined,
+    );
+    if (holder !== undefined && lockedAt !== undefined && Date.now() - lockedAt > LOCK_STALE_MS) {
+      await reclaimStaleLock(path, holder, nonce);
+      continue;
+    }
+    if (!announced && Date.now() - startedAt > LOCK_NOTICE_MS) {
+      announced = true;
+      process.stderr.write(
+        `${JSON.stringify({
+          event: 'credentials_locked',
+          message: `Waiting for another charming command to finish writing ${path}. A lock left by a crashed command clears after ${LOCK_STALE_MS / 1000} seconds.`,
+        })}\n`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
+  }
+}
+
+// Only one waiter's rename of the stale file succeeds. A moved file that holds a
+// different nonce than the stale one belongs to a new holder, so it goes back.
+async function reclaimStaleLock(path: string, staleHolder: string, nonce: string): Promise<void> {
+  const moved = `${path}.${nonce}`;
+  try {
+    await rename(path, moved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw error;
+  }
+  if ((await readLock(moved)) !== staleHolder) {
+    await link(moved, path).catch(() => {});
+  }
+  await rm(moved, { force: true });
+}
+
+async function readLock(path: string): Promise<string | undefined> {
+  return readFile(path, 'utf8').catch(() => undefined);
+}
+
+async function ensureDirectory(directory: string): Promise<void> {
   if (await mkdir(directory, { mode: 0o700, recursive: true })) await chmod(directory, 0o700);
+}
+
+async function writeStore(store: Store, options: StoreOptions): Promise<void> {
+  const directory = configDirectory(options);
+  await ensureDirectory(directory);
 
   const profileTokens = {
     ...store.unknown.credentialProfiles,

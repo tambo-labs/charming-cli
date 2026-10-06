@@ -1,11 +1,11 @@
-import { chmod, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
 import { loadAppToken, PRODUCTION_BASE_URL, resolveSession, saveAppToken } from './config.js';
-import type { StoreOptions } from './store.js';
+import { type StoreOptions, updateStore } from './store.js';
 
 const PREVIEW = 'https://preview.example';
 const TRIGGER = { ['https://trigger.example']: { app: 'chrm_app_trigger' } };
@@ -280,5 +280,64 @@ describe('credential resolution', () => {
     await expect(resolveSession(options)).rejects.toThrow(
       `Invalid JSON in ${join(options.configDir, 'config.json')}`,
     );
+  });
+});
+
+describe('credential writes', () => {
+  test('concurrent writes keep every credential', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'charming-config-'));
+    const appIds = Array.from({ length: 8 }, (_, index) => `app-${index}`);
+
+    await Promise.all(
+      appIds.map((appId) => saveAppToken(PREVIEW, appId, `chrm_app_${appId}`, { configDir })),
+    );
+
+    for (const appId of appIds) {
+      expect(await loadAppToken(PREVIEW, appId, { configDir })).toBe(`chrm_app_${appId}`);
+    }
+    expect(await readdir(configDir)).toEqual(['credentials.json']);
+  });
+
+  test('takes over a lock left by a crashed command', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'charming-config-'));
+    const lock = join(configDir, 'credentials.lock');
+    await writeFile(lock, 'crashed-holder');
+    const longAgo = new Date(Date.now() - 60_000);
+    await utimes(lock, longAgo, longAgo);
+
+    await saveAppToken(PREVIEW, 'app', 'chrm_app_after_crash', { configDir });
+
+    expect(await loadAppToken(PREVIEW, 'app', { configDir })).toBe('chrm_app_after_crash');
+    expect(await readdir(configDir)).toEqual(['credentials.json']);
+  });
+
+  test('waits for a live lock instead of taking it over', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'charming-config-'));
+    const lock = join(configDir, 'credentials.lock');
+    await writeFile(lock, 'live-holder');
+    let saved = false;
+
+    const pending = saveAppToken(PREVIEW, 'app', 'chrm_app_waited', { configDir }).then(() => {
+      saved = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(saved).toBe(false);
+    expect(await readFile(lock, 'utf8')).toBe('live-holder');
+
+    await rm(lock);
+    await pending;
+    expect(await loadAppToken(PREVIEW, 'app', { configDir })).toBe('chrm_app_waited');
+  });
+
+  test('releases the lock when the change throws', async () => {
+    const configDir = await mkdtemp(join(tmpdir(), 'charming-config-'));
+
+    await expect(
+      updateStore({ configDir }, () => {
+        throw new Error('refused');
+      }),
+    ).rejects.toThrow('refused');
+
+    expect(await readdir(configDir)).toEqual([]);
   });
 });

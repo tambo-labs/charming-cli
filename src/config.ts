@@ -14,7 +14,7 @@ import {
   setAppSecret,
   type Store,
   type StoreOptions,
-  writeStore,
+  updateStore,
 } from './store.js';
 
 export { PRODUCTION_BASE_URL } from './origin.js';
@@ -92,36 +92,36 @@ export async function resolveSession(request: SessionRequest = {}): Promise<Sess
 
 export async function saveLogin(session: Session, token: string): Promise<void> {
   const name = requireProfile(session);
-  const store = await readStore({});
-  store.profiles[name] = { origin: session.origin, token };
-  delete store.pairings[session.origin];
-  if (session.profileSource === 'flag') store.selected = name;
-  await writeStore(store, {});
+  await updateStore({}, (store) => {
+    store.profiles[name] = { origin: session.origin, token };
+    delete store.pairings[session.origin];
+    if (session.profileSource === 'flag') store.selected = name;
+  });
 }
 
 export async function logout(
   session: Session,
 ): Promise<{ appTokensRemoved: number; profile: string | null }> {
-  const store = await readStore({});
   const name = session.profile;
-  if (name && name !== DEFAULT_PROFILE && !store.profiles[name]) {
-    throw new Error(`Profile ${name} has no saved credential.`);
-  }
-  if (name && store.profiles[name]?.origin === session.origin) {
-    delete store.profiles[name];
-    if (store.selected === name) delete store.selected;
-  }
-  const originStillSignedIn = Object.values(store.profiles).some(
-    (profile) => profile.origin === session.origin,
-  );
-  let appTokensRemoved = 0;
-  if (name === undefined || name === DEFAULT_PROFILE || !originStillSignedIn) {
-    appTokensRemoved = Object.keys(store.appTokens[session.origin] ?? {}).length;
-    delete store.appTokens[session.origin];
-    delete store.pairings[session.origin];
-  }
-  await writeStore(store, {});
-  return { appTokensRemoved, profile: name ?? null };
+  return updateStore({}, (store) => {
+    if (name && name !== DEFAULT_PROFILE && !store.profiles[name]) {
+      throw new Error(`Profile ${name} has no saved credential.`);
+    }
+    if (name && store.profiles[name]?.origin === session.origin) {
+      delete store.profiles[name];
+      if (store.selected === name) delete store.selected;
+    }
+    const originStillSignedIn = Object.values(store.profiles).some(
+      (profile) => profile.origin === session.origin,
+    );
+    let appTokensRemoved = 0;
+    if (name === undefined || name === DEFAULT_PROFILE || !originStillSignedIn) {
+      appTokensRemoved = Object.keys(store.appTokens[session.origin] ?? {}).length;
+      delete store.appTokens[session.origin];
+      delete store.pairings[session.origin];
+    }
+    return { appTokensRemoved, profile: name ?? null };
+  });
 }
 
 export async function listProfiles(request: SessionRequest = {}): Promise<{
@@ -169,24 +169,26 @@ export async function useProfile(
   request: StoreOptions & { cwd?: string; project?: boolean } = {},
 ): Promise<{ path: string; profile: string }> {
   validateProfileName(name);
-  const store = await readStore(request);
-  if (name !== DEFAULT_PROFILE && !store.profiles[name]) {
-    throw new Error(
-      `Profile ${name} is not saved on this machine. Run \`charming auth login --profile ${name}\` first.`,
-    );
-  }
   if (request.project) {
+    requireSavedProfile(await readStore(request), name);
     return {
       ...(await writeProjectProfile(name, boundaries(request, request.env ?? process.env))),
       profile: name,
     };
   }
-  const path = configPath(request);
-  if ((store.selected ?? DEFAULT_PROFILE) !== name) {
+  await updateStore(request, (store) => {
+    requireSavedProfile(store, name);
     store.selected = name;
-    await writeStore(store, request);
+  });
+  return { path: configPath(request), profile: name };
+}
+
+function requireSavedProfile(store: Store, name: string): void {
+  if (name !== DEFAULT_PROFILE && !store.profiles[name]) {
+    throw new Error(
+      `Profile ${name} is not saved on this machine. Run \`charming auth login --profile ${name}\` first.`,
+    );
   }
-  return { path, profile: name };
 }
 
 export async function loadAppToken(
@@ -203,9 +205,7 @@ export async function saveAppToken(
   token: string,
   options: StoreOptions = {},
 ): Promise<void> {
-  const store = await readStore(options);
-  setAppSecret(store.appTokens, origin, appId, token);
-  await writeStore(store, options);
+  await updateStore(options, (store) => setAppSecret(store.appTokens, origin, appId, token));
 }
 
 export async function savePairing(
@@ -213,9 +213,7 @@ export async function savePairing(
   appId: string,
   deviceCode: string,
 ): Promise<void> {
-  const store = await readStore({});
-  setAppSecret(store.pairings, origin, appId, deviceCode);
-  await writeStore(store, {});
+  await updateStore({}, (store) => setAppSecret(store.pairings, origin, appId, deviceCode));
 }
 
 export async function loadPairings(origin: string): Promise<Record<string, string>> {
@@ -223,15 +221,11 @@ export async function loadPairings(origin: string): Promise<Record<string, strin
 }
 
 export async function dropPairing(origin: string, appId: string): Promise<void> {
-  const store = await readStore({});
-  deleteAppSecret(store.pairings, origin, appId);
-  await writeStore(store, {});
+  await updateStore({}, (store) => deleteAppSecret(store.pairings, origin, appId));
 }
 
 export async function dropAppToken(origin: string, appId: string): Promise<void> {
-  const store = await readStore({});
-  deleteAppSecret(store.appTokens, origin, appId);
-  await writeStore(store, {});
+  await updateStore({}, (store) => deleteAppSecret(store.appTokens, origin, appId));
 }
 
 async function selectProfile(

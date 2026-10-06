@@ -1456,8 +1456,7 @@ describe('anonymous create pairing', () => {
     expect(savedBeforeClaim).toEqual({ default: { token: 'chrm_user_collected' } });
   });
 
-  test('claims an app created without a login once the CLI signs in', async () => {
-    const { configDir, directory } = await createAnonymously();
+  async function signIn(configDir: string): Promise<void> {
     await writeFile(
       join(configDir, 'credentials.json'),
       JSON.stringify({
@@ -1469,6 +1468,11 @@ describe('anonymous create pairing', () => {
       join(configDir, 'config.json'),
       JSON.stringify({ profiles: { default: { origin: ORIGIN } } }),
     );
+  }
+
+  test('claims an app created without a login once the CLI signs in', async () => {
+    const { configDir, directory } = await createAnonymously();
+    await signIn(configDir);
     const fetchImpl = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ ok: true, id: APP_ID }))
@@ -1483,6 +1487,149 @@ describe('anonymous create pairing', () => {
     expect(await credentials(configDir)).toEqual({
       profiles: { default: { token: 'chrm_user_signed_in' } },
     });
+  });
+
+  test.each([
+    ['already claimed', 409, { error: { kind: 'already_claimed' } }],
+    ['gone', 404, { error: { kind: 'not_found' } }],
+    [
+      'no longer the app token',
+      401,
+      { error: { kind: 'unauthorized', message: 'Token mismatch' } },
+    ],
+  ])('drops an app token that is %s and uses the account token', async (_name, status, body) => {
+    const { configDir, directory } = await createAnonymously();
+    await signIn(configDir);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(body, { status }))
+      .mockResolvedValueOnce(sourceResponse())
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    await update(directory, fetchImpl);
+
+    expect(stderr).not.toHaveBeenCalled();
+    expect(authorization(fetchImpl, 2)).toBe('Bearer chrm_user_signed_in');
+    expect(await credentials(configDir)).toEqual({
+      profiles: { default: { token: 'chrm_user_signed_in' } },
+    });
+  });
+
+  test('keeps the app token when the account token is refused', async () => {
+    const { configDir, directory } = await createAnonymously();
+    await signIn(configDir);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ error: { kind: 'unauthorized' } }, { status: 401 }))
+      .mockResolvedValueOnce(sourceResponse())
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    await update(directory, fetchImpl);
+
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining('"event":"app_claim_failed"'));
+    expect(authorization(fetchImpl, 2)).toBe('Bearer chrm_app_secret');
+  });
+
+  test('keeps the app token on a 404 the server did not send', async () => {
+    const { configDir, directory } = await createAnonymously();
+    await signIn(configDir);
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
+      .mockResolvedValueOnce(sourceResponse())
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+    await update(directory, fetchImpl);
+
+    expect(authorization(fetchImpl, 2)).toBe('Bearer chrm_app_secret');
+    expect(await credentials(configDir)).toEqual({
+      apps: { [ORIGIN]: { [APP_ID]: 'chrm_app_secret' } },
+      profiles: { default: { token: 'chrm_user_signed_in' } },
+    });
+  });
+
+  test('a create dry run leaves the pairing and the server alone', async () => {
+    const { configDir, directory } = await createAnonymously();
+    const fetchImpl = vi.fn<typeof fetch>();
+
+    const result = await runCommand({
+      baseUrl: ORIGIN,
+      command: ['apps', 'create', directory],
+      fetchImpl,
+      options: { 'dry-run': true },
+    });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({ dryRun: true }));
+    expect(await credentials(configDir)).toEqual({
+      apps: { [ORIGIN]: { [APP_ID]: 'chrm_app_secret' } },
+      pairings: { [ORIGIN]: { [APP_ID]: 'chrm_pair_secret' } },
+    });
+  });
+
+  test('a later create still pairs while the first pairing is pending', async () => {
+    const { directory } = await createAnonymously();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ status: 'pending' }))
+      .mockResolvedValueOnce(Response.json({ id: 'app-2', token: 'chrm_app_second' }));
+
+    await runCommand({
+      baseUrl: ORIGIN,
+      command: ['apps', 'create', directory],
+      fetchImpl,
+      options: {},
+    });
+
+    expect(sentRequest(fetchImpl, 1).body).toEqual(expect.objectContaining({ pair: true }));
+    expect(authorization(fetchImpl, 1)).toBeNull();
+  });
+
+  test('uses a --token as given and never claims with it', async () => {
+    const { configDir, directory } = await createAnonymously();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(sourceResponse())
+      .mockResolvedValueOnce(Response.json({ ok: true }));
+
+    await runCommand({
+      baseUrl: ORIGIN,
+      command: ['apps', 'update', APP_ID, directory],
+      fetchImpl,
+      options: {},
+      token: 'chrm_user_flag',
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(authorization(fetchImpl, 1)).toBe('Bearer chrm_user_flag');
+    expect(await credentials(configDir)).toEqual({
+      apps: { [ORIGIN]: { [APP_ID]: 'chrm_app_secret' } },
+      pairings: { [ORIGIN]: { [APP_ID]: 'chrm_pair_secret' } },
+    });
+  });
+
+  test('a later create collects an approved pairing instead of starting another', async () => {
+    const { directory } = await createAnonymously();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ status: 'approved', token: 'chrm_user_collected' }))
+      .mockResolvedValueOnce(Response.json({ ok: true, id: APP_ID }))
+      .mockResolvedValueOnce(Response.json({ id: 'app-2' }));
+
+    await runCommand({
+      baseUrl: ORIGIN,
+      command: ['apps', 'create', directory],
+      fetchImpl,
+      options: { yes: true },
+    });
+
+    const created = sentRequest(fetchImpl, 2);
+    expect(created.url).toBe(`${ORIGIN}/app`);
+    expect(created.body).not.toHaveProperty('pair');
+    expect(authorization(fetchImpl, 2)).toBe('Bearer chrm_user_collected');
   });
 
   test('saves the account token without a claim when no app credential is saved', async () => {
@@ -1571,11 +1718,15 @@ describe('anonymous create pairing', () => {
     });
   });
 
-  test('keeps waiting while the pairing is pending', async () => {
+  test.each([
+    ['pending', { status: 'pending' }],
+    ['unrecognized', { status: 'paused' }],
+    ['missing a status', {}],
+  ])('keeps the pairing while the poll is %s', async (_name, poll) => {
     const { configDir, directory } = await createAnonymously();
     const fetchImpl = vi
       .fn<typeof fetch>()
-      .mockResolvedValueOnce(Response.json({ status: 'pending' }))
+      .mockResolvedValueOnce(Response.json(poll))
       .mockResolvedValueOnce(sourceResponse())
       .mockResolvedValueOnce(Response.json({ ok: true }));
 
@@ -1591,6 +1742,7 @@ describe('anonymous create pairing', () => {
   test.each([
     ['expired', { status: 'expired' }],
     ['already delivered', { status: 'approved', already_delivered: true }],
+    ['expired with a token', { status: 'expired', token: 'chrm_user_late' }],
   ])('forgets a pairing that is %s and keeps the app credential', async (_name, poll) => {
     const { configDir, directory } = await createAnonymously();
     const fetchImpl = vi
