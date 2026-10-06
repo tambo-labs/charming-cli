@@ -2469,7 +2469,7 @@
           },
           "pair": {
             "type": "boolean",
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; user-claim auto-approves the pairing and the agent ends up with both an app token and a `chrm_user_*`."
+            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
           },
           "label": {
             "type": "string",
@@ -3489,6 +3489,25 @@
             "enum": [
               true
             ]
+          }
+        }
+      },
+      "PairApproveResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "claimed"
+        ],
+        "description": "Pairing approved. `claimed` is true when the code's bound app (`POST /app {pair: true}`) belongs to the approver after this approval, whether this approval moved it or it was already theirs.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "claimed": {
+            "type": "boolean"
           }
         }
       },
@@ -11853,7 +11872,7 @@
       "post": {
         "operationId": "approve-pairing",
         "summary": "Approve a pairing (browser-side, signed-in user)",
-        "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. The legacy `/pair/approve` path 308s here.",
+        "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. If the code belongs to an app created with `pair: true` that nobody has claimed, approving also claims that app for the approver, best-effort. The legacy `/pair/approve` path 308s here.",
         "security": [
           {
             "userToken": []
@@ -11904,7 +11923,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OkResponse"
+                  "$ref": "#/components/schemas/PairApproveResponse"
                 }
               }
             }
@@ -11940,7 +11959,7 @@
             }
           },
           "409": {
-            "description": "Pairing already approved.",
+            "description": "Pairing already approved, or another user claimed its bound app first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11960,7 +11979,7 @@
             }
           },
           "429": {
-            "description": "Rate limited.",
+            "description": "Rate limited: too many codes from this account or address, or, for a code bound to an unclaimed app, claims are paused this minute after too many missed codes. Retry after `Retry-After`.",
             "headers": {
               "RateLimit-Limit": {
                 "$ref": "#/components/headers/RateLimit-Limit"

@@ -181,7 +181,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/pair/approve",
     "summary": "Approve a pairing (browser-side, signed-in user)",
-    "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. The legacy `/pair/approve` path 308s here.",
+    "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. If the code belongs to an app created with `pair: true` that nobody has claimed, approving also claims that app for the approver, best-effort. The legacy `/pair/approve` path 308s here.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
@@ -207,15 +207,19 @@ export const generatedOperations = [
       "schema": {
         "type": "object",
         "required": [
-          "ok"
+          "ok",
+          "claimed"
         ],
-        "description": "Minimal success acknowledgement. `ok: true` confirms the mutation landed.",
+        "description": "Pairing approved. `claimed` is true when the code's bound app (`POST /app {pair: true}`) belongs to the approver after this approval, whether this approval moved it or it was already theirs.",
         "properties": {
           "ok": {
             "type": "boolean",
             "enum": [
               true
             ]
+          },
+          "claimed": {
+            "type": "boolean"
           }
         }
       }
@@ -787,7 +791,7 @@ export const generatedOperations = [
           },
           "pair": {
             "type": "boolean",
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; user-claim auto-approves the pairing and the agent ends up with both an app token and a `chrm_user_*`."
+            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
           },
           "label": {
             "type": "string",
