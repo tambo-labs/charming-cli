@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.2.5
+
+### Patch Changes
+
+- [#6720](https://github.com/tambo-ai/charming/pull/6720) [`f265c13`](https://github.com/tambo-ai/charming/commit/f265c13dd6addd29fef71e25094a907bb95d941c) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Say what happens when the user claims an app more than 10 minutes after a no-login `charming apps create`: the claim revokes the CLI's app credential and pairs nothing, so run `charming auth login` to keep working on the app.
+
 ## 0.2.4
 
 ### Patch Changes
