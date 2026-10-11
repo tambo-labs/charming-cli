@@ -44,7 +44,7 @@ describe('generated operation catalog', () => {
   });
 
   test('preserves operation count, timeouts, event auth, and the closed create schema', () => {
-    expect(operations).toHaveLength(94);
+    expect(operations).toHaveLength(95);
     expect(findOperation('call-app-operation')).toEqual(
       expect.objectContaining({ timeoutMs: 30_000 }),
     );
@@ -59,6 +59,12 @@ describe('generated operation catalog', () => {
     );
     expect(findOperation('create-app')?.requestBody?.schema).toEqual(
       expect.objectContaining({ additionalProperties: false }),
+    );
+    expect(findOperation('copy-app')?.requestBody).toEqual(
+      expect.objectContaining({
+        required: false,
+        schema: expect.objectContaining({ additionalProperties: false }),
+      }),
     );
   });
 });

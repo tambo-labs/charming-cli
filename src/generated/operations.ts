@@ -723,6 +723,145 @@ export const generatedOperations = [
     "usage": "charming api request clear-app-icon --param id=VALUE"
   },
   {
+    "id": "copy-app",
+    "method": "POST",
+    "path": "/app/{id}/copy",
+    "summary": "Copy an app into a new private app owned by the caller",
+    "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. An ESM app copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": false,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "manifest_id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "description": "Manifest id for the copy. Must be free for the caller. Omit it to take the next free id."
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name for the copy. Defaults to the source's. Refused for ESM apps, which take their name from manifest.meta.name."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "pattern": "^[!-~]{8,100}$",
+            "description": "Names this copy so a retry returns it instead of making another. The same key with a different source, include_data, or manifest_id answers 409 idempotency_conflict."
+          },
+          "include_data": {
+            "type": "boolean",
+            "description": "Also copy the stored data and assets. Defaults to false. Needs owner access to a personally owned source; a team app’s data is not copied."
+          }
+        }
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "The copy.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "url",
+          "manifestId",
+          "appName",
+          "displayName",
+          "revision",
+          "sourceAppId",
+          "copyKind"
+        ],
+        "description": "The private copy POST /app/{id}/copy created.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "manifestId": {
+            "type": "string"
+          },
+          "appName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "sourceAppId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "copyKind": {
+            "type": "string",
+            "enum": [
+              "app",
+              "template"
+            ]
+          },
+          "copiedData": {
+            "type": "object",
+            "required": [
+              "keys",
+              "assets"
+            ],
+            "description": "Present when include_data copied the data on this call. Absent on an idempotency replay, which returns the earlier copy without recounting.",
+            "properties": {
+              "keys": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "assets": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "secretsNotCopied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of source secrets the copy does not have."
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request copy-app --param id=VALUE --body @body.json"
+  },
+  {
     "id": "create-app",
     "method": "POST",
     "path": "/app",

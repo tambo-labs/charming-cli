@@ -1718,7 +1718,6 @@
                   "executor_error",
                   "invalid_call_shape",
                   "already_claimed",
-                  "duplicate_remix",
                   "manifest_not_found",
                   "payload_too_large",
                   "module_too_large",
@@ -1802,7 +1801,10 @@
                   "duplicate_webhook",
                   "webhook_disabled",
                   "version_limit_exceeded",
-                  "plan_required"
+                  "plan_required",
+                  "storage_limit_exceeded",
+                  "copy_data_forbidden",
+                  "copy_data_too_large"
                 ]
               },
               "message": {
@@ -1864,7 +1866,7 @@
                 "description": "Absolute link to the owner's own billing page, where the refusal is lifted — the team's page for a team-owned app. Omitted only when the owner has no handle and therefore no settings page of their own, so treat it as optional and fall back to your own copy. MCP appends it as an `Upgrade: <url>` last line; the CLI prints it under the message."
               },
               "recovery": {
-                "description": "Self-contained recovery hint, branching on `kind`. Attached to error envelopes the agent can self-correct on: `pair` for `token_revoked_post_claim` 401s (#1284), `retry` for 429s, `shrink` for too-large / quota-exceeded 413s, `refetch` for 412 `revision_mismatch` / `invalid_if_match` / 428 `precondition_required`, `fix_route_label` for 403 `forbidden_write`, `open_existing` for 409 `duplicate_remix`, `rename` for 409 `manifest_id_immutable` / `manifest_id_conflict`, and `migrate_contract` for 422 `contract_migration_required`. Every `instructions` string is a single-paragraph, action-first walk-through. Inlined per ADR 2026-05-06-agent-facing-error-surfaces-self-contain-the-fix.",
+                "description": "Self-contained recovery hint, branching on `kind`. Attached to error envelopes the agent can self-correct on: `pair` for `token_revoked_post_claim` 401s (#1284), `retry` for 429s, `shrink` for too-large / quota-exceeded 413s, `refetch` for 412 `revision_mismatch` / `invalid_if_match` / 428 `precondition_required`, `fix_route_label` for 403 `forbidden_write`, `rename` for 409 `manifest_id_immutable` / `manifest_id_conflict`, and `migrate_contract` for 422 `contract_migration_required`. Every `instructions` string is a single-paragraph, action-first walk-through. Inlined per ADR 2026-05-06-agent-facing-error-surfaces-self-contain-the-fix.",
                 "oneOf": [
                   {
                     "$ref": "#/components/schemas/RecoveryPair"
@@ -1880,9 +1882,6 @@
                   },
                   {
                     "$ref": "#/components/schemas/RecoveryFixRouteLabel"
-                  },
-                  {
-                    "$ref": "#/components/schemas/RecoveryOpenExisting"
                   },
                   {
                     "$ref": "#/components/schemas/RecoveryRename"
@@ -2047,34 +2046,6 @@
           "instructions": {
             "type": "string",
             "description": "App-code recovery: the fix is in the route declaration, NOT in the request. Retrying the same request will fail again."
-          }
-        },
-        "additionalProperties": false
-      },
-      "RecoveryOpenExisting": {
-        "type": "object",
-        "required": [
-          "kind",
-          "existing_app_id",
-          "existing_url",
-          "instructions"
-        ],
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "open_existing"
-            ]
-          },
-          "existing_app_id": {
-            "type": "string"
-          },
-          "existing_url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "instructions": {
-            "type": "string"
           }
         },
         "additionalProperties": false
@@ -3537,6 +3508,88 @@
           "claimedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "AppCopyResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "id",
+          "url",
+          "manifestId",
+          "appName",
+          "displayName",
+          "revision",
+          "sourceAppId",
+          "copyKind"
+        ],
+        "description": "The private copy POST /app/{id}/copy created.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "manifestId": {
+            "type": "string"
+          },
+          "appName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "sourceAppId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "copyKind": {
+            "type": "string",
+            "enum": [
+              "app",
+              "template"
+            ]
+          },
+          "copiedData": {
+            "type": "object",
+            "required": [
+              "keys",
+              "assets"
+            ],
+            "description": "Present when include_data copied the data on this call. Absent on an idempotency replay, which returns the earlier copy without recounting.",
+            "properties": {
+              "keys": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "assets": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "secretsNotCopied": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of source secrets the copy does not have."
           }
         }
       },
@@ -9221,6 +9274,173 @@
           },
           "409": {
             "description": "Already claimed by someone (possibly the caller).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/app/{id}/copy": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "copy-app",
+        "summary": "Copy an app into a new private app owned by the caller",
+        "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. An ESM app copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "manifest_id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+                    "description": "Manifest id for the copy. Must be free for the caller. Omit it to take the next free id."
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Display name for the copy. Defaults to the source's. Refused for ESM apps, which take their name from manifest.meta.name."
+                  },
+                  "idempotency_key": {
+                    "type": "string",
+                    "pattern": "^[!-~]{8,100}$",
+                    "description": "Names this copy so a retry returns it instead of making another. The same key with a different source, include_data, or manifest_id answers 409 idempotency_conflict."
+                  },
+                  "include_data": {
+                    "type": "boolean",
+                    "description": "Also copy the stored data and assets. Defaults to false. Needs owner access to a personally owned source; a team app’s data is not copied."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The copy.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppCopyResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Authorized build status URL."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds before polling a pending build."
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Identity of this operation’s immutable source input."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBuildResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body is not a JSON object, carries an unexpected key, or names an invalid manifest_id or display_name. See error.kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "User-scoped auth required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`forbidden`: the caller can open the app but may not copy it. `copy_data_forbidden`: include_data needs owner access to a personally owned source, and a team app’s data is not copied. `contract_not_enabled`: ESM copying is not enabled for the caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "App not found, or the caller cannot open it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`manifest_id_conflict`: the caller already holds the requested manifest_id; `existingAppId` names the app when one holds it. `idempotency_conflict`: the idempotency_key already copied a different app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The source data exceeds the 24 MiB a copy carries (`copy_data_too_large`) or a per-app cap (`storage_full`, `asset_count_exceeded`, `asset_quota_exceeded`). Copy it without include_data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`storage_limit_exceeded`: the data would put the caller over their storage allowance. `app_build_capacity`: retry after the returned delay.",
             "content": {
               "application/json": {
                 "schema": {
