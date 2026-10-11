@@ -866,7 +866,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/app",
     "summary": "Create an app or accept an ESM app build",
-    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/2026-09-05.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields.",
+    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields.",
     "parameters": [
       {
         "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
@@ -901,7 +901,7 @@ export const generatedOperations = [
         "properties": {
           "module": {
             "type": "string",
-            "description": "Server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Existing contracts publish synchronously; the explicit https://charm.ing/schema/app-manifest/2026-09-05.json contract requires an enabled authenticated user and accepts a background build."
+            "description": "Server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Existing contracts publish synchronously; the explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and accepts a background build."
           },
           "ui": {
             "type": [
@@ -4293,7 +4293,7 @@ export const generatedOperations = [
             "format": "uri",
             "enum": [
               "https://charm.ing/schema/app-manifest/2026-07-31.json",
-              "https://charm.ing/schema/app-manifest/2026-09-05.json"
+              "https://charm.ing/schema/app-manifest/next.json"
             ],
             "description": "Exact dated schema URL for canonical or ESM source. Legacy source responses omit this field."
           },
@@ -4391,7 +4391,7 @@ export const generatedOperations = [
             ],
             "properties": {
               "$schema": {
-                "const": "https://charm.ing/schema/app-manifest/2026-09-05.json"
+                "const": "https://charm.ing/schema/app-manifest/next.json"
               },
               "manifestVersion": {
                 "type": "null"
