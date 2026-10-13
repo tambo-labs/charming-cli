@@ -5231,6 +5231,7 @@ export const generatedOperations = [
                 "appId",
                 "appDisplayName",
                 "actor",
+                "actorBadges",
                 "client",
                 "createdAtMs",
                 "summary"
@@ -5256,6 +5257,50 @@ export const generatedOperations = [
                     "null"
                   ],
                   "description": "Null for an anonymous/public end-user viewer."
+                },
+                "actorBadges": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "pro",
+                        "affiliation"
+                      ],
+                      "description": "The marks Charming shows beside a person’s name, derived from live plans at read time.",
+                      "properties": {
+                        "pro": {
+                          "type": "boolean",
+                          "description": "True while the person pays for a plan on their own account."
+                        },
+                        "affiliation": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "name",
+                            "logoUrl"
+                          ],
+                          "description": "The paid team the person shows beside their name, or null for none.",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logoUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The marks beside the actor’s name, or null for none."
                 },
                 "client": {
                   "type": [
@@ -5659,6 +5704,42 @@ export const generatedOperations = [
                     "handle": {
                       "type": "string",
                       "description": "The account grantee’s handle, which names their avatar at `/<handle>.png`. Absent for email invitations and accounts without a handle."
+                    },
+                    "badges": {
+                      "type": "object",
+                      "required": [
+                        "pro",
+                        "affiliation"
+                      ],
+                      "description": "The marks Charming shows beside a person’s name, derived from live plans at read time.",
+                      "properties": {
+                        "pro": {
+                          "type": "boolean",
+                          "description": "True while the person pays for a plan on their own account."
+                        },
+                        "affiliation": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "name",
+                            "logoUrl"
+                          ],
+                          "description": "The paid team the person shows beside their name, or null for none.",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logoUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
                     }
                   }
                 },
@@ -6419,6 +6500,7 @@ export const generatedOperations = [
               "required": [
                 "userId",
                 "label",
+                "badges",
                 "role",
                 "appsOwned",
                 "appsCreated",
@@ -6432,6 +6514,50 @@ export const generatedOperations = [
                 },
                 "label": {
                   "type": "string"
+                },
+                "badges": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "pro",
+                        "affiliation"
+                      ],
+                      "description": "The marks Charming shows beside a person’s name, derived from live plans at read time.",
+                      "properties": {
+                        "pro": {
+                          "type": "boolean",
+                          "description": "True while the person pays for a plan on their own account."
+                        },
+                        "affiliation": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "name",
+                            "logoUrl"
+                          ],
+                          "description": "The paid team the person shows beside their name, or null for none.",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logoUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The marks beside the member’s name, or null for none."
                 },
                 "role": {
                   "type": "string"
@@ -6624,6 +6750,7 @@ export const generatedOperations = [
                 "appId",
                 "appDisplayName",
                 "grantee",
+                "granteeBadges",
                 "role",
                 "scope",
                 "status",
@@ -6655,6 +6782,50 @@ export const generatedOperations = [
                     "null"
                   ],
                   "description": "Handle or email; null for a link (nobody is behind the door yet)."
+                },
+                "granteeBadges": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "pro",
+                        "affiliation"
+                      ],
+                      "description": "The marks Charming shows beside a person’s name, derived from live plans at read time.",
+                      "properties": {
+                        "pro": {
+                          "type": "boolean",
+                          "description": "True while the person pays for a plan on their own account."
+                        },
+                        "affiliation": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "required": [
+                            "name",
+                            "logoUrl"
+                          ],
+                          "description": "The paid team the person shows beside their name, or null for none.",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "logoUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The marks beside the grantee’s name for a `person` row; null for an invite, a link, or none."
                 },
                 "role": {
                   "type": "string"
@@ -6738,6 +6909,7 @@ export const generatedOperations = [
                 "role",
                 "memberCount",
                 "appCount",
+                "paid",
                 "members"
               ],
               "description": "One row in the caller’s team list.",
@@ -6761,6 +6933,10 @@ export const generatedOperations = [
                 "appCount": {
                   "type": "integer"
                 },
+                "paid": {
+                  "type": "boolean",
+                  "description": "True while the team is on a live paid plan."
+                },
                 "members": {
                   "type": "array",
                   "items": {
@@ -6772,7 +6948,8 @@ export const generatedOperations = [
                       "image",
                       "handle",
                       "role",
-                      "isYou"
+                      "isYou",
+                      "badges"
                     ],
                     "description": "One member in a team roster. `memberId` is the membership-row id used by the member PATCH/DELETE endpoints (distinct from `userId`).",
                     "properties": {
@@ -6803,6 +6980,50 @@ export const generatedOperations = [
                       },
                       "isYou": {
                         "type": "boolean"
+                      },
+                      "badges": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "required": [
+                              "pro",
+                              "affiliation"
+                            ],
+                            "description": "The marks Charming shows beside a person’s name, derived from live plans at read time.",
+                            "properties": {
+                              "pro": {
+                                "type": "boolean",
+                                "description": "True while the person pays for a plan on their own account."
+                              },
+                              "affiliation": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "required": [
+                                  "name",
+                                  "logoUrl"
+                                ],
+                                "description": "The paid team the person shows beside their name, or null for none.",
+                                "properties": {
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "logoUrl": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  }
+                                },
+                                "additionalProperties": false
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The marks beside the member’s name, or null for none."
                       }
                     }
                   }
