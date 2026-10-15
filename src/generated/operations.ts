@@ -3266,7 +3266,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/app/{id}/activity",
     "summary": "Read the app's durable runtime-failure events",
-    "description": "Owner-only. Returns the app's own `api_proxy_result`, `image_proxy_result` (external image failures), `diag_report` (runtime JS errors, CSP violations), `contract_validation`, `app_load_error`, and `render_token_revoked` events from durable storage — use this after publishing to learn what broke at runtime. Unlike `GET /app/{id}/diag` (in-memory ring buffer, always lost on deploy), these rows are meant to survive deploys, but most kinds here are telemetry the server can shed under sustained load rather than block a request on: `api_proxy_result` and `render_token_revoked` at the telemetry lane's in-flight write budget, and `diag_report`, `image_proxy_result`, `app_load_error` in the in-process queue those flood-prone kinds share. Only `contract_validation` (and the audit kinds this endpoint does not return) write synchronously and are never shed. Requires the app token or the owner's user token; render tokens and claim cookies are rejected. Not to be confused with `GET /app/{id}/events`, the live-state SSE stream.",
+    "description": "Owner-only. Returns the app's own `api_proxy_result`, `visitor_calls_refused` (calls from people who are not members, refused at their limits and summarized per 10 seconds; not runtime failures), `image_proxy_result` (external image failures), `diag_report` (runtime JS errors, CSP violations), `contract_validation`, `app_load_error`, and `render_token_revoked` events from durable storage — use this after publishing to learn what broke at runtime. Unlike `GET /app/{id}/diag` (in-memory ring buffer, always lost on deploy), these rows are meant to survive deploys, but most kinds here are telemetry the server can shed under sustained load rather than block a request on: `api_proxy_result` and `render_token_revoked` at the telemetry lane's in-flight write budget, and `diag_report`, `image_proxy_result`, `app_load_error` in the in-process queue those flood-prone kinds share. Only `contract_validation` (and the audit kinds this endpoint does not return) write synchronously and are never shed. Requires the app token or the owner's user token; render tokens and claim cookies are rejected. Not to be confused with `GET /app/{id}/events`, the live-state SSE stream.",
     "parameters": [
       {
         "description": "",
@@ -3278,7 +3278,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Comma-separated subset of `api_proxy_result,image_proxy_result,diag_report,contract_validation,app_load_error,render_token_revoked`. Unknown kinds are a 400.",
+        "description": "Comma-separated subset of `api_proxy_result,visitor_calls_refused,image_proxy_result,diag_report,contract_validation,app_load_error,render_token_revoked`. Unknown kinds are a 400.",
         "in": "query",
         "name": "kinds",
         "required": false,
@@ -3386,6 +3386,7 @@ export const generatedOperations = [
                       "type": "string",
                       "enum": [
                         "api_proxy_result",
+                        "visitor_calls_refused",
                         "image_proxy_result",
                         "diag_report",
                         "contract_validation",
@@ -8472,7 +8473,7 @@ export const generatedOperations = [
     "method": "PUT",
     "path": "/app/{id}/public",
     "summary": "Toggle whether anyone can open the app with no login",
-    "description": "Owner-only. When `public: true`, anyone with the URL can open the live hosted App Viewer with no login and receives Viewer access (`app:read` only). Public visitors can read App data but cannot run mutating operations or edit source. Template and Listed are separate settings. When `public: false`, anonymous visitors can no longer open the hosted App. Existing App data is retained. Idempotent calls are no-ops.",
+    "description": "Owner-only. When `public: true`, anyone with the URL can open the live hosted App Viewer with no login and receives Viewer access (`app:read` only). Public visitors can read App data but cannot edit source or run mutating operations, except an operation whose route declares `callers`. Template and Listed are separate settings. When `public: false`, anonymous visitors can no longer open the hosted App. Existing App data is retained. Idempotent calls are no-ops.",
     "parameters": [
       {
         "description": "",
