@@ -4293,9 +4293,10 @@ export const generatedOperations = [
             "format": "uri",
             "enum": [
               "https://charm.ing/schema/app-manifest/2026-07-31.json",
+              "https://charm.ing/schema/app-manifest/beta.json",
               "https://charm.ing/schema/app-manifest/next.json"
             ],
-            "description": "Exact dated schema URL for canonical or ESM source. Legacy source responses omit this field."
+            "description": "Exact schema URL for canonical, beta, or ESM source. Legacy source responses omit this field."
           },
           "capabilities": {
             "type": "object",
@@ -4378,6 +4379,20 @@ export const generatedOperations = [
             "properties": {
               "$schema": {
                 "const": "https://charm.ing/schema/app-manifest/2026-07-31.json"
+              },
+              "manifestVersion": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "title": "Beta app source",
+            "required": [
+              "$schema"
+            ],
+            "properties": {
+              "$schema": {
+                "const": "https://charm.ing/schema/app-manifest/beta.json"
               },
               "manifestVersion": {
                 "type": "null"
