@@ -79,7 +79,7 @@ HTTP 202 means accepted. Poll `get-app-build` with `--param buildId=<id>` until 
 
 ```js
 export const manifest = {
-  $schema: 'https://charm.ing/schema/app-manifest/2026-07-31.json',
+  $schema: 'https://charm.ing/schema/app-manifest/2026-10-16.json',
   id: 'water-log', // stable, unique, never changes
   meta: { name: 'Water Log', icon: { emoji: '💧', bg: '#0ea5e9' } },
   capabilities: { imports: ['charming:storage/kv@1.0'] },

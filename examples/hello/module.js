@@ -1,5 +1,5 @@
 export const manifest = {
-  $schema: 'https://charm.ing/schema/app-manifest/2026-07-31.json',
+  $schema: 'https://charm.ing/schema/app-manifest/2026-10-16.json',
   id: 'charming-cli-hello',
   meta: { name: 'Charming CLI Hello', icon: { emoji: '👋', bg: '#0ea5e9' } },
   capabilities: { imports: [] },
