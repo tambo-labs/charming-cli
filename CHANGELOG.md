@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.4.0
+
+### Minor Changes
+
+- [#6956](https://github.com/tambo-ai/charming/pull/6956) [`88494e4`](https://github.com/tambo-ai/charming/commit/88494e4de72718759412578ff1b93bd12a24fc5d) Thanks [@lachieh](https://github.com/lachieh)! - Add `charming dev [directory]`, which serves an app at a local URL without touching the live app. The module runs against in-memory storage with the server's validation and error kinds, the ui renders in the production app document and runtime, and server `fetch` reaches only the origins the manifest declares. `--state`, `--save-state`, and `--user` seed storage, save it to a file, and set the signed-in user.
+
 ## 0.3.0
 
 ### Minor Changes
