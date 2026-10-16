@@ -1,5 +1,31 @@
 # usecharming
 
+## 0.3.0
+
+### Minor Changes
+
+- [#6823](https://github.com/tambo-ai/charming/pull/6823) [`ad7d986`](https://github.com/tambo-ai/charming/commit/ad7d9863cdca9b619beb35e6cd94bb892650943b) Thanks [@lachieh](https://github.com/lachieh)! - Add `copy_app` to the MCP server and `POST /app/{id}/copy` to the HTTP API, so an agent can make the signed-in user a private copy of an app they can edit, or of a Template they may copy, in one call without sending its source. The copy takes the next free manifest id, or a `manifest_id` the caller does not hold (`manifest_id_conflict`, naming the app that holds it, otherwise), and never carries sharing, Template state, tokens, secrets, Routines, Webhooks, or version history. `include_data: true` also copies up to 24 MiB of stored data and assets in the same transaction that creates the copy (`copy_data_too_large` beyond that), for the owner of a personally owned source (`copy_data_forbidden` for anyone else, and for any team app), within the per-app caps and the caller's storage allowance (`storage_limit_exceeded`). `secretsNotCopied` names the secrets to set on the copy. An `idempotency_key` makes a retry return the first copy instead of making another; the same key with a different source, `include_data`, or `manifest_id` answers `idempotency_conflict`.
+
+  `search_templates` results now carry the Template's `id`, which `copy_app` takes as `app_id`. Only POST answers at `/app/<id>/copy`; a GET there still opens the App at that route. `@buildy/sandbox` exports `MANIFEST_ID_RE_SOURCE`, and the CLI catalog gains the `copy-app` operation.
+
+### Patch Changes
+
+- [#6913](https://github.com/tambo-ai/charming/pull/6913) [`0928a8d`](https://github.com/tambo-ai/charming/commit/0928a8d158a3fae65799111a8016102a477f59f3) Thanks [@lachieh](https://github.com/lachieh)! - Add the `2026-10-16` App contract, `$schema: "https://charm.ing/schema/app-manifest/2026-10-16.json"`, and make it the contract new Apps get. It takes the `2026-07-31` source shape and adds an optional per-route `callers` field (`'members'`, `'signed-in'`, or `'anyone'`, default `'members'`), which Charming validates and stores but does not enforce yet. A route that declares `'signed-in'` or `'anyone'` together with `public: false` is refused.
+
+  Apps on `2026-07-31` keep loading unchanged, and that contract ignores a `callers` key. A canonical App moves to `2026-10-16` by saving source that declares its URL, and a legacy migration targets it. Source that omits `$schema` is now stamped with `2026-10-16`, `GET /schema/app-manifest/2026-10-16.json` serves the new schema, and source responses may return either dated URL as `$schema`. `next` routes accept `callers` too.
+
+- [#6874](https://github.com/tambo-ai/charming/pull/6874) [`dbb57e9`](https://github.com/tambo-ai/charming/commit/dbb57e941bb2c0b823b2294e23809944de3f46ef) Thanks [@lachieh](https://github.com/lachieh)! - Show the Pro check and affiliation logo beside names in the widget: the viewer's own name in the footer and account menu, each person in the Access tab, and the app owner's label, which carries the paid-team check for a paying team. `GET /api/v1/apps/{appId}/shares` now returns optional `grantee.badges`, and the browser-shell config carries optional `widgetViewer.badges` and `widgetOwner`; `window.charming.user` does not change.
+
+- [#6838](https://github.com/tambo-ai/charming/pull/6838) [`4ab105b`](https://github.com/tambo-ai/charming/commit/4ab105bd8a0e90134cf2e5b7ba2958b8ea591654) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency @oclif/core to v5.1.3
+
+- [#6884](https://github.com/tambo-ai/charming/pull/6884) [`b57f9f1`](https://github.com/tambo-ai/charming/commit/b57f9f1729ac27ae05fd5d5f4d727dc0c94bfb9c) Thanks [@renovate](https://github.com/apps/renovate)! - Update OCLIF
+
+- [#6824](https://github.com/tambo-ai/charming/pull/6824) [`0694602`](https://github.com/tambo-ai/charming/commit/06946027b0936dd6417341ec6439cb9f85d7a6c0) Thanks [@lachieh](https://github.com/lachieh)! - Rename the unreleased ESM app contract from `2026-09-05` to the rolling marker `next`. Flagged authors declare `$schema: 'https://charm.ing/schema/app-manifest/next.json'`, and an App saved under the old URL loads again only after its source is saved with the new one.
+
+  MCP now describes the ESM contract only to callers with the authoring flag or with builds still to poll or cancel. Everyone else no longer sees `get_app_build`, `cancel_app_build`, `idempotency_key`, or ESM wording in tool descriptions, the app guide, the server card, or the agent card.
+
+  `@buildy/sandbox` exports the contract as `@buildy/sandbox/contracts/next` and no longer exports the unused `2026-08-27` draft. `@buildy/content` moves the two build tools into `ESM_MCP_TOOL_CARDS`, outside the public `MCP_TOOL_CARDS` inventory.
+
 ## 0.2.5
 
 ### Patch Changes
