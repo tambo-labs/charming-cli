@@ -21,7 +21,8 @@
     "examples",
     "provenance.json",
     "UPSTREAM.json",
-    "skills"
+    "skills",
+    "vendor"
   ],
   "publishConfig": {
     "provenance": true

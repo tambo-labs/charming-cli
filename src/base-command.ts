@@ -95,8 +95,13 @@ export abstract class CharmingCommand extends Command {
   }
 
   private errorOutput(value: unknown): void {
-    process.stderr.write(`${JSON.stringify(redactSecrets(value), null, 2)}\n`);
+    writeErrorOutput(value);
   }
+}
+
+/** Write a command's JSON error envelope to stderr with secrets redacted. */
+export function writeErrorOutput(value: unknown): void {
+  process.stderr.write(`${JSON.stringify(redactSecrets(value), null, 2)}\n`);
 }
 
 function apiExitCode(status: number): number {

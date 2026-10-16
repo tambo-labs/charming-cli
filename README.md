@@ -48,6 +48,17 @@ A `GET` operation receives its input as query parameters. Don't pass secrets as 
 
 A `DELETE` operation, or one the app marks `destructive`, requires `--yes`.
 
+## Running an app locally
+
+```bash
+charming dev examples/hello
+charming dev ./my-app --port 0 --state fixtures/state.json --save-state fixtures/state.json --user fixtures/user.json
+```
+
+`charming dev [directory]` serves the app at a local URL without contacting Charming. It reads `module.js`, `ui.js`, and `styles.css` from the directory, or from `--module`, `--ui`, and `--styles`. The module runs in the CLI process against in-memory storage, with the same manifest and route validation and the same error kinds as the server. The ui renders in the production app document and runtime, so `window.charming.api`, `onStateChange`, and `window.charming.user` behave as they do on Charming. Server `fetch` reaches only the origins the manifest declares. The fetch policy matches production, but the module runs in the CLI's own Node process, not a sandbox: only preview code you trust. The server answers only requests addressed to its own host and port from the same origin, and warns when `--host` is not a loopback address.
+
+Every request re-reads the source files, so reloading the page or calling an operation picks up edits. An operation gets production's 30-second limit; one that runs longer is answered with a `timeout` error but keeps running in the background, and a reload doesn't wait for it. Storage survives the reload and lasts until the command stops. `--state` seeds storage from a JSON object of keys to values, `--save-state` writes storage to a file after each change and on exit (and, without `--state`, seeds storage from that file when it exists, so state carries over between sessions; with `--state`, the first write replaces that file, and the command warns at startup), and `--user` sets the signed-in user (`{"id": "...", "handle": "...", "name": "..."}`). The page treats you as the app's owner. The command prints `{"ok": true, "url": "...", "appId": "..."}` to stdout, where operations answer at `<url>/app/<appId>/api/<op>`, writes one line per operation call to stderr, and runs until Ctrl+C. It supports apps whose module declares a dated manifest `$schema`.
+
 ## Teams and ownership transfer
 
 Discover existing team operations with `charming api list` and inspect each one with `charming api describe OPERATION_ID`.
@@ -159,7 +170,7 @@ bun run cli:gen
 bun run --filter usecharming check
 ```
 
-`openapi.json` is synced from the monorepo's committed OpenAPI contract. `src/generated/operations.ts` is generated from it with the pinned Hey API version. Do not edit either generated file in the public mirror. `UPSTREAM.json` records the source URL and contract digest.
+`openapi.json` is synced from the monorepo's committed OpenAPI contract. `src/generated/operations.ts` is generated from it with the pinned Hey API version. `vendor/dev-host.js` is the bundled local host behind `charming dev`. The monorepo does not commit it: the mirror workflow builds it with `bun run cli:dev-host:gen` from the sandbox, shell, and runtime packages as of the latest Charming server release, and commits it here, and the CLI tests generate it on demand inside the monorepo. Do not edit these generated files in the public mirror. `UPSTREAM.json` records the source URL and contract digest.
 
 ## Agent skill
 
