@@ -1898,7 +1898,24 @@
                   "plan_required",
                   "storage_limit_exceeded",
                   "copy_data_forbidden",
-                  "copy_data_too_large"
+                  "copy_data_too_large",
+                  "verification_disabled",
+                  "origin_refused",
+                  "invalid_visitor_identity",
+                  "invalid_email",
+                  "invalid_code",
+                  "ip_send_limit",
+                  "email_send_limit",
+                  "cooldown_limit",
+                  "app_send_limit",
+                  "ip_verify_limit",
+                  "email_send_failed",
+                  "wrong_code",
+                  "expired_code",
+                  "exhausted_code",
+                  "code_not_found",
+                  "not_signed_in",
+                  "account_not_verified"
                 ]
               },
               "message": {
