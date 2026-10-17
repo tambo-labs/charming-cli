@@ -49,7 +49,7 @@
     "lint": "bun run typecheck"
   },
   "dependencies": {
-    "@oclif/core": "5.1.7",
+    "@oclif/core": "5.1.8",
     "jsonc-parser": "3.3.1"
   },
   "devDependencies": {
