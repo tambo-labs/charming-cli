@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.4.1
+
+### Patch Changes
+
+- [#6987](https://github.com/tambo-ai/charming/pull/6987) [`da89761`](https://github.com/tambo-ai/charming/commit/da89761dc8052d86b6292848efcf0e0e5d9cb0af) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency @oclif/core to v5.1.8
+
 ## 0.4.0
 
 ### Minor Changes
