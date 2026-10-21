@@ -1792,6 +1792,7 @@
                   "sign_in_required",
                   "token_expired",
                   "forbidden",
+                  "account_not_joined",
                   "forbidden_write",
                   "stored_value_too_large",
                   "storage_full",
@@ -4478,9 +4479,10 @@
             }
           },
           "403": {
-            "description": "Caller does not manage the app / cannot create in the team.",
+            "description": "Caller does not manage the app / cannot create in the team, or is an App account that has not joined Charming.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "account_not_joined"
             ],
             "content": {
               "application/json": {
@@ -4652,9 +4654,10 @@
             }
           },
           "403": {
-            "description": "Refused by the plugin gate (wrong recipient, expired, …).",
+            "description": "Refused by the plugin gate (wrong recipient, expired, …), or the caller is an App account that has not joined Charming.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "account_not_joined"
             ],
             "x-error-kinds-relayed": true,
             "content": {
@@ -4890,9 +4893,10 @@
             }
           },
           "403": {
-            "description": "The caller's plan does not include teams.",
+            "description": "The caller's plan does not include teams, or the caller is an App account that has not joined Charming.",
             "x-error-kinds": [
-              "plan_required"
+              "plan_required",
+              "account_not_joined"
             ],
             "content": {
               "application/json": {
@@ -5813,9 +5817,10 @@
             }
           },
           "403": {
-            "description": "Caller may not add members (or may not grant owner).",
+            "description": "Caller may not add members (or may not grant owner), or the person to add is an App account that has not joined Charming.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "account_not_joined"
             ],
             "content": {
               "application/json": {
@@ -8792,7 +8797,7 @@
             }
           },
           "403": {
-            "description": "ESM authoring is not enabled for this caller (contract_not_enabled).",
+            "description": "ESM authoring is not enabled for this caller (contract_not_enabled), or the caller is an App account that has not joined Charming (account_not_joined).",
             "content": {
               "application/json": {
                 "schema": {
