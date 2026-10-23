@@ -53,6 +53,10 @@ const res = await env.fetch(`https://api.example.com/data?api_key={{secret:EXAMP
 
 `{{secret:NAME}}` resolves host-side, only inside a request header value or a query-parameter value — never in a parameter name, the host, the path, the fragment, or the body. The key never enters app source or the sandbox.
 
+## Connectors
+
+Inside a route handler, call `env.connectors.call('gmail', 'GMAIL_FETCH_EMAILS', { query: 'is:unread', max_results: 25 })` to use a person's Gmail or another service in Charming's connector catalog. There is no import or manifest entry: Charming reads these calls when the app is saved, so write the service and tool as string literals. A save that names either through a variable, or assigns, passes on, or renames `connectors`, fails with `invalid_connector_call`. Each person approves the app with their own account: when a call throws a `ConnectorError` with `kind: 'connector_not_granted'` and `missingLevels`, show a Connect button whose click calls `window.charming.connect(service)`, then retry. Show that button only when `charming.connect.available` is true; inside a chat host, on a custom domain, or in an app that calls no connectors it is false, so link to the app's Charming URL instead. Without `missingLevels`, approving again changes nothing, so tell the person to ask the app's owner. Never write a person's service data into `env.storage`, which everyone using the app can read. Details and the service list: `read_docs({ path: "capabilities/connectors.md" })`.
+
 ## External images
 
 Charming's app-shell CSP locks `img-src` to same-origin + `data:` + `blob:`, so a plain `<img src="https://...">` does not render. Declare each exact origin in `manifest.permissions.browser["img-src"]`, then load the image through the runtime rather than setting `src` directly:
