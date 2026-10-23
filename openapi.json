@@ -1897,6 +1897,15 @@
                   "webhook_disabled",
                   "version_limit_exceeded",
                   "plan_required",
+                  "connector_call_limit_exceeded",
+                  "connector_rate_limited",
+                  "connector_not_granted",
+                  "connector_action_not_declared",
+                  "connector_no_person",
+                  "connector_reconnect_required",
+                  "connector_unavailable",
+                  "connector_cross_site",
+                  "connector_holder_only",
                   "storage_limit_exceeded",
                   "copy_data_forbidden",
                   "copy_data_too_large"
@@ -1930,7 +1939,7 @@
                   "string",
                   "integer"
                 ],
-                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner` — and pairs it with `max`. An `app_busy` refusal names the bound it met and pairs it with `observed` and `allowed`; no plan lifts any of them. Two are per-app run bounds, `concurrent_runs` and `runs_per_window`; the third, `render_token_refresh`, is the page render asking for a new render-token secret, held by 10 per app per client IP and 60 per app across every address in a 60 second window, and `observed`/`allowed` name whichever of those two refused. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
+                "description": "Which ceiling the call met, keyed by `kind`. A plan refusal (`*_limit_exceeded`) names the countable that ran out — `version_history`, `routines_per_app`, `routines_per_owner`, `webhooks_per_app`, `webhooks_per_owner`, `connector_calls_per_month` — and pairs it with `max`. An `app_busy` refusal names the bound it met and pairs it with `observed` and `allowed`; no plan lifts any of them. Two are per-app run bounds, `concurrent_runs` and `runs_per_window`; the third, `render_token_refresh`, is the page render asking for a new render-token secret, held by 10 per app per client IP and 60 per app across every address in a 60 second window, and `observed`/`allowed` name whichever of those two refused. An `edits_too_large` rejection carries the numeric cap that was exceeded instead of a name."
               },
               "rung": {
                 "type": "string",
@@ -1959,6 +1968,18 @@
                 "type": "string",
                 "format": "uri",
                 "description": "Absolute link to the owner's own billing page, where the refusal is lifted — the team's page for a team-owned app. Omitted only when the owner has no handle and therefore no settings page of their own, so treat it as optional and fall back to your own copy. MCP appends it as an `Upgrade: <url>` last line; the CLI prints it under the message."
+              },
+              "missingLevels": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "read",
+                    "write",
+                    "delete"
+                  ]
+                },
+                "description": "On a `connector_not_granted` refusal, the access levels (in the order `read`, `write`, `delete`) the App's declared tools for the service need and the caller has not approved. Present only when approving would add something: call `charming.connect(service)` then. Absent means approving again would not help. On a refused `PATCH /api/v1/apps/{appId}/connectors/{service}`, the shared levels the holder's approval lacks instead."
               },
               "recovery": {
                 "description": "Self-contained recovery hint, branching on `kind`. Attached to error envelopes the agent can self-correct on: `pair` for `token_revoked_post_claim` 401s (#1284), `retry` for 429s, `shrink` for too-large / quota-exceeded 413s, `refetch` for 412 `revision_mismatch` / `invalid_if_match` / 428 `precondition_required`, `fix_route_label` for 403 `forbidden_write`, `rename` for 409 `manifest_id_immutable` / `manifest_id_conflict`, and `migrate_contract` for 422 `contract_migration_required`. Every `instructions` string is a single-paragraph, action-first walk-through. Inlined per ADR 2026-05-06-agent-facing-error-surfaces-self-contain-the-fix.",
@@ -2490,6 +2511,18 @@
                       "type": "string",
                       "minLength": 1,
                       "pattern": "^https://[^/?#@*]+$"
+                    }
+                  },
+                  "connectors": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
                     }
                   }
                 }
