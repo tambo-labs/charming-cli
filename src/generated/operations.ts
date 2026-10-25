@@ -1187,7 +1187,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/apps/{appId}/shares",
     "summary": "Invite a user to an app",
-    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
+    "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate (`app:invite`) inviting at or below their own role. Only the owner or a team admin may set `canInvite`. Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
     "parameters": [
       {
         "description": "",
@@ -1220,6 +1220,10 @@ export const generatedOperations = [
               "end-user",
               "viewer"
             ]
+          },
+          "canInvite": {
+            "type": "boolean",
+            "description": "Owner-only: let this person invite others at or below their own role. Their invitees cannot invite anyone."
           }
         },
         "additionalProperties": false
@@ -5717,7 +5721,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/apps/{appId}/shares",
     "summary": "List an app’s direct shares",
-    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Returns stable share ids and display labels without internal account ids or mutation authority.",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:share`, or `app:invite` for a delegate, who sees only the people they invited. Returns stable share ids and display labels without internal account ids or mutation authority.",
     "parameters": [
       {
         "description": "",
@@ -5754,7 +5758,8 @@ export const generatedOperations = [
                 "id",
                 "grantee",
                 "status",
-                "role"
+                "role",
+                "canInvite"
               ],
               "properties": {
                 "id": {
@@ -5835,6 +5840,22 @@ export const generatedOperations = [
                     "end-user",
                     "viewer"
                   ]
+                },
+                "canInvite": {
+                  "type": "boolean",
+                  "description": "The owner let this person invite others at or below their own role."
+                },
+                "invitedBy": {
+                  "type": "object",
+                  "required": [
+                    "label"
+                  ],
+                  "description": "Who invited this person. Absent when the caller invited them.",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -8297,7 +8318,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/apps/{appId}/shares/revoke",
     "summary": "Revoke a share by grantee",
-    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there).",
+    "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate. Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there). A delegate (an accepted grantee the owner let invite others, `app:invite`) may act only on the people they invited.",
     "parameters": [
       {
         "description": "",
@@ -8363,7 +8384,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/apps/{appId}/shares/{shareId}/revoke",
     "summary": "Revoke a share",
-    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Idempotently removes the grant or email invitation addressed by its opaque share id.",
+    "description": "User-gated (`chrm_user_*` or session); requires `app:share`, or `app:invite` for a delegate removing someone they invited. Idempotently removes the grant or email invitation addressed by its opaque share id.",
     "parameters": [
       {
         "description": "",
@@ -9707,7 +9728,7 @@ export const generatedOperations = [
     "method": "PATCH",
     "path": "/api/v1/apps/{appId}/shares",
     "summary": "Change an existing share’s role by grantee",
-    "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Re-roles an existing grant or outstanding email invitation; never creates one.",
+    "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate. Re-roles an existing grant or outstanding email invitation; never creates one. A delegate (an accepted grantee the owner let invite others, `app:invite`) may act only on the people they invited. A delegate cannot raise anyone above their own role.",
     "parameters": [
       {
         "description": "",
@@ -9787,8 +9808,8 @@ export const generatedOperations = [
     "id": "update-app-share-by-id",
     "method": "PATCH",
     "path": "/api/v1/apps/{appId}/shares/{shareId}",
-    "summary": "Change an existing share’s role",
-    "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Updates the grant or email invitation addressed by its opaque share id.",
+    "summary": "Change an existing share’s role or invite permission",
+    "description": "User-gated (`chrm_user_*` or session). Updates the grant or email invitation addressed by its opaque share id. Changing `canInvite` needs `app:share` (the owner or a team admin). A delegate (`app:invite`) may change only the `role` of someone they invited, at or below their own role.",
     "parameters": [
       {
         "description": "",
@@ -9816,9 +9837,7 @@ export const generatedOperations = [
       "required": true,
       "schema": {
         "type": "object",
-        "required": [
-          "role"
-        ],
+        "minProperties": 1,
         "properties": {
           "role": {
             "type": "string",
@@ -9827,21 +9846,24 @@ export const generatedOperations = [
               "end-user",
               "viewer"
             ]
+          },
+          "canInvite": {
+            "type": "boolean",
+            "description": "Owner-only: let this person invite others at or below their own role."
           }
         },
         "additionalProperties": false
       },
-      "example": {
-        "role": "collaborator"
-      }
+      "example": {}
     },
     "response": {
-      "description": "Role changed.",
+      "description": "Share updated; the body is its current role and invite permission.",
       "schema": {
         "type": "object",
         "required": [
           "ok",
-          "role"
+          "role",
+          "canInvite"
         ],
         "properties": {
           "ok": {
@@ -9857,6 +9879,9 @@ export const generatedOperations = [
               "end-user",
               "viewer"
             ]
+          },
+          "canInvite": {
+            "type": "boolean"
           }
         }
       }

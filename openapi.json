@@ -509,7 +509,8 @@
                 "id",
                 "grantee",
                 "status",
-                "role"
+                "role",
+                "canInvite"
               ],
               "properties": {
                 "id": {
@@ -558,6 +559,22 @@
                     "end-user",
                     "viewer"
                   ]
+                },
+                "canInvite": {
+                  "type": "boolean",
+                  "description": "The owner let this person invite others at or below their own role."
+                },
+                "invitedBy": {
+                  "type": "object",
+                  "required": [
+                    "label"
+                  ],
+                  "description": "Who invited this person. Absent when the caller invited them.",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -644,6 +661,33 @@
             ]
           },
           "removed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ShareUpdateResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "role",
+          "canInvite"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "collaborator",
+              "end-user",
+              "viewer"
+            ]
+          },
+          "canInvite": {
             "type": "boolean"
           }
         }
@@ -1925,6 +1969,9 @@
                   "grantee_not_found",
                   "invite_cap_reached",
                   "invite_sender_blocked",
+                  "role_above_own",
+                  "invite_delegation_owner_only",
+                  "not_your_invite",
                   "read_only",
                   "handle_taken",
                   "invalid_handle",
@@ -6774,7 +6821,7 @@
         },
         "operationId": "list-app-shares",
         "summary": "List an app’s direct shares",
-        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Returns stable share ids and display labels without internal account ids or mutation authority.",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:share`, or `app:invite` for a delegate, who sees only the people they invited. Returns stable share ids and display labels without internal account ids or mutation authority.",
         "security": [
           {
             "userToken": []
@@ -6834,9 +6881,12 @@
             }
           },
           "403": {
-            "description": "Only the owner can manage shares.",
+            "description": "The caller cannot invite, or is a delegate inviting above their own role or passing on the ability to invite.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "role_above_own",
+              "invite_delegation_owner_only",
+              "not_your_invite"
             ],
             "content": {
               "application/json": {
@@ -6895,7 +6945,7 @@
         },
         "operationId": "create-app-share",
         "summary": "Invite a user to an app",
-        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
+        "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate (`app:invite`) inviting at or below their own role. Only the owner or a team admin may set `canInvite`. Creates a pending invitation — `status: \"pending\"` for an existing account, `\"invited\"` for an email with no account yet. No access is granted until the grantee accepts.",
         "security": [
           {
             "userToken": []
@@ -6922,6 +6972,10 @@
                       "end-user",
                       "viewer"
                     ]
+                  },
+                  "canInvite": {
+                    "type": "boolean",
+                    "description": "Owner-only: let this person invite others at or below their own role. Their invitees cannot invite anyone."
                   }
                 },
                 "additionalProperties": false
@@ -6983,9 +7037,11 @@
             }
           },
           "403": {
-            "description": "Only the owner can manage shares.",
+            "description": "The caller cannot manage shares, or is a delegate acting outside their limits.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "role_above_own",
+              "not_your_invite"
             ],
             "content": {
               "application/json": {
@@ -7038,7 +7094,7 @@
         },
         "operationId": "update-app-share",
         "summary": "Change an existing share’s role by grantee",
-        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Re-roles an existing grant or outstanding email invitation; never creates one.",
+        "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate. Re-roles an existing grant or outstanding email invitation; never creates one. A delegate (an accepted grantee the owner let invite others, `app:invite`) may act only on the people they invited. A delegate cannot raise anyone above their own role.",
         "security": [
           {
             "userToken": []
@@ -7270,9 +7326,10 @@
             }
           },
           "403": {
-            "description": "Only the owner can manage shares.",
+            "description": "The caller cannot manage shares, or did not invite this person.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "not_your_invite"
             ],
             "content": {
               "application/json": {
@@ -7312,7 +7369,7 @@
         },
         "operationId": "revoke-app-share",
         "summary": "Revoke a share by grantee",
-        "description": "User-gated (`chrm_user_*` or session); owner only (`app:share`). Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there).",
+        "description": "User-gated (`chrm_user_*` or session); owner or team admin (`app:share`), or a delegate. Removes a pending or accepted grant; idempotent (`removed: false` when nothing was there). A delegate (an accepted grantee the owner let invite others, `app:invite`) may act only on the people they invited.",
         "security": [
           {
             "userToken": []
@@ -7367,11 +7424,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Role changed.",
+            "description": "Share updated; the body is its current role and invite permission.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ShareRoleResponse"
+                  "$ref": "#/components/schemas/ShareUpdateResponse"
                 }
               }
             }
@@ -7403,9 +7460,12 @@
             }
           },
           "403": {
-            "description": "The caller cannot manage shares.",
+            "description": "The caller cannot manage shares, or is a delegate acting outside their limits.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "role_above_own",
+              "not_your_invite",
+              "invite_delegation_owner_only"
             ],
             "content": {
               "application/json": {
@@ -7443,8 +7503,8 @@
           }
         },
         "operationId": "update-app-share-by-id",
-        "summary": "Change an existing share’s role",
-        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Updates the grant or email invitation addressed by its opaque share id.",
+        "summary": "Change an existing share’s role or invite permission",
+        "description": "User-gated (`chrm_user_*` or session). Updates the grant or email invitation addressed by its opaque share id. Changing `canInvite` needs `app:share` (the owner or a team admin). A delegate (`app:invite`) may change only the `role` of someone they invited, at or below their own role.",
         "security": [
           {
             "userToken": []
@@ -7456,9 +7516,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "role"
-                ],
+                "minProperties": 1,
                 "properties": {
                   "role": {
                     "type": "string",
@@ -7467,6 +7525,10 @@
                       "end-user",
                       "viewer"
                     ]
+                  },
+                  "canInvite": {
+                    "type": "boolean",
+                    "description": "Owner-only: let this person invite others at or below their own role."
                   }
                 },
                 "additionalProperties": false
@@ -7541,7 +7603,8 @@
           "403": {
             "description": "The caller cannot manage shares.",
             "x-error-kinds": [
-              "forbidden"
+              "forbidden",
+              "not_your_invite"
             ],
             "content": {
               "application/json": {
@@ -7567,7 +7630,7 @@
         },
         "operationId": "revoke-app-share-by-id",
         "summary": "Revoke a share",
-        "description": "User-gated (`chrm_user_*` or session); requires `app:share`. Idempotently removes the grant or email invitation addressed by its opaque share id.",
+        "description": "User-gated (`chrm_user_*` or session); requires `app:share`, or `app:invite` for a delegate removing someone they invited. Idempotently removes the grant or email invitation addressed by its opaque share id.",
         "security": [
           {
             "userToken": []
