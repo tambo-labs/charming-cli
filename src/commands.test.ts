@@ -134,6 +134,13 @@ describe('runCommand', () => {
       method: 'PATCH',
       body: '{"generalAccessTier":"public-view"}',
     },
+    {
+      operation: 'update-team-security',
+      param: ['teamId=team-1'],
+      path: '/api/v1/teams/team-1/security',
+      method: 'PATCH',
+      body: '{"requireTwoFactor":true}',
+    },
   ])(
     'requires consent before $operation sends a request',
     async ({ operation, param, path, method, body, header }) => {

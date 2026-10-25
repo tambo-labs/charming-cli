@@ -67,6 +67,7 @@ const REQUIRES_CONSENT = new Set([
   'revoke-app-share-by-id',
   'transfer-app',
   'update-team-app-defaults',
+  'update-team-security',
 ]);
 const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
 

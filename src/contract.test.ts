@@ -39,12 +39,25 @@ describe('generated operation catalog', () => {
     ]);
   });
 
+  test('describes team security for a personal access token', () => {
+    expect(findOperation('get-team-security')).toEqual(
+      expect.objectContaining({ method: 'GET', path: '/api/v1/teams/{teamId}/security' }),
+    );
+    expect(findOperation('update-team-security')).toEqual(
+      expect.objectContaining({
+        method: 'PATCH',
+        path: '/api/v1/teams/{teamId}/security',
+        security: expect.arrayContaining(['userToken']),
+      }),
+    );
+  });
+
   test('has unique operation ids', () => {
     expect(new Set(operations.map((operation) => operation.id)).size).toBe(operations.length);
   });
 
   test('preserves operation count, timeouts, event auth, and the closed create schema', () => {
-    expect(operations).toHaveLength(95);
+    expect(operations).toHaveLength(97);
     expect(findOperation('call-app-operation')).toEqual(
       expect.objectContaining({ timeoutMs: 30_000 }),
     );

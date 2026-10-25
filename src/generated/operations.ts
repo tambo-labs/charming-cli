@@ -5449,6 +5449,67 @@ export const generatedOperations = [
     "usage": "charming api request get-team-exposure --param teamId=VALUE"
   },
   {
+    "id": "get-team-security",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/security",
+    "summary": "Get team security settings",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Whether the team requires two-factor authentication.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "security"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "security": {
+            "type": "object",
+            "required": [
+              "requireTwoFactor",
+              "membersWithoutTwoFactor"
+            ],
+            "properties": {
+              "requireTwoFactor": {
+                "type": "boolean",
+                "description": "While true, a member whose account does not have two-factor authentication on can reach none of the team’s apps or settings until they turn it on."
+              },
+              "membersWithoutTwoFactor": {
+                "type": "integer",
+                "description": "Members whose accounts do not have two-factor authentication on."
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-team-security --param teamId=VALUE"
+  },
+  {
     "id": "get-widget-runtime-issue-handoff",
     "method": "GET",
     "path": "/api/v1/widget/apps/{appId}/overview/handoffs/{token}",
@@ -6426,7 +6487,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/teams/{teamId}/people",
     "summary": "List a team’s people",
-    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Every CURRENT team member with role, apps owned, apps created, last activity, and external shares granted.",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Every CURRENT team member with role, apps owned, apps created, last activity, external shares granted, and whether their account has two-factor authentication on.",
     "parameters": [
       {
         "description": "",
@@ -6457,7 +6518,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Order of the whole roster before `limit` cuts it. Defaults to `label:asc`. Ties fall to the member label, then the user id, ascending; a member with no recorded activity sorts as the earliest `lastActive`. An unknown value is rejected, not ignored. CSV exports honour it, and `q`, too.",
+        "description": "Order of the whole roster before `limit` cuts it. Defaults to `label:asc`. Ties fall to the member label, then the user id, ascending; a member with no recorded activity sorts as the earliest `lastActive`, and `twoFactor:asc` leads with members who do not have two-factor on. An unknown value is rejected, not ignored. CSV exports honour it, and `q`, too.",
         "in": "query",
         "name": "sort",
         "required": false,
@@ -6475,7 +6536,9 @@ export const generatedOperations = [
             "lastActive:asc",
             "lastActive:desc",
             "externalShares:asc",
-            "externalShares:desc"
+            "externalShares:desc",
+            "twoFactor:asc",
+            "twoFactor:desc"
           ]
         }
       },
@@ -6521,7 +6584,8 @@ export const generatedOperations = [
                 "appsOwned",
                 "appsCreated",
                 "lastActiveMs",
-                "externalShareCount"
+                "externalShareCount",
+                "twoFactorEnabled"
               ],
               "description": "One row in the People tab — a current team member with their app footprint.",
               "properties": {
@@ -6593,6 +6657,10 @@ export const generatedOperations = [
                 },
                 "externalShareCount": {
                   "type": "integer"
+                },
+                "twoFactorEnabled": {
+                  "type": "boolean",
+                  "description": "Whether the member’s account has two-factor authentication on."
                 }
               }
             }
@@ -6896,7 +6964,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/teams",
     "summary": "List the caller’s teams",
-    "description": "User-gated (`chrm_user_*` or session). Every team the caller belongs to, with their role, member roster (owners first, caller flagged via `isYou`), and app-count rollup.",
+    "description": "User-gated (`chrm_user_*` or session). Every team the caller belongs to, with their role, member roster (owners first, caller flagged via `isYou`), and app-count rollup. A team that requires two-factor authentication the caller has not turned on is flagged with `blockedByTwoFactor` and carries no roster.",
     "parameters": [],
     "requestBody": null,
     "response": {
@@ -6926,6 +6994,7 @@ export const generatedOperations = [
                 "memberCount",
                 "appCount",
                 "paid",
+                "blockedByTwoFactor",
                 "members"
               ],
               "description": "One row in the caller’s team list.",
@@ -6953,8 +7022,13 @@ export const generatedOperations = [
                   "type": "boolean",
                   "description": "True while the team is on a live paid plan."
                 },
+                "blockedByTwoFactor": {
+                  "type": "boolean",
+                  "description": "True while the team requires two-factor authentication and the caller has not turned it on. The caller can reach none of the team’s apps or settings until they do, and can still leave the team."
+                },
                 "members": {
                   "type": "array",
+                  "description": "The team’s roster. Empty while `blockedByTwoFactor` is true.",
                   "items": {
                     "type": "object",
                     "required": [
@@ -10742,6 +10816,85 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-team-member --param teamId=VALUE --param memberId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-team-security",
+    "method": "PATCH",
+    "path": "/api/v1/teams/{teamId}/security",
+    "summary": "Update team security settings",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Turning `requireTwoFactor` on also needs two-factor authentication on the caller’s own account. Turning it off needs a session from a login in the last 10 minutes; a personal access token cannot turn it off.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "requireTwoFactor"
+        ],
+        "properties": {
+          "requireTwoFactor": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "requireTwoFactor": false
+      }
+    },
+    "response": {
+      "description": "Security settings updated.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "security"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "security": {
+            "type": "object",
+            "required": [
+              "requireTwoFactor",
+              "membersWithoutTwoFactor"
+            ],
+            "properties": {
+              "requireTwoFactor": {
+                "type": "boolean",
+                "description": "While true, a member whose account does not have two-factor authentication on can reach none of the team’s apps or settings until they turn it on."
+              },
+              "membersWithoutTwoFactor": {
+                "type": "integer",
+                "description": "Members whose accounts do not have two-factor authentication on."
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-team-security --param teamId=VALUE --body @body.json"
   },
   {
     "id": "update-webhook",
