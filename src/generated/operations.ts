@@ -866,7 +866,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/app",
     "summary": "Create an app or accept an ESM app build",
-    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields.",
+    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields. A signed-in account may create or copy 60 apps a minute across REST and MCP, and an anonymous caller 10 a minute per address; past either, the call answers 429 `rate_limited` with `Retry-After` and creates nothing.",
     "parameters": [
       {
         "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
@@ -7588,19 +7588,22 @@ export const generatedOperations = [
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 120
           },
           "summary": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 300
           },
           "contentMarkdown": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 20000
           },
           "category": {
             "type": [
@@ -7628,16 +7631,19 @@ export const generatedOperations = [
                 ],
                 "properties": {
                   "assetKey": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 128
                   },
                   "alt": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 300
                   },
                   "caption": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 300
                   }
                 },
                 "additionalProperties": false
@@ -7651,6 +7657,7 @@ export const generatedOperations = [
             "oneOf": [
               {
                 "type": "array",
+                "maxItems": 12,
                 "items": {
                   "type": "object",
                   "required": [
@@ -7659,16 +7666,19 @@ export const generatedOperations = [
                   ],
                   "properties": {
                     "assetKey": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 128
                     },
                     "alt": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 300
                     },
                     "caption": {
                       "type": [
                         "string",
                         "null"
-                      ]
+                      ],
+                      "maxLength": 300
                     }
                   },
                   "additionalProperties": false
@@ -10003,19 +10013,22 @@ export const generatedOperations = [
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 120
           },
           "summary": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 300
           },
           "contentMarkdown": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "maxLength": 20000
           },
           "category": {
             "type": [
@@ -10043,16 +10056,19 @@ export const generatedOperations = [
                 ],
                 "properties": {
                   "assetKey": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 128
                   },
                   "alt": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 300
                   },
                   "caption": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 300
                   }
                 },
                 "additionalProperties": false
@@ -10066,6 +10082,7 @@ export const generatedOperations = [
             "oneOf": [
               {
                 "type": "array",
+                "maxItems": 12,
                 "items": {
                   "type": "object",
                   "required": [
@@ -10074,16 +10091,19 @@ export const generatedOperations = [
                   ],
                   "properties": {
                     "assetKey": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 128
                     },
                     "alt": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 300
                     },
                     "caption": {
                       "type": [
                         "string",
                         "null"
-                      ]
+                      ],
+                      "maxLength": 300
                     }
                   },
                   "additionalProperties": false

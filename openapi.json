@@ -1910,6 +1910,7 @@
                   "payload_too_large",
                   "module_too_large",
                   "ui_too_large",
+                  "styles_too_large",
                   "description_too_long",
                   "missing_description",
                   "invalid_description",
@@ -1921,6 +1922,7 @@
                   "anon_not_remixable",
                   "template_listing_incomplete",
                   "template_media_invalid",
+                  "template_listing_too_large",
                   "forbidden_template_edit",
                   "invalid_if_match",
                   "precondition_required",
@@ -7922,6 +7924,19 @@
               }
             }
           },
+          "413": {
+            "description": "A listing field is past its limit.",
+            "x-error-kinds": [
+              "template_listing_too_large"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Listing content or media is invalid.",
             "x-error-kinds": [
@@ -7956,19 +7971,22 @@
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 120
                   },
                   "summary": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 300
                   },
                   "contentMarkdown": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 20000
                   },
                   "category": {
                     "type": [
@@ -7996,16 +8014,19 @@
                         ],
                         "properties": {
                           "assetKey": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 128
                           },
                           "alt": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 300
                           },
                           "caption": {
                             "type": [
                               "string",
                               "null"
-                            ]
+                            ],
+                            "maxLength": 300
                           }
                         },
                         "additionalProperties": false
@@ -8019,6 +8040,7 @@
                     "oneOf": [
                       {
                         "type": "array",
+                        "maxItems": 12,
                         "items": {
                           "type": "object",
                           "required": [
@@ -8027,16 +8049,19 @@
                           ],
                           "properties": {
                             "assetKey": {
-                              "type": "string"
+                              "type": "string",
+                              "maxLength": 128
                             },
                             "alt": {
-                              "type": "string"
+                              "type": "string",
+                              "maxLength": 300
                             },
                             "caption": {
                               "type": [
                                 "string",
                                 "null"
-                              ]
+                              ],
+                              "maxLength": 300
                             }
                           },
                           "additionalProperties": false
@@ -8314,6 +8339,19 @@
               }
             }
           },
+          "413": {
+            "description": "A listing field is past its limit.",
+            "x-error-kinds": [
+              "template_listing_too_large"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "422": {
             "description": "The resulting listing content or media is invalid.",
             "x-error-kinds": [
@@ -8348,19 +8386,22 @@
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 120
                   },
                   "summary": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 300
                   },
                   "contentMarkdown": {
                     "type": [
                       "string",
                       "null"
-                    ]
+                    ],
+                    "maxLength": 20000
                   },
                   "category": {
                     "type": [
@@ -8388,16 +8429,19 @@
                         ],
                         "properties": {
                           "assetKey": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 128
                           },
                           "alt": {
-                            "type": "string"
+                            "type": "string",
+                            "maxLength": 300
                           },
                           "caption": {
                             "type": [
                               "string",
                               "null"
-                            ]
+                            ],
+                            "maxLength": 300
                           }
                         },
                         "additionalProperties": false
@@ -8411,6 +8455,7 @@
                     "oneOf": [
                       {
                         "type": "array",
+                        "maxItems": 12,
                         "items": {
                           "type": "object",
                           "required": [
@@ -8419,16 +8464,19 @@
                           ],
                           "properties": {
                             "assetKey": {
-                              "type": "string"
+                              "type": "string",
+                              "maxLength": 128
                             },
                             "alt": {
-                              "type": "string"
+                              "type": "string",
+                              "maxLength": 300
                             },
                             "caption": {
                               "type": [
                                 "string",
                                 "null"
-                              ]
+                              ],
+                              "maxLength": 300
                             }
                           },
                           "additionalProperties": false
@@ -8995,7 +9043,7 @@
       "post": {
         "operationId": "create-app",
         "summary": "Create an app or accept an ESM app build",
-        "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields.",
+        "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields. A signed-in account may create or copy 60 apps a minute across REST and MCP, and an anonymous caller 10 a minute per address; past either, the call answers 429 `rate_limited` with `Retry-After` and creates nothing.",
         "security": [
           {},
           {
@@ -9128,7 +9176,7 @@
             }
           },
           "413": {
-            "description": "Source exceeds the contract limits.",
+            "description": "Source exceeds a contract limit: `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`), or a request body over 832 KiB (`payload_too_large`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9158,7 +9206,7 @@
             }
           },
           "429": {
-            "description": "Build capacity is full (app_build_capacity). Retry-After gives the retry delay.",
+            "description": "Build capacity is full (`app_build_capacity`), or the caller is over the creation rate (`rate_limited`): 60 creates and copies a minute for a signed-in account, 10 a minute from one address for an anonymous caller. Retry-After gives the retry delay.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9397,7 +9445,7 @@
             }
           },
           "413": {
-            "description": "Source exceeds the contract limits.",
+            "description": "Source exceeds a contract limit: `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`), or a request body over 832 KiB (`payload_too_large`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9873,7 +9921,7 @@
             }
           },
           "429": {
-            "description": "`storage_limit_exceeded`: the data would put the caller over their storage allowance. `app_build_capacity`: retry after the returned delay.",
+            "description": "`rate_limited`: the account made more than 60 creates and copies in a minute; retry after the returned delay. `storage_limit_exceeded`: the data would put the caller over their storage allowance. `app_build_capacity`: retry after the returned delay.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10381,7 +10429,7 @@
             }
           },
           "413": {
-            "description": "Payload too large: too many edits, an oversize old_string/new_string (`edits_too_large`), or the post-edit module/ui breaches the 256 KiB cap (`module_too_large` / `ui_too_large`).",
+            "description": "Payload too large: too many edits, an oversize old_string/new_string (`edits_too_large`), or the post-edit module/ui/styles breaches its cap (`module_too_large` / `ui_too_large` / `styles_too_large`).",
             "content": {
               "application/json": {
                 "schema": {
