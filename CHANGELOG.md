@@ -1,5 +1,17 @@
 # usecharming
 
+## 0.5.1
+
+### Patch Changes
+
+- [#7242](https://github.com/tambo-ai/charming/pull/7242) [`c04e5f3`](https://github.com/tambo-ai/charming/commit/c04e5f39e24d6f84065271576e3ee83036d6b8de) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Cap request bodies at 1 MiB on the routes that read them whole, and bound what an unauthorized Webhook sender writes.
+
+  - A Webhook delivery (`POST /api/v1/hooks/{webhookId}`) or a call to an app operation (`/app/{id}/api/{operation}` with any method but `GET` and `HEAD`) with a body over 1 MiB is refused with 413 `payload_too_large` before the op or the app handler runs, whether or not the request declares a length. A body of exactly 1 MiB still runs.
+  - A delivery with a missing or wrong secret still gets its 401, but the Webhook's delivery record keeps at most 10 of them a minute per sender address. The record keeps the first 256 characters of `User-Agent` and `Content-Type`.
+  - The 300-a-minute per-address delivery limit and that 10-a-minute record budget count an IPv6 sender by its /64.
+
+  Nothing already stored changes, and delivery rows written earlier keep their full headers. A sender or app that posts more than 1 MiB to one of these two routes now gets a 413 where it used to get an answer. Asset uploads (10 MiB) and the routes with their own caps are not affected.
+
 ## 0.5.0
 
 ### Minor Changes
