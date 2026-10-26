@@ -181,7 +181,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/pair/approve",
     "summary": "Approve a pairing (browser-side, signed-in user)",
-    "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. If the code belongs to an app created with `pair: true` that nobody has claimed, approving also claims that app for the approver, best-effort. The legacy `/pair/approve` path 308s here.",
+    "description": "Idempotent. The plaintext token is delivered to the agent via `/api/pair/poll`, never returned here. It lasts 30 days when a browser session approves and 7 days for any other credential. If the code belongs to an app created with `pair: true` that nobody has claimed, approving also claims that app for the approver, best-effort. The legacy `/pair/approve` path 308s here.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
@@ -614,7 +614,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/app/{id}/claim",
     "summary": "Claim an unclaimed app for the authenticated user",
-    "description": "Body must include the app’s `chrm_app_*` token. On success, ownership transfers and a bound pairing (if any) is auto-approved.",
+    "description": "Body must include the app’s `chrm_app_*` token. On success, ownership transfers and a bound pairing (if any) is approved for the caller. The paired token lasts 30 days when a browser session claims the app and 7 days for any other credential.",
     "parameters": [
       {
         "description": "",
