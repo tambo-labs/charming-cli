@@ -236,7 +236,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/app/{id}/api/{operation}",
     "summary": "Call a declared app route or its unmatched-request fallback",
-    "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. A declared route handler returns exactly its `outputSchema` value without adding a transport envelope unless those fields belong to the schema; Charming validates it and wraps HTTP success as `{ ok: true, value }`. `window.charming.api` uses `renderToken` and unwraps that envelope, so in-page callers receive the value directly. If no declared route matches, the optional `default.fetch` handles the request and its `Response` passes through unchanged; without that fallback, Charming returns a 404. Direct callers should use `appToken` or `userToken`.",
+    "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. A declared route handler returns exactly its `outputSchema` value without adding a transport envelope unless those fields belong to the schema; Charming validates it and wraps HTTP success as `{ ok: true, value }`. `window.charming.api` uses `renderToken` and unwraps that envelope, so in-page callers receive the value directly. If no declared route matches, the optional `default.fetch` handles the request and its `Response` passes through unchanged; without that fallback, Charming returns a 404. A request body over 1 MiB is refused with 413 `payload_too_large` before the app sees it. Direct callers should use `appToken` or `userToken`.",
     "parameters": [
       {
         "description": "",
@@ -2168,7 +2168,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/hooks/{webhookId}",
     "summary": "Deliver an event to a Webhook",
-    "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The body is the target op's input, validated against its declared input schema: a JSON object, or a `multipart/form-data` or `application/x-www-form-urlencoded` form whose text fields become the input, each converted to the type the schema declares. File parts are dropped and listed in the delivery record. The response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
+    "description": "The URL an external sender calls. Present the Webhook's secret as `Authorization: Bearer chrm_hook_…` or `?key=chrm_hook_…`. The body is the target op's input, validated against its declared input schema: a JSON object, or a `multipart/form-data` or `application/x-www-form-urlencoded` form whose text fields become the input, each converted to the type the schema declares. File parts are dropped and listed in the delivery record. The body is read up to 1 MiB; a longer one is refused with 413 and the op does not run. The response is the op's own result envelope, validated against its output schema. Tagged `x-charming-trigger: webhook` for the handler.",
     "parameters": [
       {
         "description": "",
