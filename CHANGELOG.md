@@ -1,5 +1,41 @@
 # usecharming
 
+## 0.5.0
+
+### Minor Changes
+
+- [#7228](https://github.com/tambo-ai/charming/pull/7228) [`6fc638d`](https://github.com/tambo-ai/charming/commit/6fc638dd06e4ceb755630ef20545ddc488bb23b3) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Let an App's owner or team admin allow an invited person to invite others. Set `canInvite` on `POST` or `PATCH /api/v1/apps/{appId}/shares…`, or `can_invite` on the `share_app` MCP tool. That person can then invite at their own role or lower and revoke only the people they invited. They can't pass the ability on. Share listings now carry `canInvite` and `invitedBy`, and delegates outside their limits get the new error kinds `role_above_own`, `invite_delegation_owner_only`, and `not_your_invite`.
+
+- [#7217](https://github.com/tambo-ai/charming/pull/7217) [`3985ab6`](https://github.com/tambo-ai/charming/commit/3985ab62a7de6601ae9dd95dd85c4d627dec80b8) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Let team owners and admins require two-factor authentication under Team settings → Security or with `GET` and `PATCH /api/v1/teams/{teamId}/security`. Turning it on needs two-factor on your own account (`403 two_factor_required` otherwise). While it is on, a member without two-factor stays on the team but reaches none of its Apps, settings, or admin actions until they turn it on; they can still leave and answer invitations, and the team's member and invitation endpoints refuse them with `403 two_factor_required`.
+
+  `GET /api/v1/teams` flags such a team with `blockedByTwoFactor` and leaves out its roster, and the People tab and `GET /api/v1/teams/{teamId}/people` show who has two-factor on, sortable with `twoFactor`. The CLI asks for `--yes` before `update-team-security`.
+
+### Patch Changes
+
+- [#7075](https://github.com/tambo-ai/charming/pull/7075) [`af2f03a`](https://github.com/tambo-ai/charming/commit/af2f03ab1e5955aa65464a81dd41ee069742256b) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Let Apps call a person's Gmail and the other services in Charming's connector catalog, listed on the Connectors docs page. A route handler calls `env.connectors.call(service, tool, args)` with the service and tool written as strings, and Charming reads those calls when the App is saved to learn which tools it uses, so nothing goes in the manifest; a save whose call names a service or tool outside the catalog, or names either through a variable, is refused with `invalid_connector_call`. On the ESM contract an App declares the tools under `permissions.server.connectors` and imports `connectors` from `charming:connectors@1.0` instead. Each person connects a service once and approves each App in a Charming window that `charming.connect(service)` opens, and no token ever reaches the App, the browser, or the agent.
+
+  Approval is by access level, per service: `read`, `write`, and `delete`, each independent of the others. A tool added at a level a person already approved runs without asking again; a tool at a new level refuses with `connector_not_granted` and `missingLevels` naming the levels to approve. Owners can share their own account with the people they share an App with, limited to the levels they pick. The grants route takes and returns approved levels in `levels`, and App connector settings carry the shared ones in `sharedLevels`.
+
+  Connector calls count against the App owner's new monthly allowance (`connector_calls_per_month`: 500 on Free, 10,000 on Pro, 10,000 per seat on Business) and refuse past it with `connector_call_limit_exceeded`. Refusals carry the kinds `sign_in_required`, `connector_not_granted`, `connector_action_not_declared`, `connector_no_person`, `connector_reconnect_required`, `connector_unavailable`, `connector_rate_limited`, and `connector_cross_site`, which refuses a write or delete call when another site sent the signed-in person to the App. Connector calls need a signed-in Charming session or the agent's own sign-in: an App shown inside Claude or ChatGPT names the person only by its URL, and gets `connector_no_person`. **Account settings → Connectors** lists every service to connect, reconnect, or remove, with the Apps each one is approved for, and owners set sharing in **App settings → Connectors**. The account settings tab for agent connections is now labelled **Agents**.
+
+- [#7238](https://github.com/tambo-ai/charming/pull/7238) [`b7771a8`](https://github.com/tambo-ai/charming/commit/b7771a841e0a1f03f884b93f01a74d9a8d1fcb66) Thanks [@lachieh](https://github.com/lachieh)! - Add per-person staff logins for the admin API. `chadmin login` starts a code at `POST /api/admin/login/start` and prints the bare `/pair` URL. A person on the environment's staff roster, with two-factor authentication on, types the code there and approves it from a browser session that signed in within the last 10 minutes; `/pair` never accepts a staff code from a link. chadmin then uses a 12-hour `chrm_staff_*` token that works only on `/api/admin/*`, listed in its owner's tokens for revocation; `chadmin logout` revokes it. Admin audit lines name the staff member and token. The shared `CHARMING_ADMIN_TOKEN` keeps working when no staff login is stored.
+
+  `POST /api/pair/approve` answers 403 `staff_only`, `two_factor_required`, or `reauthentication_required` for a staff code it cannot approve.
+
+- [#7208](https://github.com/tambo-ai/charming/pull/7208) [`77238e9`](https://github.com/tambo-ai/charming/commit/77238e9c2f85121e08ff743fd4bd7d4fb695637c) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - The `charming` skill now explains how an App calls a person's connected services, such as Gmail, with `env.connectors.call`, and when to offer the Connect button.
+
+- [#7241](https://github.com/tambo-ai/charming/pull/7241) [`896af87`](https://github.com/tambo-ai/charming/commit/896af87e1a8534e356405c4764e7e341fd68605f) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Cap what one account can create and list.
+
+  - A signed-in account can create or copy 60 apps a minute, across `POST /app`, `POST /app/{id}/copy`, MCP `create_app` and `copy_app`, and a Template's Copy button. A caller with no account gets 10 a minute per address on `POST /app`. Past either, the call answers 429 `rate_limited` with `Retry-After` and creates nothing.
+  - `styles` is capped at 256 KiB like `module` and `ui`, on every create and edit path (`styles_too_large`, 413). MCP `create_app` now enforces all three caps, and a `POST /app` or `PUT /app/{id}` body over 832 KiB is refused (`payload_too_large`, 413).
+  - Template listing text is capped at 120 characters for the title, 300 for the summary, 20,000 for the content, 300 for each image alt text and caption, and 128 for an asset key, with at most 12 gallery images (`template_listing_too_large`, 413).
+
+  Nothing already stored changes. An app whose source is already over a cap keeps running and can still change its other fields, and a Template listing already over a limit stays as it is until its owner saves that field again. An account can still hold any number of apps. An ESM styles breach now reports `styles_too_large` instead of `payload_too_large`.
+
+- [#7232](https://github.com/tambo-ai/charming/pull/7232) [`b26a277`](https://github.com/tambo-ai/charming/commit/b26a277478c590a05cf73e36b7cc53509ae2e503) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Revalidate the caller's credential on every path that mints a paired token: `POST /api/pair/approve`, `POST /app/{id}/claim`, the cookie auto-claim, and the poll that finishes an approval a claim left undone. A revoked credential mints nothing, and `POST /api/pair/approve` answers `401 unauthorized`. A pairing approved or claimed with a bearer token or personal access token now gets a 7-day token, and one approved in the browser keeps 30 days. A claimed app whose pairing was still unapproved at this release stays pending until a person approves its code at `/pair`.
+
+  Sign the custom-domain grant code, grantee cookie, and login state token under separate purposes, so one never verifies as another. Cookies and tokens issued before this release stop verifying, so a visitor signed in on a custom domain signs in again once.
+
 ## 0.4.2
 
 ### Patch Changes
