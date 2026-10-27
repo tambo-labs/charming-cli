@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.6.1
+
+### Patch Changes
+
+- [#7342](https://github.com/tambo-ai/charming/pull/7342) [`ff7ac28`](https://github.com/tambo-ai/charming/commit/ff7ac28bce12c26c9586461c3deee8f73c3f9933) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - The Terms of Use, Privacy Notice, Subprocessors list, and Fair Use page now cover connected services. The terms define Connected Services and say what connecting one authorizes. The privacy notice says what Charming keeps about a Connection, what passes through it, and how to remove one. Composio is listed as the subprocessor that holds connected accounts' tokens and makes their requests. Fair use asks people to connect only accounts they may use and to follow each service's rules.
+
 ## 0.6.0
 
 ### Minor Changes
