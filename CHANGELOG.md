@@ -1,5 +1,13 @@
 # usecharming
 
+## 0.6.0
+
+### Minor Changes
+
+- [#7296](https://github.com/tambo-ai/charming/pull/7296) [`0325539`](https://github.com/tambo-ai/charming/commit/032553928dbb69a4015f1fcea180dca26312558c) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Let a team's owners and admins turn connector services off for every App the team owns, in **Team settings → Connectors** or with `PATCH /api/v1/teams/{teamId}/connectors/{service}`, and list each service with how many team Apps call it and the first three by name with `GET /api/v1/teams/{teamId}/connectors`. `GET /api/v1/teams/{teamId}/connectors/{service}/apps` pages through every App that calls a service. Every service stays on until someone turns it off.
+
+  While a service is off, every call to it from a team App refuses with the new kind `connector_blocked_by_team` (403), and App connector settings report it as `blockedByTeam`. Approvals and sharing settings are kept, so turning the service back on restores them with no new approval.
+
 ## 0.5.1
 
 ### Patch Changes
