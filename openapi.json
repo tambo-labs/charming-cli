@@ -267,6 +267,101 @@
           }
         }
       },
+      "TeamConnectorsResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "connectors"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamConnector"
+            }
+          }
+        }
+      },
+      "TeamConnectorAppsResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "apps",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "appName",
+                "icon"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "appName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The App’s name in its settings URL, `/<team-handle>/~/apps/<appName>/settings`."
+                },
+                "icon": {
+                  "description": "The App’s home-screen icon, or null when it has none.",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "emoji",
+                        "bg"
+                      ],
+                      "properties": {
+                        "emoji": {
+                          "type": "string"
+                        },
+                        "bg": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor` for the next page. Null on the last page."
+          }
+        }
+      },
       "TeamEgressResponse": {
         "type": "object",
         "required": [
@@ -1339,6 +1434,49 @@
           }
         }
       },
+      "TeamConnector": {
+        "type": "object",
+        "required": [
+          "service",
+          "allowed",
+          "appCount",
+          "apps"
+        ],
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "A connector catalog service slug, such as `gmail`."
+          },
+          "allowed": {
+            "type": "boolean",
+            "description": "False while the team has turned the service off: every call to it from the team’s Apps refuses with `connector_blocked_by_team`, and each approval is kept for when it is turned back on."
+          },
+          "appCount": {
+            "type": "integer",
+            "description": "How many of the team’s Apps call the service in their live version."
+          },
+          "apps": {
+            "type": "array",
+            "description": "The first three of those Apps by name. `GET /api/v1/teams/{teamId}/connectors/{service}/apps` pages through every one.",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "TeamEgressDestination": {
         "type": "object",
         "required": [
@@ -2005,6 +2143,7 @@
                   "connector_reconnect_required",
                   "connector_unavailable",
                   "connector_cross_site",
+                  "connector_blocked_by_team",
                   "connector_holder_only",
                   "storage_limit_exceeded",
                   "copy_data_forbidden",
@@ -5518,6 +5657,319 @@
         "operationId": "get-team-audit",
         "summary": "Get a team’s audit trail",
         "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Newest-first (unless `sort` says otherwise) feed of share/publish lifecycle events AND end-user activity (renders, API calls) for every app the team owns. Defaults to the trailing 7 days.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/connectors": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every catalog service, in catalog order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamConnectorsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner or admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-connectors",
+        "summary": "List the connectors a team allows",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Lists every catalog service, whether the team’s Apps may call it, how many team Apps call it in their live version, and the first three of them by name. Every service is allowed until an owner or admin turns it off.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/connectors/{service}": {
+      "patch": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "service",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The team’s connectors after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamConnectorsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner or admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The connector catalog does not list this service.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "update-team-connector",
+        "summary": "Turn a connector on or off for a team",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Turning a service off refuses every call to it from the team’s Apps with `connector_blocked_by_team` and keeps each approval, so turning it back on restores them.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "allowed"
+                ],
+                "properties": {
+                  "allowed": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{teamId}/connectors/{service}/apps": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "service",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Defaults to 50, capped at 200."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only Apps whose name contains this text, case-insensitively."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The `nextCursor` of the previous page. A cursor that does not decode is rejected with a 400."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of the team Apps that call the service.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamConnectorAppsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid `limit` or `cursor`.",
+            "x-error-kinds": [
+              "invalid_request"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is not an owner or admin of this team.",
+            "x-error-kinds": [
+              "forbidden"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The connector catalog does not list this service.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "list-team-connector-apps",
+        "summary": "List the team Apps that call a connector",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Pages through the team’s Apps whose live version calls the service, by name, case-insensitively, with ties broken by id.",
         "security": [
           {
             "userToken": []

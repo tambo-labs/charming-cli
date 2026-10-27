@@ -6313,6 +6313,236 @@ export const generatedOperations = [
     "usage": "charming api request list-team-apps --param teamId=VALUE"
   },
   {
+    "id": "list-team-connector-apps",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/connectors/{service}/apps",
+    "summary": "List the team Apps that call a connector",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Pages through the team’s Apps whose live version calls the service, by name, case-insensitively, with ties broken by id.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "service",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Defaults to 50, capped at 200.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Only Apps whose name contains this text, case-insensitively.",
+        "in": "query",
+        "name": "q",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "The `nextCursor` of the previous page. A cursor that does not decode is rejected with a 400.",
+        "in": "query",
+        "name": "cursor",
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "One page of the team Apps that call the service.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "apps",
+          "nextCursor"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "apps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "appName",
+                "icon"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "appName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The App’s name in its settings URL, `/<team-handle>/~/apps/<appName>/settings`."
+                },
+                "icon": {
+                  "description": "The App’s home-screen icon, or null when it has none.",
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "emoji",
+                        "bg"
+                      ],
+                      "properties": {
+                        "emoji": {
+                          "type": "string"
+                        },
+                        "bg": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `cursor` for the next page. Null on the last page."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-connector-apps --param teamId=VALUE --param service=VALUE"
+  },
+  {
+    "id": "list-team-connectors",
+    "method": "GET",
+    "path": "/api/v1/teams/{teamId}/connectors",
+    "summary": "List the connectors a team allows",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Lists every catalog service, whether the team’s Apps may call it, how many team Apps call it in their live version, and the first three of them by name. Every service is allowed until an owner or admin turns it off.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Every catalog service, in catalog order.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "connectors"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "service",
+                "allowed",
+                "appCount",
+                "apps"
+              ],
+              "properties": {
+                "service": {
+                  "type": "string",
+                  "description": "A connector catalog service slug, such as `gmail`."
+                },
+                "allowed": {
+                  "type": "boolean",
+                  "description": "False while the team has turned the service off: every call to it from the team’s Apps refuses with `connector_blocked_by_team`, and each approval is kept for when it is turned back on."
+                },
+                "appCount": {
+                  "type": "integer",
+                  "description": "How many of the team’s Apps call the service in their live version."
+                },
+                "apps": {
+                  "type": "array",
+                  "description": "The first three of those Apps by name. `GET /api/v1/teams/{teamId}/connectors/{service}/apps` pages through every one.",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-team-connectors --param teamId=VALUE"
+  },
+  {
     "id": "list-team-egress",
     "method": "GET",
     "path": "/api/v1/teams/{teamId}/egress",
@@ -10786,6 +11016,123 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request update-team-app-defaults --param teamId=VALUE --body @body.json"
+  },
+  {
+    "id": "update-team-connector",
+    "method": "PATCH",
+    "path": "/api/v1/teams/{teamId}/connectors/{service}",
+    "summary": "Turn a connector on or off for a team",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner or admin of the team. Turning a service off refuses every call to it from the team’s Apps with `connector_blocked_by_team` and keeps each approval, so turning it back on restores them.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "service",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": true,
+      "schema": {
+        "type": "object",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "example": {
+        "allowed": false
+      }
+    },
+    "response": {
+      "description": "The team’s connectors after the change.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "connectors"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "service",
+                "allowed",
+                "appCount",
+                "apps"
+              ],
+              "properties": {
+                "service": {
+                  "type": "string",
+                  "description": "A connector catalog service slug, such as `gmail`."
+                },
+                "allowed": {
+                  "type": "boolean",
+                  "description": "False while the team has turned the service off: every call to it from the team’s Apps refuses with `connector_blocked_by_team`, and each approval is kept for when it is turned back on."
+                },
+                "appCount": {
+                  "type": "integer",
+                  "description": "How many of the team’s Apps call the service in their live version."
+                },
+                "apps": {
+                  "type": "array",
+                  "description": "The first three of those Apps by name. `GET /api/v1/teams/{teamId}/connectors/{service}/apps` pages through every one.",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "id",
+                      "name"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request update-team-connector --param teamId=VALUE --param service=VALUE --body @body.json"
   },
   {
     "id": "update-team-member",
