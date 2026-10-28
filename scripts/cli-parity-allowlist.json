@@ -5,6 +5,6 @@
     "migrate_contract": "Explicit ESM migration also needs If-Match and Idempotency-Key; use `charming api request create-app --body --header` for this workflow."
   },
   "update-app": {
-    "migrate_contract": "One-way legacy-schema migration; rare enough to leave on `charming api request update-app --body`."
+    "migrate_contract": "Exposed as `--migrate-contract` (kebab-case)."
   }
 }

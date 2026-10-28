@@ -71,11 +71,11 @@ A profile is a name and an origin, with its token saved in the user's `credentia
 
 An explicit `--token` or production `CHARMING_TOKEN` overrides a saved profile. A profile never sends its token to another origin: `--profile work --base-url URL` fails when `work` is saved for a different origin, and an unforced `--base-url` uses the one profile saved for that origin. Logging out `default`, or the last profile on an origin, also removes that origin's app credentials, so unclaimed apps that relied on them become unreachable. Logging out another named profile keeps them.
 
-## ESM authoring
+## Apps as packages
 
-The workflow and template below use the existing contract. Selected authenticated authors can use the ESM contract through the generated `charming api request` commands. Inspect `create-app` or `update-app` with `charming api describe`; pass the JSON body with `--body @build.json`, `Idempotency-Key` with `--header`, and the desired-source `If-Match` for an existing destination. Use a dry run before sending. Migration also needs `migrate_contract: true`.
+The workflow and template below use the existing contract. A signed-in author can instead send an App as a package: `charming apps create --files <dir>` and `charming apps update <id> --files <dir>` send a directory holding package.json, server.js, and the files they import. `charming apps source <id> --out <dir>` writes a package App's files into a directory to edit; it refuses a directory holding a package file the App does not have, so use an empty one or the one it wrote last. Add `--migrate-contract` to `apps update --files` to move an App on the existing contract onto the package contract. Run each with `--dry-run` first. The generated `charming api request` commands reach the same endpoints for anything the flags do not cover: inspect `create-app` or `update-app` with `charming api describe`, and pass the JSON body with `--body @build.json`, `Idempotency-Key` with `--header`, and the desired-source `If-Match` for an existing destination.
 
-HTTP 202 means accepted. Poll `get-app-build` with `--param buildId=<id>` until `published`; use `cancel-app-build` with the same parameter to cancel. Keep the original body, revision, and key for an exact retry. `apps create` and `apps update` do not supply the required ESM request key.
+HTTP 202 means accepted. Poll `get-app-build` with `--param buildId=<id>` until `published`; use `cancel-app-build` with the same parameter to cancel. Keep the original body, revision, and key for an exact retry. `apps create --files` and `apps update --files` supply the request key themselves.
 
 ## The module
 

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
@@ -18,7 +19,13 @@ import {
   type Session,
 } from './config.js';
 import { findOperation, type Operation, operations } from './contract.js';
-import { readAppBundle, readJsonValue, writeAppBundle } from './files.js';
+import {
+  readAppBundle,
+  readAppPackage,
+  readJsonValue,
+  writeAppBundle,
+  writeAppPackage,
+} from './files.js';
 import { ApiError, CharmingClient, isOpenableUrl } from './http.js';
 import { DEFAULT_PROFILE } from './profile-name.js';
 
@@ -39,6 +46,16 @@ const MUTATE_TIMEOUT_MS = 10_000;
 const CALL_TIMEOUT_MS = 30_000;
 const APP_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UUID_APP_ID_ACTIONS = new Set(['call', 'describe', 'source', 'update', 'delete', 'rename']);
+
+async function packageUpdateBody(context: CommandContext, directory: string) {
+  if (stringOption(context.options, 'description') !== undefined)
+    throw new Error('A package describes itself in package.json; drop --description.');
+  return { files: await readAppPackage(directory), ...migrateContract(context) };
+}
+
+function migrateContract(context: CommandContext) {
+  return context.options['migrate-contract'] === true ? { migrate_contract: true } : {};
+}
 
 function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
@@ -76,6 +93,7 @@ type SourceResponse = {
     module?: unknown;
     styles?: unknown;
     ui?: unknown;
+    files?: unknown;
   };
 };
 
@@ -204,10 +222,20 @@ export async function runApps(
   if (action === 'create') {
     if (context.options['dry-run'] !== true) await collectPairings(context);
     const token = context.session.token;
-    const bundle = await readBundle(positionals[0], context.options);
-    const body: Record<string, unknown> = { ...bundle };
+    const packageDirectory = stringOption(context.options, 'files');
+    const body: Record<string, unknown> = packageDirectory
+      ? { files: await readAppPackage(packageDirectory) }
+      : { ...(await readBundle(positionals[0], context.options)) };
     const description = stringOption(context.options, 'description');
-    if (description !== undefined) body.description = description;
+    if (description !== undefined) {
+      if (packageDirectory)
+        throw new Error('A package describes itself in package.json; drop --description.');
+      body.description = description;
+    }
+    if (packageDirectory && !token)
+      throw new Error(
+        `A package build needs a signed-in user. Run ${loginCommand(context.session)}.`,
+      );
     if (!token) {
       body.pair = true;
       body.label = `Charming CLI ${CLI_VERSION}`;
@@ -223,6 +251,7 @@ export async function runApps(
     const data = (
       await clientFor(context, token).request('POST', '/app', {
         body,
+        ...(packageDirectory ? { headers: { 'Idempotency-Key': idempotencyKey() } } : {}),
         timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
       })
     ).data as {
@@ -252,12 +281,19 @@ export async function runApps(
   if (action === 'delete') requireConsent(context);
 
   if (action === 'update' && context.options['dry-run'] === true) {
-    const local = await readBundle(positionals[1], context.options);
+    const packageDirectory = stringOption(context.options, 'files');
+    const body = packageDirectory
+      ? await packageUpdateBody(context, packageDirectory)
+      : {
+          ...(await readBundle(positionals[1], context.options)),
+          description: stringOption(context.options, 'description'),
+          ...migrateContract(context),
+        };
     return {
       dryRun: true,
       method: 'PUT',
       path: `/app/${encodeURIComponent(appId)}`,
-      body: { ...local, description: stringOption(context.options, 'description') },
+      body,
       note: 'A live update first reads the current source and sends its ETag with the write.',
     };
   }
@@ -300,15 +336,21 @@ export async function runApps(
     ).data as SourceResponse;
     const outputDirectory = stringOption(context.options, 'out');
     if (outputDirectory) {
-      const source = validSource(data);
-      await writeAppBundle(outputDirectory, source);
+      const files = packageFiles(data);
+      if (files) await writeAppPackage(outputDirectory, files);
+      else await writeAppBundle(outputDirectory, validSource(data));
       return { id: appId, outputDirectory };
     }
     return data;
   }
 
   if (action === 'update') {
-    const local = await readBundle(positionals[1], context.options);
+    const packageDirectory = stringOption(context.options, 'files');
+    if (packageDirectory && !isUserToken(token))
+      throw new Error(
+        `A package build needs a signed-in user. Run ${loginCommand(context.session)}.`,
+      );
+    const local = packageDirectory ? null : await readBundle(positionals[1], context.options);
     const current = await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
       timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
     });
@@ -318,16 +360,24 @@ export async function runApps(
         'Charming did not return an ETag for this app source; refusing to update without optimistic concurrency. Retry. If it still fails, run `charming doctor` and check that `--base-url` points to Charming.',
       );
     }
-    const body = {
-      module: local.module,
-      ui: local.ui ?? source.ui ?? undefined,
-      styles: local.styles ?? source.styles ?? undefined,
-      description: stringOption(context.options, 'description'),
-    };
+    if (packageFiles(current.data as SourceResponse) && !packageDirectory)
+      throw new Error('This App is a package. Pass --files <directory> holding its whole tree.');
+    const body = local
+      ? {
+          module: local.module,
+          ui: local.ui ?? source.ui ?? undefined,
+          styles: local.styles ?? source.styles ?? undefined,
+          description: stringOption(context.options, 'description'),
+          ...migrateContract(context),
+        }
+      : await packageUpdateBody(context, packageDirectory!);
     return (
       await client.request('PUT', `/app/${encodeURIComponent(appId)}`, {
         body,
-        headers: { 'If-Match': current.etag },
+        headers: {
+          'If-Match': current.etag,
+          ...(local ? {} : { 'Idempotency-Key': idempotencyKey() }),
+        },
         timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
       })
     ).data;
@@ -935,6 +985,18 @@ async function readBundle(directory: string | undefined, options: Record<string,
     styles: stringOption(options, 'styles'),
     ui: stringOption(options, 'ui'),
   });
+}
+
+function packageFiles(data: SourceResponse): Record<string, string> | null {
+  const files = data.source?.files;
+  if (typeof files !== 'object' || files === null) return null;
+  return Object.values(files).every((text) => typeof text === 'string')
+    ? (files as Record<string, string>)
+    : null;
+}
+
+function idempotencyKey(): string {
+  return `charming-cli-${randomUUID()}`;
 }
 
 function validSource(data: SourceResponse): {

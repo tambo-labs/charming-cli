@@ -288,7 +288,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/app-builds/{buildId}/cancel",
     "summary": "Cancel a pending app build",
-    "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Cancellation remains available after authoring cohort removal. Browser form submissions render the terminal result as HTML.",
+    "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Browser form submissions render the terminal result as HTML.",
     "parameters": [
       {
         "description": "",
@@ -423,24 +423,10 @@ export const generatedOperations = [
           },
           "resolvedDependencies": {
             "type": "object",
-            "required": [
-              "server",
-              "client"
-            ],
-            "properties": {
-              "server": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "client": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Exact versions of the top-level npm packages the retained lock installs, by package name. Absent while the build is unresolved and for builds whose lock predates the package resolution."
           },
           "queueDeadline": {
             "type": "string",
@@ -467,32 +453,15 @@ export const generatedOperations = [
           "source": {
             "type": "object",
             "required": [
-              "module",
-              "ui",
-              "styles",
-              "description"
+              "files"
             ],
+            "description": "The exact accepted package tree, when include_source=true and the inspection window is open.",
             "properties": {
-              "module": {
-                "type": "string"
-              },
-              "ui": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "styles": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              "files": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -727,7 +696,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/app/{id}/copy",
     "summary": "Copy an app into a new private app owned by the caller",
-    "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. An ESM app copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
+    "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. A package App copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
     "parameters": [
       {
         "description": "",
@@ -754,7 +723,7 @@ export const generatedOperations = [
           "display_name": {
             "type": "string",
             "minLength": 1,
-            "description": "Display name for the copy. Defaults to the source's. Refused for ESM apps, which take their name from manifest.meta.name."
+            "description": "Display name for the copy. Defaults to the source's. Refused for package Apps, which name themselves in package.json."
           },
           "idempotency_key": {
             "type": "string",
@@ -865,11 +834,11 @@ export const generatedOperations = [
     "id": "create-app",
     "method": "POST",
     "path": "/app",
-    "summary": "Create an app or accept an ESM app build",
-    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields. A signed-in account may create or copy 60 apps a minute across REST and MCP, and an anonymous caller 10 a minute per address; past either, the call answers 429 `rate_limited` with `Retry-After` and creates nothing.",
+    "summary": "Create an app or accept a package build",
+    "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. A body with files creates the App as a package: it requires an enabled authenticated user and Idempotency-Key, validates package.json and every import without evaluation, and returns 202 before dependency resolution or compilation. A same-owner package name target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing package destination requires its desired revision in If-Match; moving an App onto the package contract also requires migrate_contract: true. pair and label are not package fields.",
     "parameters": [
       {
-        "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
+        "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
         "in": "header",
         "name": "Idempotency-Key",
         "required": false,
@@ -881,7 +850,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Desired-source revision in double quotes for an ESM upsert or migration. Read GET /app/{id}/source first.",
+        "description": "Desired-source revision in double quotes for a package upsert or migration. Read GET /app/{id}/source first.",
         "in": "header",
         "name": "If-Match",
         "required": false,
@@ -895,20 +864,42 @@ export const generatedOperations = [
       "required": true,
       "schema": {
         "type": "object",
-        "required": [
-          "module"
-        ],
         "properties": {
+          "files": {
+            "type": "object",
+            "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+            "required": [
+              "package.json",
+              "server.js"
+            ],
+            "properties": {
+              "package.json": {
+                "type": "string"
+              },
+              "server.js": {
+                "type": "string"
+              },
+              "ui.js": {
+                "type": "string"
+              },
+              "styles.css": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
           "module": {
             "type": "string",
-            "description": "Server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Existing contracts publish synchronously; the explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and accepts a background build."
+            "description": "Server ES module source for the canonical contract, which publishes synchronously. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Required unless files is sent."
           },
           "ui": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Optional browser source populating #app. A classic script for the existing contract; an ES module for the explicit ESM contract. ESM bare imports must match manifest.dependencies.client."
+            "description": "Optional browser source populating #app, a classic script for the canonical contract."
           },
           "styles": {
             "type": [
@@ -922,27 +913,25 @@ export const generatedOperations = [
               "string",
               "null"
             ],
-            "description": "Optional app description, shown to the owner and to callers who read it back. For ESM POST upserts, omission preserves the desired description."
+            "description": "Optional app description, shown to the owner and to callers who read it back. A package describes itself in package.json."
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "ESM POST only: true explicitly migrates an existing same-owner manifest.id target. Supply its desired revision in If-Match. The existing app remains active until the build publishes."
+            "description": "With files only: true explicitly moves an existing same-owner App onto the package contract. Supply its desired revision in If-Match. The existing app remains active until the build publishes."
           },
           "pair": {
             "type": "boolean",
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
+            "description": "Existing-contract anonymous POST only; rejected on package saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
           },
           "label": {
             "type": "string",
             "maxLength": 80,
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
+            "description": "Existing-contract anonymous POST only; rejected on package saves. Silently ignored on existing-contract authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
           }
         },
         "additionalProperties": false
       },
-      "example": {
-        "module": "string"
-      }
+      "example": {}
     },
     "response": {
       "description": "App created or upserted.",
@@ -3785,7 +3774,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/app-builds/{buildId}",
     "summary": "Read an app build and its accepted source",
-    "description": "Read progress or the retained terminal result using current user source access. Set include_source=true to inspect the exact accepted input. Only published means the app is live. Status remains available after authoring cohort removal. Accept: text/html renders progress and terminal results; pending pages refresh this status resource and published pages redirect to the actual app URL.",
+    "description": "Read progress or the retained terminal result using current user source access. Set include_source=true to inspect the exact accepted input. Only published means the app is live. Status stays readable after the build finishes. Accept: text/html renders progress and terminal results; pending pages refresh this status resource and published pages redirect to the actual app URL.",
     "parameters": [
       {
         "description": "",
@@ -3929,24 +3918,10 @@ export const generatedOperations = [
           },
           "resolvedDependencies": {
             "type": "object",
-            "required": [
-              "server",
-              "client"
-            ],
-            "properties": {
-              "server": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "client": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Exact versions of the top-level npm packages the retained lock installs, by package name. Absent while the build is unresolved and for builds whose lock predates the package resolution."
           },
           "queueDeadline": {
             "type": "string",
@@ -3973,32 +3948,15 @@ export const generatedOperations = [
           "source": {
             "type": "object",
             "required": [
-              "module",
-              "ui",
-              "styles",
-              "description"
+              "files"
             ],
+            "description": "The exact accepted package tree, when include_source=true and the inspection window is open.",
             "properties": {
-              "module": {
-                "type": "string"
-              },
-              "ui": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "styles": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              "files": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -4215,7 +4173,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/app/{id}/source",
     "summary": "Read the exact persisted source for an app",
-    "description": "Returns the desired authored `module`, `ui`, and `styles` exactly as persisted, including pending or failed ESM edits, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
+    "description": "Returns the desired authored `module`, `ui`, and `styles` exactly as persisted, plus `files` for a package App, including pending or failed package edits, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
     "parameters": [
       {
         "description": "",
@@ -4299,9 +4257,9 @@ export const generatedOperations = [
             "enum": [
               "https://charm.ing/schema/app-manifest/2026-07-31.json",
               "https://charm.ing/schema/app-manifest/2026-10-16.json",
-              "https://charm.ing/schema/app-manifest/next.json"
+              "https://charm.ing/schema/app-package/2026-10-25.json"
             ],
-            "description": "Exact schema URL for dated canonical or ESM source. Legacy source responses omit this field."
+            "description": "Exact schema URL: the dated canonical manifest schema, or the package.json schema for a package App. Legacy source responses omit this field."
           },
           "capabilities": {
             "type": "object",
@@ -4371,6 +4329,31 @@ export const generatedOperations = [
                   "string",
                   "null"
                 ]
+              },
+              "files": {
+                "type": "object",
+                "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+                "required": [
+                  "package.json",
+                  "server.js"
+                ],
+                "properties": {
+                  "package.json": {
+                    "type": "string"
+                  },
+                  "server.js": {
+                    "type": "string"
+                  },
+                  "ui.js": {
+                    "type": "string"
+                  },
+                  "styles.css": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4405,13 +4388,13 @@ export const generatedOperations = [
             }
           },
           {
-            "title": "ESM app source",
+            "title": "Package app source",
             "required": [
               "$schema"
             ],
             "properties": {
               "$schema": {
-                "const": "https://charm.ing/schema/app-manifest/next.json"
+                "const": "https://charm.ing/schema/app-package/2026-10-25.json"
               },
               "manifestVersion": {
                 "type": "null"
@@ -7602,7 +7585,7 @@ export const generatedOperations = [
     "method": "PATCH",
     "path": "/app/{id}/source",
     "summary": "Apply exact-string find/replace edits to the persisted source",
-    "description": "Applies an edits[] array to desired module/ui/styles. ESM saves require Idempotency-Key, return 202, and preserve active output until publication. An exact request-key replay returns the original operation before stale revision or edit matching checks. Each edit names a `bucket`, an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
+    "description": "Applies an edits[] array to desired source. Package saves require Idempotency-Key, return 202, and preserve active output until publication. An exact request-key replay returns the original operation before stale revision or edit matching checks. Each edit names a `bucket` (canonical Apps) or a file `path` (package Apps), an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
     "parameters": [
       {
         "description": "",
@@ -7614,7 +7597,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
+        "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
         "in": "header",
         "name": "Idempotency-Key",
         "required": false,
@@ -7647,7 +7630,7 @@ export const generatedOperations = [
         "properties": {
           "migrate_contract": {
             "type": "boolean",
-            "description": "Explicitly migrate when the edited source selects a new contract. ESM requires the exact schema, a request key and If-Match."
+            "description": "Explicitly migrate when the edited source selects a new contract. Package saves require a request key and If-Match."
           },
           "edits": {
             "type": "array",
@@ -7655,7 +7638,6 @@ export const generatedOperations = [
             "items": {
               "type": "object",
               "required": [
-                "bucket",
                 "old_string",
                 "new_string"
               ],
@@ -7666,7 +7648,12 @@ export const generatedOperations = [
                     "module",
                     "ui",
                     "styles"
-                  ]
+                  ],
+                  "description": "Canonical Apps: the source bucket the edit applies to."
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Package Apps: the file the edit applies to, such as server.js or lib/save.js. The file must already exist."
                 },
                 "old_string": {
                   "type": "string"
@@ -9757,7 +9744,7 @@ export const generatedOperations = [
     "method": "PUT",
     "path": "/app/{id}",
     "summary": "Update an existing app",
-    "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. ESM saves require Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Omitting ui/styles preserves desired values only for ESM; null clears. Successful builds publish automatically; later saves supersede pending builds.",
+    "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
     "parameters": [
       {
         "description": "",
@@ -9769,7 +9756,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
+        "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save.",
         "in": "header",
         "name": "Idempotency-Key",
         "required": false,
@@ -9781,7 +9768,7 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Validator \"<N>\" for revision N from desired GET /app/:id/source. Required for ESM saves and migrations; optional for existing-contract PUT. The weak form W/\"<N>\" is also accepted so clients can return the response ETag verbatim.",
+        "description": "Validator \"<N>\" for revision N from desired GET /app/:id/source. Required for package saves and migrations; optional for existing-contract PUT. The weak form W/\"<N>\" is also accepted so clients can return the response ETag verbatim.",
         "in": "header",
         "name": "If-Match",
         "required": false,
@@ -9795,27 +9782,49 @@ export const generatedOperations = [
       "required": true,
       "schema": {
         "type": "object",
-        "required": [
-          "module"
-        ],
         "properties": {
+          "files": {
+            "type": "object",
+            "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+            "required": [
+              "package.json",
+              "server.js"
+            ],
+            "properties": {
+              "package.json": {
+                "type": "string"
+              },
+              "server.js": {
+                "type": "string"
+              },
+              "ui.js": {
+                "type": "string"
+              },
+              "styles.css": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
           "module": {
             "type": "string",
-            "description": "Replacement server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Keep the stored contract’s exact schema. ESM source is statically checked and built after acceptance."
+            "description": "Replacement server ES module source for a canonical App. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Keep the stored contract’s exact schema. Required unless files is sent."
           },
           "ui": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ESM browser module: omit to preserve desired UI, pass null to clear. Existing-contract PUT retains replacement semantics."
+            "description": "Replacement browser script for a canonical App."
           },
           "styles": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ESM: omit to preserve desired styles, pass null to clear."
+            "description": "Replacement CSS for a canonical App."
           },
           "description": {
             "type": [
@@ -9826,14 +9835,12 @@ export const generatedOperations = [
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "Required as true when changing a stored contract. ESM migration requires the explicit ESM schema, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
+            "description": "Required as true when changing a stored contract. Moving to the package contract requires files, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
           }
         },
         "additionalProperties": false
       },
-      "example": {
-        "module": "string"
-      }
+      "example": {}
     },
     "response": {
       "description": "Updated",

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -496,6 +496,474 @@ describe('runCommand', () => {
       }),
     ).resolves.toEqual({ id: 'app-1' });
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  test('sends a package directory as files with an idempotency key on create', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-'));
+    await writeFile(
+      join(directory, 'package.json'),
+      JSON.stringify({ name: 'notes', dependencies: { zod: '^4.0.0' } }),
+    );
+    await writeFile(
+      join(directory, 'server.js'),
+      "import './lib/save.js'; export const routes = [];",
+    );
+    await mkdir(join(directory, 'lib'));
+    await writeFile(join(directory, 'lib', 'save.js'), 'export const save = 1;');
+    await writeFile(join(directory, 'styles.css'), 'body {}');
+    await writeFile(join(directory, 'README.md'), 'not sent');
+    await writeFile(join(directory, 'package-lock.json'), '{}');
+    await writeFile(join(directory, 'tsconfig.json'), '{}');
+    await writeFile(join(directory, 'lib', 'styles.css'), 'p {}');
+    await writeFile(join(directory, 'lib', 'package.json'), '{"name":"nested"}');
+    await mkdir(join(directory, 'node_modules', 'zod'), { recursive: true });
+    await writeFile(join(directory, 'node_modules', 'zod', 'index.js'), 'not sent');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ buildId: 'build_1', state: 'queued' }, { status: 202 }));
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'create'],
+        fetchImpl,
+        options: { yes: true, files: directory },
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toEqual({ buildId: 'build_1', state: 'queued' });
+    const [, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(JSON.parse(init?.body as string)).toEqual({
+      files: {
+        'lib/save.js': 'export const save = 1;',
+        'package.json': JSON.stringify({ name: 'notes', dependencies: { zod: '^4.0.0' } }),
+        'server.js': "import './lib/save.js'; export const routes = [];",
+        'styles.css': 'body {}',
+      },
+    });
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toMatch(/^charming-cli-/);
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'create'],
+        fetchImpl,
+        options: { files: directory },
+        token: undefined,
+      }),
+    ).rejects.toThrow('A package build needs a signed-in user');
+  });
+
+  test('updates a package App by reading its source and sending the whole tree', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-'));
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'notes' }));
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            source: {
+              module: 'export const routes = [];',
+              files: { 'package.json': '{"name":"notes"}', 'server.js': 'old' },
+            },
+          },
+          { headers: { ETag: '"5"' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ buildId: 'build_2', state: 'queued' }, { status: 202 }),
+      );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'update', APP_ID],
+        fetchImpl,
+        options: { files: directory },
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toEqual({ buildId: 'build_2', state: 'queued' });
+    const [url, init] = fetchImpl.mock.calls[1] ?? [];
+    expect(url).toBe(`https://charming.test/app/${APP_ID}`);
+    expect(init?.method).toBe('PUT');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      files: {
+        'package.json': JSON.stringify({ name: 'notes' }),
+        'server.js': 'export const routes = [];',
+      },
+    });
+    const headers = new Headers(init?.headers);
+    expect(headers.get('If-Match')).toBe('"5"');
+    expect(headers.get('Idempotency-Key')).toMatch(/^charming-cli-/);
+  });
+
+  test('moves an App on the existing contract onto the package contract with --migrate-contract', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-'));
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'notes' }));
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { source: { module: 'export const routes = [];' } },
+          { headers: { ETag: '"5"' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ buildId: 'build_3', state: 'queued' }, { status: 202 }),
+      );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'update', APP_ID],
+        fetchImpl,
+        options: { files: directory, 'migrate-contract': true },
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toEqual({ buildId: 'build_3', state: 'queued' });
+    const [, init] = fetchImpl.mock.calls[1] ?? [];
+    expect(JSON.parse(init?.body as string)).toEqual({
+      files: {
+        'package.json': JSON.stringify({ name: 'notes' }),
+        'server.js': 'export const routes = [];',
+      },
+      migrate_contract: true,
+    });
+    const dryRun = await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'update', APP_ID],
+      fetchImpl,
+      options: { files: directory, 'migrate-contract': true, 'dry-run': true },
+      token: 'chrm_user_test',
+    });
+    expect(dryRun).toMatchObject({ dryRun: true, body: { migrate_contract: true } });
+  });
+
+  test('refuses --description beside --files on update, live and dry-run', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-'));
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'notes' }));
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json(
+          { source: { module: 'm', files: { 'package.json': '{}', 'server.js': 'm' } } },
+          { headers: { ETag: '"5"' } },
+        ),
+      );
+    for (const dryRun of [true, false]) {
+      await expect(
+        runCommand({
+          baseUrl: 'https://charming.test',
+          command: ['apps', 'update', APP_ID],
+          fetchImpl,
+          options: {
+            files: directory,
+            description: 'nope',
+            ...(dryRun ? { 'dry-run': true } : {}),
+          },
+          token: 'chrm_user_test',
+        }),
+      ).rejects.toThrow('drop --description');
+    }
+    expect(fetchImpl.mock.calls.filter(([, init]) => init?.method === 'PUT')).toHaveLength(0);
+  });
+
+  test('refuses a single-file update of a package App', async () => {
+    const directory = await appDirectory();
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          { source: { module: 'm', files: { 'package.json': '{}', 'server.js': 'm' } } },
+          { headers: { ETag: '"5"' } },
+        ),
+      );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'update', APP_ID, directory],
+        fetchImpl,
+        options: {},
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toThrow('This App is a package');
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  test('writes a package source tree with --out and refuses a path outside it', async () => {
+    const output = await mkdtemp(join(tmpdir(), 'charming-out-'));
+    const files = {
+      'package.json': '{"name":"notes"}',
+      'server.js': 'export const routes = [];',
+      'lib/deep/save.js': 'export const save = 1;',
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ source: { module: 'm', files } }))
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'm', files: { '../escape.js': 'nope' } } }),
+      );
+
+    await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'source', APP_ID],
+      fetchImpl,
+      options: { out: output },
+      token: 'chrm_user_test',
+    });
+    for (const [path, text] of Object.entries(files))
+      expect(await readFile(join(output, path), 'utf8')).toBe(text);
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'source', APP_ID],
+        fetchImpl,
+        options: { out: join(output, 'inner') },
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toThrow('Refusing to write ../escape.js outside');
+    await expect(readFile(join(output, 'escape.js'), 'utf8')).rejects.toThrow();
+  });
+
+  test('writes nothing with --out when any path would leave the directory', async () => {
+    const output = await mkdtemp(join(tmpdir(), 'charming-out-partial-'));
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      Response.json({
+        source: {
+          module: 'm',
+          files: { 'package.json': '{"name":"notes"}', 'server.js': 'ok', '../escape.js': 'nope' },
+        },
+      }),
+    );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'source', APP_ID],
+        fetchImpl,
+        options: { out: join(output, 'inner') },
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toThrow('Refusing to write ../escape.js outside');
+    await expect(readdir(join(output, 'inner'))).rejects.toThrow();
+    await expect(readFile(join(output, 'escape.js'), 'utf8')).rejects.toThrow();
+  });
+
+  test('sends migrate_contract with a module body for an App on an older manifest', async () => {
+    const directory = await appDirectory();
+    const preview = await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'update', APP_ID, directory],
+      fetchImpl: vi.fn<typeof fetch>(),
+      options: { 'migrate-contract': true, 'dry-run': true },
+      token: 'chrm_user_test',
+    });
+    expect(preview).toMatchObject({ body: { migrate_contract: true } });
+
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'old' } }, { headers: { ETag: '"2"' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ id: APP_ID, revision: 3 }));
+    await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'update', APP_ID, directory],
+      fetchImpl,
+      options: { 'migrate-contract': true },
+      token: 'chrm_user_test',
+    });
+    const [, init] = fetchImpl.mock.calls[1];
+    expect(JSON.parse(init?.body as string)).toMatchObject({ migrate_contract: true });
+  });
+
+  test('refuses a package update on an app credential before any request', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-app-token-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi.fn<typeof fetch>();
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'update', APP_ID],
+        fetchImpl,
+        options: { files: directory },
+        token: 'chrm_app_test',
+      }),
+    ).rejects.toThrow('A package build needs a signed-in user.');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('refuses --out into a directory holding a package file the App no longer has', async () => {
+    const output = await mkdtemp(join(tmpdir(), 'charming-out-stale-'));
+    const tree = { 'package.json': '{"name":"notes"}', 'server.js': 'export const routes = [];' };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'm', files: { ...tree, 'ui.js': 'old ui' } } }),
+      )
+      .mockResolvedValueOnce(Response.json({ source: { module: 'm', files: tree } }));
+    const source = () =>
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'source', APP_ID],
+        fetchImpl,
+        options: { out: output },
+        token: 'chrm_user_test',
+      });
+
+    await source();
+    await expect(source()).rejects.toThrow(`it holds ui.js, which the App does not have`);
+    expect(await readFile(join(output, 'ui.js'), 'utf8')).toBe('old ui');
+  });
+
+  test('refuses --out for a path with a hidden or node_modules segment', async () => {
+    for (const key of ['.git/hooks/pre-commit', 'node_modules/x/index.js']) {
+      const output = await mkdtemp(join(tmpdir(), 'charming-out-hidden-'));
+      const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(
+        Response.json({
+          source: { module: 'm', files: { 'package.json': '{}', 'server.js': 'ok', [key]: 'x' } },
+        }),
+      );
+      await expect(
+        runCommand({
+          baseUrl: 'https://charming.test',
+          command: ['apps', 'source', APP_ID],
+          fetchImpl,
+          options: { out: output },
+          token: 'chrm_user_test',
+        }),
+      ).rejects.toThrow(`Refusing to write ${key}`);
+      expect(await readdir(output)).toEqual([]);
+    }
+  });
+
+  test('dry-runs a package create without a request and still needs a signed-in user', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-dry-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi.fn<typeof fetch>();
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'create'],
+        fetchImpl,
+        options: { files: directory, 'dry-run': true },
+        token: undefined,
+      }),
+    ).rejects.toThrow('A package build needs a signed-in user');
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'create'],
+        fetchImpl,
+        options: { files: directory, 'dry-run': true },
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toMatchObject({
+      dryRun: true,
+      body: {
+        files: { 'package.json': '{"name":"notes"}', 'server.js': 'export const routes = [];' },
+      },
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['package.json', { 'server.js': 'export const routes = [];' }, 'No package.json in'],
+    ['server.js', { 'package.json': '{"name":"notes"}' }, 'No server.js in'],
+  ])(
+    'refuses a package directory without %s before any request',
+    async (_missing, tree, message) => {
+      const directory = await mkdtemp(join(tmpdir(), 'charming-package-incomplete-'));
+      for (const [name, text] of Object.entries(tree)) await writeFile(join(directory, name), text);
+      const fetchImpl = vi.fn<typeof fetch>();
+      await expect(
+        runCommand({
+          baseUrl: 'https://charming.test',
+          command: ['apps', 'create'],
+          fetchImpl,
+          options: { files: directory },
+          token: 'chrm_user_test',
+        }),
+      ).rejects.toThrow(message);
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+
+  test('packs .mjs files, skips hidden entries, and refuses --description on create', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-mjs-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(
+      join(directory, 'server.js'),
+      "import './lib/util.mjs'; export const routes = [];",
+    );
+    await mkdir(join(directory, 'lib'));
+    await writeFile(join(directory, 'lib/util.mjs'), 'export const util = 1;');
+    await writeFile(join(directory, '.env.js'), 'secret');
+    await mkdir(join(directory, '.cache'));
+    await writeFile(join(directory, '.cache/data.json'), '{}');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ buildId: 'build_3', state: 'queued' }, { status: 202 }),
+      );
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'create'],
+        fetchImpl,
+        options: { files: directory, description: 'Notes' },
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toThrow('drop --description');
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'create'],
+      fetchImpl,
+      options: { files: directory, yes: true },
+      token: 'chrm_user_test',
+    });
+    const [, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(Object.keys(JSON.parse(init?.body as string).files)).toEqual([
+      'lib/util.mjs',
+      'package.json',
+      'server.js',
+    ]);
+  });
+
+  test('packs no symlinked file or directory into a package', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-links-'));
+    const outside = await mkdtemp(join(tmpdir(), 'charming-outside-'));
+    await writeFile(join(outside, 'secret.json'), '{"secret":true}');
+    await writeFile(join(outside, 'leak.js'), 'export const leak = 1;');
+    await writeFile(join(directory, 'package.json'), JSON.stringify({ name: 'notes' }));
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    await symlink(join(outside, 'secret.json'), join(directory, 'secret.json'));
+    await symlink(outside, join(directory, 'linked'));
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ buildId: 'build_2', state: 'queued' }, { status: 202 }));
+
+    await runCommand({
+      baseUrl: 'https://charming.test',
+      command: ['apps', 'create'],
+      fetchImpl,
+      options: { yes: true, files: directory },
+      token: 'chrm_user_test',
+    });
+    const [, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(Object.keys(JSON.parse(init?.body as string).files).sort()).toEqual([
+      'package.json',
+      'server.js',
+    ]);
   });
 
   test('includes an app description on create when --description is set', async () => {

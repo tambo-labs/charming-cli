@@ -971,24 +971,10 @@
           },
           "resolvedDependencies": {
             "type": "object",
-            "required": [
-              "server",
-              "client"
-            ],
-            "properties": {
-              "server": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              },
-              "client": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
-              }
-            }
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Exact versions of the top-level npm packages the retained lock installs, by package name. Absent while the build is unresolved and for builds whose lock predates the package resolution."
           },
           "queueDeadline": {
             "type": "string",
@@ -1015,32 +1001,15 @@
           "source": {
             "type": "object",
             "required": [
-              "module",
-              "ui",
-              "styles",
-              "description"
+              "files"
             ],
+            "description": "The exact accepted package tree, when include_source=true and the inspection window is open.",
             "properties": {
-              "module": {
-                "type": "string"
-              },
-              "ui": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "styles": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "description": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+              "files": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -2029,6 +1998,8 @@
                   "storage_full",
                   "invalid_module",
                   "invalid_ui",
+                  "invalid_files",
+                  "bearer_required",
                   "unpinned_cdn_script",
                   "invalid_route_schema",
                   "invalid_routes_shape",
@@ -2067,7 +2038,6 @@
                   "expected_revision_required",
                   "idempotency_key_required",
                   "idempotency_conflict",
-                  "contract_not_enabled",
                   "app_build_capacity",
                   "app_build_failed",
                   "app_build_expired",
@@ -2623,29 +2593,52 @@
           }
         }
       },
-      "EsmManifest": {
+      "AppPackage": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$id": "https://charm.ing/schema/app-manifest/next.json",
+        "$id": "https://charm.ing/schema/app-package/2026-10-25.json",
         "type": "object",
         "required": [
-          "$schema",
-          "id",
-          "meta"
+          "name"
         ],
-        "additionalProperties": false,
         "properties": {
           "$schema": {
-            "const": "https://charm.ing/schema/app-manifest/next.json"
+            "enum": [
+              "https://charm.ing/schema/app-package/2026-10-25.json",
+              "https://charm.ing/schema/app-package/next.json"
+            ]
           },
-          "id": {
+          "name": {
             "type": "string",
             "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
           },
-          "meta": {
+          "version": {
+            "type": "string",
+            "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "type": {
+            "const": "module"
+          },
+          "dependencies": {
             "type": "object",
-            "required": [
-              "name"
-            ],
+            "propertyNames": {
+              "type": "string",
+              "format": "npm-package-name"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1,
+              "format": "npm-semver-range"
+            }
+          },
+          "devDependencies": {
+            "type": "object"
+          },
+          "charming": {
+            "type": "object",
             "additionalProperties": false,
             "properties": {
               "name": {
@@ -2669,98 +2662,68 @@
                     "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
                   }
                 }
-              }
-            }
-          },
-          "dependencies": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "server": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "format": "npm-package-name"
-                },
-                "additionalProperties": {
-                  "type": "string",
-                  "minLength": 1,
-                  "format": "npm-semver-range"
-                }
               },
-              "client": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string",
-                  "format": "npm-package-name"
-                },
-                "additionalProperties": {
-                  "type": "string",
-                  "minLength": 1,
-                  "format": "npm-semver-range"
-                }
-              }
-            }
-          },
-          "permissions": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "browser": {
+              "permissions": {
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
-                  "img-src": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^https://[^/?#@*]+$"
-                    }
-                  },
-                  "frame-src": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^https://[^/?#@*]+$"
-                    }
-                  },
-                  "connect-src": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^(?:https|wss)://[a-z0-9.-]+(?::[0-9]+)?$"
-                    }
-                  }
-                }
-              },
-              "server": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "fetch": {
-                    "type": "array",
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^https://[^/?#@*]+$"
-                    }
-                  },
-                  "connectors": {
+                  "browser": {
                     "type": "object",
-                    "additionalProperties": {
-                      "type": "array",
-                      "minItems": 1,
-                      "uniqueItems": true,
-                      "items": {
-                        "type": "string",
-                        "minLength": 1
+                    "additionalProperties": false,
+                    "properties": {
+                      "img-src": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^https://[^/?#@*]+$"
+                        }
+                      },
+                      "frame-src": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^https://[^/?#@*]+$"
+                        }
+                      },
+                      "connect-src": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^(?:https|wss)://[a-z0-9.-]+(?::[0-9]+)?$"
+                        }
+                      }
+                    }
+                  },
+                  "server": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "fetch": {
+                        "type": "array",
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^https://[^/?#@*]+$"
+                        }
+                      },
+                      "connectors": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "minItems": 1,
+                          "uniqueItems": true,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
                       }
                     }
                   }
@@ -2770,22 +2733,48 @@
           }
         }
       },
-      "AppCreateBody": {
+      "AppFiles": {
         "type": "object",
+        "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
         "required": [
-          "module"
+          "package.json",
+          "server.js"
         ],
         "properties": {
+          "package.json": {
+            "type": "string"
+          },
+          "server.js": {
+            "type": "string"
+          },
+          "ui.js": {
+            "type": "string"
+          },
+          "styles.css": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "AppCreateBody": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "$ref": "#/components/schemas/AppFiles",
+            "description": "Create the App as a package. Requires an enabled authenticated user and Idempotency-Key, and accepts a background build. Mutually exclusive with module, ui, styles, description, pair, and label."
+          },
           "module": {
             "type": "string",
-            "description": "Server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Existing contracts publish synchronously; the explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and accepts a background build."
+            "description": "Server ES module source for the canonical contract, which publishes synchronously. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Required unless files is sent."
           },
           "ui": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Optional browser source populating #app. A classic script for the existing contract; an ES module for the explicit ESM contract. ESM bare imports must match manifest.dependencies.client."
+            "description": "Optional browser source populating #app, a classic script for the canonical contract."
           },
           "styles": {
             "type": [
@@ -2799,47 +2788,48 @@
               "string",
               "null"
             ],
-            "description": "Optional app description, shown to the owner and to callers who read it back. For ESM POST upserts, omission preserves the desired description."
+            "description": "Optional app description, shown to the owner and to callers who read it back. A package describes itself in package.json."
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "ESM POST only: true explicitly migrates an existing same-owner manifest.id target. Supply its desired revision in If-Match. The existing app remains active until the build publishes."
+            "description": "With files only: true explicitly moves an existing same-owner App onto the package contract. Supply its desired revision in If-Match. The existing app remains active until the build publishes."
           },
           "pair": {
             "type": "boolean",
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
+            "description": "Existing-contract anonymous POST only; rejected on package saves. Silently ignored on existing-contract authenticated upserts. When true, server mints a bound device_code alongside the app token; claiming the app approves the pairing, and approving the pairing code at `/pair` claims the app, so either gesture gives the agent a `chrm_user_*` for the claimed app."
           },
           "label": {
             "type": "string",
             "maxLength": 80,
-            "description": "Existing-contract anonymous POST only; rejected on ESM saves. Silently ignored on existing-contract authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
+            "description": "Existing-contract anonymous POST only; rejected on package saves. Silently ignored on existing-contract authenticated upserts. Human-readable label for the agent, surfaced to the user on the `/pair` approval page when `pair: true`."
           }
         },
         "additionalProperties": false
       },
       "AppUpdateBody": {
         "type": "object",
-        "required": [
-          "module"
-        ],
         "properties": {
+          "files": {
+            "$ref": "#/components/schemas/AppFiles",
+            "description": "The whole replacement tree of a package App. Required for an App on the package contract; statically checked and built after acceptance. Mutually exclusive with module, ui, styles, and description."
+          },
           "module": {
             "type": "string",
-            "description": "Replacement server ES module source. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Keep the stored contract’s exact schema. ESM source is statically checked and built after acceptance."
+            "description": "Replacement server ES module source for a canonical App. Must export a literal canonical `manifest` and a `routes` array. A route handler returns exactly the value declared by `outputSchema`; for `outputSchema: { type: \"array\", items: ... }`, return the array directly. Charming adds the HTTP transport envelope, so do not add `{ ok, value }` or `{ value }` unless those fields belong to `outputSchema` itself. `default.fetch` is an optional unmatched-request fallback; when absent, Charming supplies a generic 404 handler. Keep the stored contract’s exact schema. Required unless files is sent."
           },
           "ui": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ESM browser module: omit to preserve desired UI, pass null to clear. Existing-contract PUT retains replacement semantics."
+            "description": "Replacement browser script for a canonical App."
           },
           "styles": {
             "type": [
               "string",
               "null"
             ],
-            "description": "ESM: omit to preserve desired styles, pass null to clear."
+            "description": "Replacement CSS for a canonical App."
           },
           "description": {
             "type": [
@@ -2850,7 +2840,7 @@
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "Required as true when changing a stored contract. ESM migration requires the explicit ESM schema, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
+            "description": "Required as true when changing a stored contract. Moving to the package contract requires files, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
           }
         },
         "additionalProperties": false
@@ -3429,9 +3419,9 @@
             "enum": [
               "https://charm.ing/schema/app-manifest/2026-07-31.json",
               "https://charm.ing/schema/app-manifest/2026-10-16.json",
-              "https://charm.ing/schema/app-manifest/next.json"
+              "https://charm.ing/schema/app-package/2026-10-25.json"
             ],
-            "description": "Exact schema URL for dated canonical or ESM source. Legacy source responses omit this field."
+            "description": "Exact schema URL: the dated canonical manifest schema, or the package.json schema for a package App. Legacy source responses omit this field."
           },
           "capabilities": {
             "$ref": "#/components/schemas/Manifest/properties/capabilities"
@@ -3468,6 +3458,10 @@
                   "string",
                   "null"
                 ]
+              },
+              "files": {
+                "$ref": "#/components/schemas/AppFiles",
+                "description": "The authored tree of a package App. module, ui, and styles project its server.js, ui.js, and styles.css."
               }
             }
           }
@@ -3502,13 +3496,13 @@
             }
           },
           {
-            "title": "ESM app source",
+            "title": "Package app source",
             "required": [
               "$schema"
             ],
             "properties": {
               "$schema": {
-                "const": "https://charm.ing/schema/app-manifest/next.json"
+                "const": "https://charm.ing/schema/app-package/2026-10-25.json"
               },
               "manifestVersion": {
                 "type": "null"
@@ -9237,7 +9231,7 @@
         },
         "operationId": "get-app-build",
         "summary": "Read an app build and its accepted source",
-        "description": "Read progress or the retained terminal result using current user source access. Set include_source=true to inspect the exact accepted input. Only published means the app is live. Status remains available after authoring cohort removal. Accept: text/html renders progress and terminal results; pending pages refresh this status resource and published pages redirect to the actual app URL.",
+        "description": "Read progress or the retained terminal result using current user source access. Set include_source=true to inspect the exact accepted input. Only published means the app is live. Status stays readable after the build finishes. Accept: text/html renders progress and terminal results; pending pages refresh this status resource and published pages redirect to the actual app URL.",
         "security": [
           {
             "userToken": []
@@ -9344,7 +9338,7 @@
         },
         "operationId": "cancel-app-build",
         "summary": "Cancel a pending app build",
-        "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Cancellation remains available after authoring cohort removal. Browser form submissions render the terminal result as HTML.",
+        "description": "Cancel pending work using current user source access. Repeated cancellation is safe. A canceled operation cannot publish even if remote work finishes later; the active app stays unchanged. Browser form submissions render the terminal result as HTML.",
         "security": [
           {
             "userToken": []
@@ -9494,8 +9488,8 @@
     "/app": {
       "post": {
         "operationId": "create-app",
-        "summary": "Create an app or accept an ESM app build",
-        "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. The explicit https://charm.ing/schema/app-manifest/next.json contract requires an enabled authenticated user and Idempotency-Key, validates imports without evaluation, and returns 202 before dependency resolution or compilation. A same-owner manifest.id target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing ESM destination requires its desired revision in If-Match; migration also requires migrate_contract: true. pair and label are not ESM fields. A signed-in account may create or copy 60 apps a minute across REST and MCP, and an anonymous caller 10 a minute per address; past either, the call answers 429 `rate_limited` with `Retry-After` and creates nothing.",
+        "summary": "Create an app or accept a package build",
+        "description": "Existing-contract callers receive a published app synchronously; anonymous creation returns a chrm_app_* token and may request pair: true. A body with files creates the App as a package: it requires an enabled authenticated user and Idempotency-Key, validates package.json and every import without evaluation, and returns 202 before dependency resolution or compilation. A same-owner package name target is frozen at acceptance; an absent target cannot later become an overwrite. Use PUT for a known app. Every existing package destination requires its desired revision in If-Match; moving an App onto the package contract also requires migrate_contract: true. pair and label are not package fields.",
         "security": [
           {},
           {
@@ -9513,7 +9507,7 @@
               "maxLength": 128,
               "pattern": "^[!-~]+$"
             },
-            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+            "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
           },
           {
             "name": "If-Match",
@@ -9522,7 +9516,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Desired-source revision in double quotes for an ESM upsert or migration. Read GET /app/{id}/source first."
+            "description": "Desired-source revision in double quotes for a package upsert or migration. Read GET /app/{id}/source first."
           }
         ],
         "requestBody": {
@@ -9547,7 +9541,7 @@
             }
           },
           "202": {
-            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "description": "Package source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
             "headers": {
               "Location": {
                 "schema": {
@@ -9578,7 +9572,7 @@
             }
           },
           "400": {
-            "description": "Invalid source syntax, body, or required ESM idempotency key. See error.kind.",
+            "description": "Invalid source syntax, body, or required package idempotency key. See error.kind.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9588,7 +9582,7 @@
             }
           },
           "401": {
-            "description": "ESM creation requires a valid user credential.",
+            "description": "Package creation requires a valid user credential.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9598,7 +9592,7 @@
             }
           },
           "403": {
-            "description": "ESM authoring is not enabled for this caller (contract_not_enabled), or the caller is an App account that has not joined Charming (account_not_joined).",
+            "description": "The caller is an App account that has not joined Charming (account_not_joined), or a browser session tried to save a package (bearer_required): save with a chrm_user_* bearer token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9659,6 +9653,16 @@
           },
           "429": {
             "description": "Build capacity is full (`app_build_capacity`), or the caller is over the creation rate (`rate_limited`): 60 creates and copies a minute for a signed-in account, 10 a minute from one address for an anonymous caller. Retry-After gives the retry delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9736,7 +9740,7 @@
       "put": {
         "operationId": "update-app",
         "summary": "Update an existing app",
-        "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. ESM saves require Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Omitting ui/styles preserves desired values only for ESM; null clears. Successful builds publish automatically; later saves supersede pending builds.",
+        "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
         "security": [
           {
             "appToken": []
@@ -9756,7 +9760,7 @@
               "maxLength": 128,
               "pattern": "^[!-~]+$"
             },
-            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+            "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
           },
           {
             "name": "If-Match",
@@ -9765,7 +9769,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Validator \"<N>\" for revision N from desired GET /app/:id/source. Required for ESM saves and migrations; optional for existing-contract PUT. The weak form W/\"<N>\" is also accepted so clients can return the response ETag verbatim."
+            "description": "Validator \"<N>\" for revision N from desired GET /app/:id/source. Required for package saves and migrations; optional for existing-contract PUT. The weak form W/\"<N>\" is also accepted so clients can return the response ETag verbatim."
           }
         ],
         "requestBody": {
@@ -9798,7 +9802,7 @@
             }
           },
           "202": {
-            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "description": "Package source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
             "headers": {
               "Location": {
                 "schema": {
@@ -9839,7 +9843,7 @@
             }
           },
           "401": {
-            "description": "Token mismatch or wrong scope.",
+            "description": "Token mismatch or wrong scope; a package save without a user credential (unauthorized).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9849,7 +9853,7 @@
             }
           },
           "403": {
-            "description": "Bearer is for a different app.",
+            "description": "Bearer is for a different app, or a browser session tried to save a package (bearer_required): save with a chrm_user_* bearer token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9917,7 +9921,7 @@
             }
           },
           "428": {
-            "description": "ESM saves require desired-source If-Match.",
+            "description": "Package saves require desired-source If-Match.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9928,6 +9932,16 @@
           },
           "429": {
             "description": "Build capacity is full; retry after the returned delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10242,7 +10256,7 @@
       "post": {
         "operationId": "copy-app",
         "summary": "Copy an app into a new private app owned by the caller",
-        "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. An ESM app copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
+        "description": "Creates the caller a private copy of an app they can edit, or of a Template they may copy, without sending its source. A Template copy records the source as its origin (`copyKind: \"template\"`). The copy keeps the source code, styles, icon, and network settings; it never carries sharing, Public, signed-in access, Template or Listed state, tokens, secrets, Routines, Webhooks, custom domains, or version history. Without `manifest_id` the copy takes the next free manifest id after the source's (`<id>-2`, `<id>-3`); a `manifest_id` the caller already holds is refused with 409 rather than replacing that app. `include_data: true` also copies the stored data and assets in the same transaction that creates the copy, so a copy exists with all of its data or not at all; it needs owner access to a personally owned source (a team app's data is not copied into a personal account), and the data must fit the 24 MiB a copy carries, the per-app caps, and the caller's storage allowance. Without `idempotency_key` every call creates a new copy and answers 200 with it; a retry with the same key answers with the copy, or the pending build, the first call made, and the same key with a different source, `include_data`, or `manifest_id` answers 409 `idempotency_conflict`. A 409 `manifest_id_conflict` names the app holding the id in `existingAppId` when one does. A package App copies through a build; a build that does not publish at once answers 202 with its build status, and the data copies when it publishes. `secretsNotCopied` names the source secrets to set on the copy; it is reported only to callers who can manage the source's secrets.",
         "security": [
           {
             "userToken": []
@@ -10264,7 +10278,7 @@
                   "display_name": {
                     "type": "string",
                     "minLength": 1,
-                    "description": "Display name for the copy. Defaults to the source's. Refused for ESM apps, which take their name from manifest.meta.name."
+                    "description": "Display name for the copy. Defaults to the source's. Refused for package Apps, which name themselves in package.json."
                   },
                   "idempotency_key": {
                     "type": "string",
@@ -10292,7 +10306,7 @@
             }
           },
           "202": {
-            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "description": "Package source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
             "headers": {
               "Location": {
                 "schema": {
@@ -10343,7 +10357,7 @@
             }
           },
           "403": {
-            "description": "`forbidden`: the caller can open the app but may not copy it. `copy_data_forbidden`: include_data needs owner access to a personally owned source, and a team app’s data is not copied. `contract_not_enabled`: ESM copying is not enabled for the caller.",
+            "description": "`forbidden`: the caller can open the app but may not copy it. `copy_data_forbidden`: include_data needs owner access to a personally owned source, and a team app’s data is not copied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10384,6 +10398,16 @@
           },
           "429": {
             "description": "`rate_limited`: the account made more than 60 creates and copies in a minute; retry after the returned delay. `storage_limit_exceeded`: the data would put the caller over their storage allowance. `app_build_capacity`: retry after the returned delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10602,7 +10626,7 @@
       "get": {
         "operationId": "get-app-source",
         "summary": "Read the exact persisted source for an app",
-        "description": "Returns the desired authored `module`, `ui`, and `styles` exactly as persisted, including pending or failed ESM edits, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
+        "description": "Returns the desired authored `module`, `ui`, and `styles` exactly as persisted, plus `files` for a package App, including pending or failed package edits, plus the required server revision and contract-aware metadata. Requires a real bearer token for the app or its owning user; render tokens and claim cookies are rejected. The `ETag: \"<N>\"` header carries revision N; pass it back as `If-Match` on PUT or PATCH to gate optimistic concurrency.",
         "security": [
           {
             "appToken": []
@@ -10665,7 +10689,7 @@
       "patch": {
         "operationId": "patch-app-source",
         "summary": "Apply exact-string find/replace edits to the persisted source",
-        "description": "Applies an edits[] array to desired module/ui/styles. ESM saves require Idempotency-Key, return 202, and preserve active output until publication. An exact request-key replay returns the original operation before stale revision or edit matching checks. Each edit names a `bucket`, an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
+        "description": "Applies an edits[] array to desired source. Package saves require Idempotency-Key, return 202, and preserve active output until publication. An exact request-key replay returns the original operation before stale revision or edit matching checks. Each edit names a `bucket` (canonical Apps) or a file `path` (package Apps), an exact `old_string` to match, and a `new_string` replacement. Requires `If-Match: \"<N>\"` carrying revision N from a fresh source response or ETag. A stale value returns 412 and surfaces the current ETag. Same auth as PUT.",
         "security": [
           {
             "appToken": []
@@ -10685,7 +10709,7 @@
               "maxLength": 128,
               "pattern": "^[!-~]+$"
             },
-            "description": "Required for ESM saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
+            "description": "Required for package saves. Reuse the same key, body, target and If-Match after response loss; a changed request with that key returns idempotency_conflict. Use a fresh key for each intentional save."
           },
           {
             "name": "If-Match",
@@ -10710,7 +10734,7 @@
                 "properties": {
                   "migrate_contract": {
                     "type": "boolean",
-                    "description": "Explicitly migrate when the edited source selects a new contract. ESM requires the exact schema, a request key and If-Match."
+                    "description": "Explicitly migrate when the edited source selects a new contract. Package saves require a request key and If-Match."
                   },
                   "edits": {
                     "type": "array",
@@ -10718,7 +10742,6 @@
                     "items": {
                       "type": "object",
                       "required": [
-                        "bucket",
                         "old_string",
                         "new_string"
                       ],
@@ -10729,7 +10752,12 @@
                             "module",
                             "ui",
                             "styles"
-                          ]
+                          ],
+                          "description": "Canonical Apps: the source bucket the edit applies to."
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "Package Apps: the file the edit applies to, such as server.js or lib/save.js. The file must already exist."
                         },
                         "old_string": {
                           "type": "string"
@@ -10792,7 +10820,7 @@
             }
           },
           "202": {
-            "description": "ESM source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
+            "description": "Package source accepted for a background build. This response does not mean the app has published. Poll statusUrl until a terminal state; new creation has no runnable app or URL until published.",
             "headers": {
               "Location": {
                 "schema": {

@@ -11,6 +11,10 @@ export default class AppsCreate extends CharmingCommand {
   static override flags = {
     description: Flags.string({ description: 'App description.' }),
     'dry-run': Flags.boolean({ description: 'Print the request without sending it.' }),
+    files: Flags.string({
+      description:
+        'Directory holding the App as a package: package.json, server.js, and the files they import. Sends the whole tree and accepts a background build.',
+    }),
     module: Flags.string({ description: 'Module source file.' }),
     styles: Flags.string({ description: 'Stylesheet file.' }),
     ui: Flags.string({ description: 'UI source file.' }),
