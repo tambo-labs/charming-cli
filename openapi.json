@@ -3179,6 +3179,15 @@
                       ],
                       "description": "MCP tool to invoke this op: query_app for read-only, mutate_app otherwise."
                     },
+                    "callers": {
+                      "type": "string",
+                      "enum": [
+                        "members",
+                        "signed-in",
+                        "anyone"
+                      ],
+                      "description": "Who, among the people who can view the App, may call the operation at `url`. A read-only operation reports `anyone`, because every viewer may call it whatever its route declares. A write reports its route's `callers` declaration, `members` when unset. `mutate_app` and the App's MCP tools need run access for every write whatever this says."
+                    },
                     "discoveredFrom": {
                       "type": "array",
                       "items": {
