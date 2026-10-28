@@ -46,8 +46,11 @@ host.close();
 // Runs only in the monorepo, where the global setup has just built the bundle
 // this tarball must carry. Installing the tarball would need the npm registry,
 // so the probe loads the packed files directly with no node_modules around.
+// Packing and probing take about 6.5s on CI and 22s when the server suite
+// shares the runner, so this test gets 60s instead of the package's 20s.
 test.skipIf(!insideMonorepo)(
   'the packed CLI carries a dev host that runs with no monorepo packages around it',
+  { timeout: 60_000 },
   () => {
     const destination = mkdtempSync(join(tmpdir(), 'charming-cli-pack-'));
     const [packed] = JSON.parse(
