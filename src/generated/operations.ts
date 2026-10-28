@@ -4200,6 +4200,8 @@ export const generatedOperations = [
           "displayName",
           "description",
           "revision",
+          "activeRevision",
+          "build",
           "appVersion",
           "manifestVersion",
           "capabilities",
@@ -4240,6 +4242,122 @@ export const generatedOperations = [
               4
             ],
             "description": "Server-owned app source revision. New apps start at 1, each successful source write advances it once, and historical null counters project as 0. `If-Match: \"<N>\"` and `expected_revision` carry this revision through its canonical concurrency grammar."
+          },
+          "activeRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 4,
+            "description": "The revision visitors are served. Equal to `revision` once the latest save is live. When lower, the source in this response is not live yet; `build` says why. While `build.state` is queued, resolving, building, or validating, wait for it to finish. When it is failed or expired, read `build.error`, then fix that save and save again, or restore the active revision. When it is canceled, save again to build it, or restore the active revision. When it is superseded, read the source again. When `build` is null, the App was saved before packages and Charming stored that save without validating it because the executor was unavailable: save it again to validate and publish it. `activeRevision` and `build` are read separately, so a build that publishes between them can show a lower `activeRevision` with `build.state` published; the next read agrees."
+          },
+          "build": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The build a save accepted for `revision`. Null when no build is recorded against this revision: a save made before packages, a revision that a create, copy, or migration published, or a live revision whose build record has expired. The build behind a revision that is not live yet is kept until a later save or publish. `error` is present when the build failed or expired. Read `statusUrl` for the full status.",
+            "required": [
+              "buildId",
+              "state",
+              "statusUrl"
+            ],
+            "properties": {
+              "buildId": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "resolving",
+                  "building",
+                  "validating",
+                  "published",
+                  "failed",
+                  "superseded",
+                  "canceled",
+                  "expired"
+                ]
+              },
+              "statusUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "error": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "message",
+                  "retryable"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  },
+                  "details": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "execution",
+                          "operationId"
+                        ],
+                        "properties": {
+                          "execution": {
+                            "type": "string",
+                            "enum": [
+                              "not_started",
+                              "may_have_run"
+                            ]
+                          },
+                          "operationId": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "reservationId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "execution"
+                        ],
+                        "properties": {
+                          "execution": {
+                            "type": "string",
+                            "enum": [
+                              "may_have_run"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "target": {
+                    "type": "string"
+                  },
+                  "specifier": {
+                    "type": "string"
+                  },
+                  "line": {
+                    "type": "integer"
+                  },
+                  "column": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
           },
           "appVersion": {
             "type": "string",
