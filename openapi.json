@@ -9662,7 +9662,7 @@
             }
           },
           "503": {
-            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
+            "description": "Charming cannot build packages right now (`app_build_unavailable`); retry later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9941,7 +9941,7 @@
             }
           },
           "503": {
-            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
+            "description": "Charming cannot build packages right now (`app_build_unavailable`); retry later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10407,7 +10407,7 @@
             }
           },
           "503": {
-            "description": "Package saves are paused or no build provider is configured (`app_build_unavailable`); retry later. Restores and copies whose retained output still fits publish without a build and keep working.",
+            "description": "Charming cannot build packages right now (`app_build_unavailable`); retry later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10871,7 +10871,7 @@
             }
           },
           "403": {
-            "description": "Token does not authorize this app.",
+            "description": "Token does not authorize this app, or a browser session tried to save a package (bearer_required): save with a chrm_user_* bearer token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10950,6 +10950,16 @@
           },
           "429": {
             "description": "Build capacity is full; retry after the returned delay.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Charming cannot build packages right now (`app_build_unavailable`); retry later.",
             "content": {
               "application/json": {
                 "schema": {
