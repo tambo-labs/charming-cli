@@ -359,7 +359,8 @@ export const generatedOperations = [
             ]
           },
           "sourceEtag": {
-            "type": "string"
+            "type": "string",
+            "description": "The ETag of the revision this build saved once an App exists, usable as `If-Match` on the next save. It doesn't change after a later save; `GET /app/{id}/source` returns the current one. Before a creation publishes, the digest of the accepted input."
           },
           "statusUrl": {
             "type": "string",
@@ -3854,7 +3855,8 @@ export const generatedOperations = [
             ]
           },
           "sourceEtag": {
-            "type": "string"
+            "type": "string",
+            "description": "The ETag of the revision this build saved once an App exists, usable as `If-Match` on the next save. It doesn't change after a later save; `GET /app/{id}/source` returns the current one. Before a creation publishes, the digest of the accepted input."
           },
           "statusUrl": {
             "type": "string",
