@@ -4180,6 +4180,161 @@ export const generatedOperations = [
     "usage": "charming api request get-app-openapi --param id=VALUE"
   },
   {
+    "id": "get-app-revision",
+    "method": "GET",
+    "path": "/api/v1/apps/{appId}/revisions/{revision}",
+    "summary": "Get an App revision and its source",
+    "description": "Requires a personal access token or session cookie and permission to change the App. Returns the revision’s History entry and its source: a package revision returns `source.files`, the file tree it was saved with; a module-contract revision returns `source.module`, `source.ui`, and `source.styles`. A revision older than the plan’s History window answers 429 `version_limit_exceeded`.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "revision",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The revision and its source.",
+      "schema": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "revision",
+              "createdAt",
+              "manifestVersion",
+              "current",
+              "live",
+              "restorable"
+            ],
+            "properties": {
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "manifestVersion": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The contract this revision was written against: `2026-10-25` for a package, an earlier date such as `2026-10-16` for a module contract. Null for an App written before dated contracts."
+              },
+              "current": {
+                "type": "boolean",
+                "description": "True for the desired revision, the newest source Charming accepted."
+              },
+              "live": {
+                "type": "boolean",
+                "description": "True for the active revision, the one serving visitors. A package App’s desired revision is not live until its build publishes."
+              },
+              "restorable": {
+                "type": "boolean",
+                "description": "True when the revision passes the checks restore runs on its stored source. The current and live revisions are never restorable. Restore runs the checks again, so a marked revision can still be refused."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "ok",
+              "appId",
+              "description",
+              "source"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "files"
+                    ],
+                    "properties": {
+                      "files": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "description": "The package file tree, keyed by relative path."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "module",
+                      "ui",
+                      "styles"
+                    ],
+                    "properties": {
+                      "module": {
+                        "type": "string"
+                      },
+                      "ui": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "styles": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request get-app-revision --param appId=VALUE --param revision=VALUE"
+  },
+  {
     "id": "get-app-source",
     "method": "GET",
     "path": "/app/{id}/source",
@@ -5777,6 +5932,146 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 2000,
     "usage": "charming api request list-app-assets --param id=VALUE"
+  },
+  {
+    "id": "list-app-revisions",
+    "method": "GET",
+    "path": "/api/v1/apps/{appId}/revisions",
+    "summary": "List an App’s revisions",
+    "description": "Requires a personal access token or session cookie and permission to change the App (its owner, a member of its team, or an editor). Lists the App’s History newest first. The first page opens with the desired revision (`current: true`); `live` marks the revision serving visitors; `restorable` marks the revisions POST /api/v1/apps/{appId}/revisions/{revision}/restore accepts. `manifestVersion` names each revision’s contract, so a package revision and a dated module-contract revision are told apart. The list stops at the plan’s History window: `historyLimit` is how many prior revisions the plan keeps. Page with `before` set to `nextBefore`.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "Return revisions older than this one. Pass the previous page’s `nextBefore`.",
+        "in": "query",
+        "name": "before",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      {
+        "description": "Page size. Defaults to 50, at most 200.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "A page of the App’s revisions, newest first.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "appId",
+          "currentRevision",
+          "activeRevision",
+          "historyLimit",
+          "items",
+          "nextBefore"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "appId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currentRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The desired revision. Send it as If-Match to restore."
+          },
+          "activeRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "historyLimit": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many prior revisions the owner’s plan keeps in History."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "revision",
+                "createdAt",
+                "manifestVersion",
+                "current",
+                "live",
+                "restorable"
+              ],
+              "properties": {
+                "revision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "manifestVersion": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The contract this revision was written against: `2026-10-25` for a package, an earlier date such as `2026-10-16` for a module contract. Null for an App written before dated contracts."
+                },
+                "current": {
+                  "type": "boolean",
+                  "description": "True for the desired revision, the newest source Charming accepted."
+                },
+                "live": {
+                  "type": "boolean",
+                  "description": "True for the active revision, the one serving visitors. A package App’s desired revision is not live until its build publishes."
+                },
+                "restorable": {
+                  "type": "boolean",
+                  "description": "True when the revision passes the checks restore runs on its stored source. The current and live revisions are never restorable. Restore runs the checks again, so a marked revision can still be refused."
+                }
+              }
+            }
+          },
+          "nextBefore": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Pass as `before` to read the next page. Null when the plan’s window has no older revisions."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-app-revisions --param appId=VALUE"
   },
   {
     "id": "list-app-secrets",
@@ -8670,6 +8965,373 @@ export const generatedOperations = [
     "usage": "charming api request resolve-app-manifest --param manifestId=VALUE"
   },
   {
+    "id": "restore-app-revision",
+    "method": "POST",
+    "path": "/api/v1/apps/{appId}/revisions/{revision}/restore",
+    "summary": "Restore an App revision",
+    "description": "Requires a personal access token or session cookie and permission to change the App. Saves the selected revision’s source as a new revision; History keeps every revision, including the one restored over. Send the desired revision from the list as `If-Match: \"<N>\"` (or as `expectedRevision` in the body) and an `Idempotency-Key`. A module-contract revision publishes at once and answers 200. A package revision is rebuilt from its retained build and answers 202 with the build; poll its `statusUrl` until it publishes. Restoring a module-contract revision into an App now on the package contract moves the App back to that contract. Connector approvals the restored source does not declare are removed. A revision older than the plan’s History window answers 429 `version_limit_exceeded`. Live App data does not change.",
+    "parameters": [
+      {
+        "description": "The desired revision the restore replaces. Required unless the body carries `expectedRevision`.",
+        "in": "header",
+        "name": "If-Match",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "pattern": "^(W/)?\"(0|[1-9][0-9]*)\"$"
+        }
+      },
+      {
+        "description": "Repeating a package restore with the same key returns the same build. A repeated module-contract restore answers 412 because the desired revision has moved.",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "appId",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "",
+        "in": "path",
+        "name": "revision",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    ],
+    "requestBody": {
+      "mediaType": "application/json",
+      "required": false,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "example": {}
+    },
+    "response": {
+      "description": "Revision restored, or the build that restored it already published.",
+      "schema": {
+        "description": "The restored revision, or the published build operation that produced it.",
+        "anyOf": [
+          {
+            "type": "object",
+            "required": [
+              "ok",
+              "appId",
+              "sourceRevision",
+              "revision"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ]
+              },
+              "appId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sourceRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "manifestVersion": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "ok",
+                  "buildId",
+                  "intent",
+                  "state",
+                  "sourceEtag",
+                  "statusUrl",
+                  "attempts",
+                  "acceptedAt",
+                  "updatedAt",
+                  "finishedAt",
+                  "elapsedMs",
+                  "lockState",
+                  "inputDigest",
+                  "queueDeadline",
+                  "deadline",
+                  "inspectionExpiresAt",
+                  "idempotencyExpiresAt"
+                ],
+                "properties": {
+                  "ok": {
+                    "type": "boolean",
+                    "enum": [
+                      true
+                    ]
+                  },
+                  "buildId": {
+                    "type": "string"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "update",
+                      "migrate",
+                      "restore",
+                      "copy"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "resolving",
+                      "building",
+                      "validating",
+                      "published",
+                      "failed",
+                      "superseded",
+                      "canceled",
+                      "expired"
+                    ]
+                  },
+                  "sourceEtag": {
+                    "type": "string",
+                    "description": "The ETag of the revision this build saved once an App exists, usable as `If-Match` on the next save. It doesn't change after a later save; `GET /app/{id}/source` returns the current one. Before a creation publishes, the digest of the accepted input."
+                  },
+                  "statusUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "retryAfterSeconds": {
+                    "type": "integer"
+                  },
+                  "appId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Published app source revision. Present only after successful publication."
+                  },
+                  "desiredRevision": {
+                    "type": "integer"
+                  },
+                  "activeRevision": {
+                    "type": "integer"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "attempts": {
+                    "type": "integer"
+                  },
+                  "acceptedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "updatedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "finishedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "elapsedMs": {
+                    "type": "integer"
+                  },
+                  "lockState": {
+                    "type": "string",
+                    "enum": [
+                      "locked",
+                      "unresolved"
+                    ]
+                  },
+                  "inputDigest": {
+                    "type": "string"
+                  },
+                  "lockDigest": {
+                    "type": "string"
+                  },
+                  "resolvedDependencies": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Exact versions of the top-level npm packages the retained lock installs, by package name. Absent while the build is unresolved and for builds whose lock predates the package resolution."
+                  },
+                  "queueDeadline": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "deadline": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "inspectionExpiresAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "idempotencyExpiresAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "source": {
+                    "type": "object",
+                    "required": [
+                      "files"
+                    ],
+                    "description": "The exact accepted package tree, when include_source=true and the inspection window is open.",
+                    "properties": {
+                      "files": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "error": {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "message",
+                      "retryable"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      },
+                      "details": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "execution",
+                              "operationId"
+                            ],
+                            "properties": {
+                              "execution": {
+                                "type": "string",
+                                "enum": [
+                                  "not_started",
+                                  "may_have_run"
+                                ]
+                              },
+                              "operationId": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "reservationId": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "execution"
+                            ],
+                            "properties": {
+                              "execution": {
+                                "type": "string",
+                                "enum": [
+                                  "may_have_run"
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      },
+                      "target": {
+                        "type": "string"
+                      },
+                      "specifier": {
+                        "type": "string"
+                      },
+                      "line": {
+                        "type": "integer"
+                      },
+                      "column": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "sourceRevision"
+                ],
+                "properties": {
+                  "sourceRevision": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request restore-app-revision --param Idempotency-Key=VALUE --param appId=VALUE --param revision=VALUE --body @body.json"
+  },
+  {
     "id": "revoke-app-share",
     "method": "POST",
     "path": "/api/v1/apps/{appId}/shares/revoke",
@@ -9964,7 +10626,7 @@ export const generatedOperations = [
           },
           "migrate_contract": {
             "type": "boolean",
-            "description": "Required as true when changing a stored contract. Moving to the package contract requires files, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision."
+            "description": "Required as true when changing a stored contract. Moving to the package contract requires files, Idempotency-Key and desired-source If-Match; it publishes only after a successful build. Source submissions do not roll back contracts. History can explicitly restore a retained validated existing-contract revision through POST /api/v1/apps/{appId}/revisions/{revision}/restore."
           }
         },
         "additionalProperties": false

@@ -114,6 +114,12 @@ describe('runCommand', () => {
       body: '{"teamId":"team-1","keepExistingAppMembers":false}',
     },
     {
+      operation: 'restore-app-revision',
+      param: ['appId=app-1', 'revision=3', 'If-Match="6"', 'Idempotency-Key=restore-3'],
+      path: '/api/v1/apps/app-1/revisions/3/restore',
+      method: 'POST',
+    },
+    {
       operation: 'decline-team-invitation',
       param: ['invitationId=invite-1'],
       path: '/api/v1/team-invitations/invite-1/decline',

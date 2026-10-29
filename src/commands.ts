@@ -80,6 +80,7 @@ const REQUIRES_CONSENT = new Set([
   'add-team-member',
   'decline-app-share',
   'decline-team-invitation',
+  'restore-app-revision',
   'revoke-app-share',
   'revoke-app-share-by-id',
   'transfer-app',

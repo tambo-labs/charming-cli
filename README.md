@@ -31,7 +31,7 @@ charming apps create examples/hello --dry-run
 charming apps create examples/hello --yes
 ```
 
-Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, destructive app operations, share revocations, share declines, App transfers, team invitation declines, direct team member additions, team App default changes, and signed-in creates require `--yes`.
+Commands write JSON results to stdout. Login instructions and JSON errors go to stderr. Run mutations with `--dry-run` first. Live deletions, destructive app operations, share revocations, share declines, App transfers, History restores, team invitation declines, direct team member additions, team App default changes, and signed-in creates require `--yes`.
 
 Command help and input validation come from [oclif](https://oclif.io). Run `charming <topic> <command> --help` to see the generated usage and flags for any command, or `charming --help` for the full command list.
 
@@ -85,6 +85,14 @@ charming api request get-widget-runtime-issue-handoff --param appId=APP_ID --par
 ```
 
 A runtime-issue handoff requires your personal access token, app-management permission, and an unexpired handoff for the same user and app. A browser session cannot resolve it.
+
+An App's History is three operations: `list-app-revisions`, `get-app-revision`, and `restore-app-revision`. A restore sends the desired revision from the list as `If-Match` and requires `--yes`:
+
+```bash
+charming api request list-app-revisions --param appId=APP_ID
+charming api request get-app-revision --param appId=APP_ID --param revision=3
+charming api request restore-app-revision --param appId=APP_ID --param revision=3 --param 'If-Match="6"' --param Idempotency-Key=KEY --dry-run
+```
 
 ## Environment
 
