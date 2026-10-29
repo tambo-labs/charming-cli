@@ -6598,13 +6598,15 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Order of the whole inventory. Defaults to `updatedAt:desc` (most recently updated first); `name` sorts case-insensitively by display name. Ties break by `id` in the same direction. An unknown value is rejected, not ignored.",
+        "description": "Order of the whole inventory. Defaults to `lastPublishedAt:desc` (most recently published first); `updatedAt` orders by the last change to the app row, opening the app included; `name` sorts case-insensitively by display name. Ties break by `id` in the same direction. An unknown value is rejected, not ignored.",
         "in": "query",
         "name": "sort",
         "required": false,
         "schema": {
           "type": "string",
           "enum": [
+            "lastPublishedAt:desc",
+            "lastPublishedAt:asc",
             "updatedAt:desc",
             "updatedAt:asc",
             "name:asc",
@@ -6651,7 +6653,9 @@ export const generatedOperations = [
                 "visibility",
                 "createdByLabel",
                 "shareCount",
-                "updatedAtMs"
+                "linkCount",
+                "updatedAtMs",
+                "lastPublishedAtMs"
               ],
               "description": "One row in the team apps inventory.",
               "properties": {
@@ -6691,8 +6695,17 @@ export const generatedOperations = [
                   "type": "integer",
                   "description": "Share grants (accepted and pending) plus pending email invitations."
                 },
+                "linkCount": {
+                  "type": "integer",
+                  "description": "Active share links: created, not yet redeemed or revoked."
+                },
                 "updatedAtMs": {
-                  "type": "integer"
+                  "type": "integer",
+                  "description": "When the app row last changed for any reason, including someone opening the app."
+                },
+                "lastPublishedAtMs": {
+                  "type": "integer",
+                  "description": "When the newest revision was published, or when the app was created if no revision records a publish time."
                 }
               }
             }
