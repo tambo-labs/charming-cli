@@ -75,7 +75,20 @@ An explicit `--token` or production `CHARMING_TOKEN` overrides a saved profile. 
 
 The workflow and template below use the existing contract. A signed-in author can instead send an App as a package: `charming apps create --files <dir>` and `charming apps update <id> --files <dir>` send a directory holding package.json, server.js, and the files they import. `charming apps source <id> --out <dir>` writes a package App's files into a directory to edit; it refuses a directory holding a package file the App does not have, so use an empty one or the one it wrote last. Add `--migrate-contract` to `apps update --files` to move an App on the existing contract onto the package contract. Run each with `--dry-run` first. The generated `charming api request` commands reach the same endpoints for anything the flags do not cover: inspect `create-app` or `update-app` with `charming api describe`, and pass the JSON body with `--body @build.json`, `Idempotency-Key` with `--header`, and the desired-source `If-Match` for an existing destination.
 
-HTTP 202 means accepted. Poll `get-app-build` with `--param buildId=<id>` until `published`; use `cancel-app-build` with the same parameter to cancel. Keep the original body, revision, and key for an exact retry. `apps create --files` and `apps update --files` supply the request key themselves.
+HTTP 202 means accepted. `charming builds wait <build-id>` waits for the build and prints it once it publishes; add `--wait` to `apps create --files` or `apps update --files` to do both in one command. Any other final state (`failed`, `superseded`, `canceled`, `expired`) exits with code 6 and prints the build on stderr. Do not write a polling loop. Use `cancel-app-build --param buildId=<id>` to cancel. A server that predates package Apps refuses `--files` up front with "does not accept package Apps yet". Keep the original body, revision, and key for an exact retry. `apps create --files` and `apps update --files` supply the request key themselves.
+
+## History
+
+Every save makes a revision, and History keeps the earlier ones within the plan's window. Use it to look back or roll back:
+
+```
+charming apps history list <app-id>                      # newest first; page with --before <nextBefore>
+charming apps history get <app-id> <revision> --out ./old  # the revision's source
+charming apps history restore <app-id> <revision> --dry-run
+charming apps history restore <app-id> <revision> --yes --wait
+```
+
+`restore` saves the chosen revision as a new newest revision and keeps the one it replaces, so ask the user before passing `--yes`. `restore` replaces whatever is newest when it runs, not the revision you saw in `list`: list again before `--yes` if time has passed. A `revision_mismatch` error means the App changed in the instant between that check and the save; run it again. A `restorable: false` revision cannot be restored, and asking for one fails with `version_not_restorable`; a revision past the plan's window fails with `version_limit_exceeded`. A package revision starts a build; `--wait` follows it.
 
 ## The module
 
@@ -161,7 +174,7 @@ Apps are shared by link, usually into a chat, so a large share of first opens ar
 - **Undo-toast deletes** beat confirm dialogs (a Promise in chat, a boolean on the web): delete immediately, show "Removed · Undo" for ~6s, and have Undo call a `restore` op that upserts by id. The CRUD template includes this.
 - **Inline confirm** for genuinely destructive actions: swap the button for "Delete? [Delete] [Cancel]".
 - **Migration discipline**: a versioned storage key (`items_v1`) plus a `normalize()` on read that fills defaults for new fields. On a shape change, write `migrate(old)` and keep the old key one cycle.
-- **Live updates**: `window.charming.onStateChange?.(() => refresh())`, with a ~4s `setInterval` as a backstop.
+- **Live updates**: `window.charming.onStateChange?.(() => refresh())`. Never poll with a timer: the stream reconnects and resyncs on its own.
 
 More patterns, including agent-mediated enrichment and display-only apps: [resources/patterns.md](./resources/patterns.md).
 

@@ -143,4 +143,3 @@ void refresh();
 
 // Refresh from agent or peer changes without replacing the stable shell.
 window.charming.onStateChange?.(() => refresh());
-setInterval(refresh, 4000);

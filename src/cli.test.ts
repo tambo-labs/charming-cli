@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -402,6 +402,263 @@ describe('main', () => {
       const parsed = JSON.parse(output.stdout);
       expect(parsed.truncated).toBe(true);
       expect(parsed.hint).toContain('--output compact');
+    });
+  });
+
+  test('apps source points an oversized response at --out', async () => {
+    await withJsonServer({ source: { module: 'x'.repeat(300_000) } }, async (baseUrl) => {
+      const output = await runBinary([
+        'apps',
+        'source',
+        APP_ID,
+        '--base-url',
+        baseUrl,
+        '--token',
+        'chrm_user_test',
+      ]);
+
+      const parsed = JSON.parse(output.stdout);
+      expect(parsed.truncated).toBe(true);
+      expect(parsed.hint).toContain('--out <dir>');
+      expect(parsed.hint).not.toContain('apps call');
+    });
+  });
+
+  test('a bare topic prints its subcommands instead of failing as unknown', async () => {
+    const profile = await runBinary(['profile']);
+
+    expect(profile.stderr).toBe('');
+    for (const subcommand of ['current', 'list', 'use']) {
+      expect(profile.stdout).toMatch(new RegExp(`^\\s+profile ${subcommand}\\s`, 'm'));
+    }
+
+    const withFlag = await runBinary(['profile', '--base-url', 'https://charming.test']);
+    expect(withFlag.stdout).toBe(profile.stdout);
+
+    const unknown = await captureOutput(() => main(['profil']));
+    expect(unknown.result).toBe(2);
+    expect(unknown.stderr).toContain('Unknown command: profil');
+  });
+
+  test('auth status accepts --json and prints the same JSON', async () => {
+    await withJsonServer({}, async (baseUrl) => {
+      const args = ['auth', 'status', '--base-url', baseUrl, '--token', 'chrm_user_test'];
+      const plain = await runBinary(args);
+      const json = await runBinary([...args, '--json']);
+
+      expect(json.stderr).toBe('');
+      expect(JSON.parse(json.stdout)).toEqual(JSON.parse(plain.stdout));
+      expect(JSON.parse(json.stdout)).toMatchObject({ authenticated: true });
+    });
+  });
+
+  describe('builds followed with --wait', () => {
+    async function packageDirectory(): Promise<string> {
+      const directory = await mkdtemp(join(tmpdir(), 'charming-wait-'));
+      await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+      await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+      return directory;
+    }
+
+    async function withCharming(
+      buildState: string,
+      use: (baseUrl: string, requests: string[]) => Promise<void>,
+    ): Promise<void> {
+      const requests: string[] = [];
+      const server: Server = createServer((request, response) => {
+        const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+        requests.push(`${request.method} ${path}`);
+        const reply = (body: unknown, status = 200, headers: Record<string, string> = {}) => {
+          response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
+          response.end(JSON.stringify(body));
+        };
+        if (path === '/.well-known/openapi.json') {
+          const schema = { properties: { files: {} } };
+          const requestBody = { content: { 'application/json': { schema } } };
+          reply({
+            paths: {
+              '/app': { post: { operationId: 'create-app', requestBody } },
+              '/app/{id}': { put: { operationId: 'update-app', requestBody } },
+            },
+          });
+        } else if (path === `/app/${APP_ID}/source`) {
+          reply({ source: { module: 'm' } }, 200, { ETag: '"4"' });
+        } else if (path.endsWith('/revisions')) {
+          reply({ ok: true, currentRevision: 4, items: [] });
+        } else if (request.method === 'PUT' || request.method === 'POST') {
+          reply({ buildId: 'build_9', state: 'queued' }, 202);
+        } else {
+          reply({
+            ok: true,
+            buildId: 'build_9',
+            state: buildState,
+            revision: 5,
+            error: { kind: 'dependency_unresolved', message: 'Cannot resolve zod' },
+          });
+        }
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      try {
+        const { port } = server.address() as AddressInfo;
+        await use(`http://127.0.0.1:${port}`, requests);
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          server.close((error) => (error ? reject(error) : resolve())),
+        );
+      }
+    }
+
+    const waitArgs = (directory: string, baseUrl: string) => [
+      'apps',
+      'update',
+      APP_ID,
+      '--files',
+      directory,
+      '--wait',
+      '--base-url',
+      baseUrl,
+      '--token',
+      'chrm_user_test',
+    ];
+
+    test('prints the published build instead of the 202 acknowledgement', async () => {
+      const directory = await packageDirectory();
+      await withCharming('published', async (baseUrl, requests) => {
+        const output = await runBinary(waitArgs(directory, baseUrl));
+
+        expect(JSON.parse(output.stdout)).toMatchObject({ state: 'published', revision: 5 });
+        expect(requests.slice(-2)).toEqual([
+          `PUT /app/${APP_ID}`,
+          'GET /api/v1/app-builds/build_9',
+        ]);
+      });
+    });
+
+    test('exits 6 with the finished build on stderr when it does not publish', async () => {
+      const directory = await packageDirectory();
+      await withCharming('failed', async (baseUrl) => {
+        const failure = await runBinary(waitArgs(directory, baseUrl)).catch(
+          (error: { code: number; stderr: string; stdout: string }) => error,
+        );
+
+        expect(failure).toMatchObject({ code: 6, stdout: '' });
+        const envelope = JSON.parse(failure.stderr.slice(failure.stderr.indexOf('{\n')));
+        expect(envelope.error).toMatchObject({
+          kind: 'build_failed',
+          build: { buildId: 'build_9', error: { kind: 'dependency_unresolved' } },
+        });
+      });
+    });
+
+    test('names the accepted build on stderr before it polls, for create as well as update', async () => {
+      const directory = await packageDirectory();
+      await withCharming('published', async (baseUrl, requests) => {
+        const output = await runBinary([
+          'apps',
+          'create',
+          '--files',
+          directory,
+          '--yes',
+          '--wait',
+          '--base-url',
+          baseUrl,
+          '--token',
+          'chrm_user_test',
+        ]);
+
+        expect(output.stderr).toContain('{"event":"build_accepted","buildId":"build_9"}');
+        expect(JSON.parse(output.stdout)).toMatchObject({ state: 'published' });
+        expect(requests.slice(-2)).toEqual(['POST /app', 'GET /api/v1/app-builds/build_9']);
+      });
+    });
+
+    test('--dry-run --wait previews the save and polls nothing', async () => {
+      const directory = await packageDirectory();
+      await withCharming('published', async (baseUrl, requests) => {
+        const output = await runBinary([...waitArgs(directory, baseUrl), '--dry-run']);
+
+        expect(JSON.parse(output.stdout)).toMatchObject({ dryRun: true, method: 'PUT' });
+        expect(requests).toEqual([]);
+      });
+    });
+
+    test('apps history restore --wait prints the published build', async () => {
+      await withCharming('published', async (baseUrl, requests) => {
+        const output = await runBinary([
+          'apps',
+          'history',
+          'restore',
+          APP_ID,
+          '3',
+          '--yes',
+          '--wait',
+          '--base-url',
+          baseUrl,
+          '--token',
+          'chrm_user_test',
+        ]);
+
+        expect(JSON.parse(output.stdout)).toMatchObject({ state: 'published', revision: 5 });
+        expect(requests.slice(-3)).toEqual([
+          `GET /api/v1/apps/${APP_ID}/revisions`,
+          `POST /api/v1/apps/${APP_ID}/revisions/3/restore`,
+          'GET /api/v1/app-builds/build_9',
+        ]);
+      });
+    });
+
+    test('refuses --wait without --files before any request', async () => {
+      const fetchImpl = vi.fn<typeof fetch>();
+
+      const result = await captureOutput(() =>
+        main(['apps', 'update', APP_ID, '--wait', '--token', 'chrm_user_test'], { fetchImpl }),
+      );
+
+      expect(result.result).toBe(2);
+      expect(result.stderr).toContain('--wait follows a package build');
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('apps history', () => {
+    const run = (argv: string[], fetchImpl: typeof fetch) =>
+      main([...argv, '--base-url', 'https://charming.test', '--token', 'chrm_user_test'], {
+        cwd: process.cwd(),
+        fetchImpl,
+      });
+
+    test('list passes --limit and --before through to the route', async () => {
+      const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ok: true, items: [] }));
+
+      await expect(
+        run(['apps', 'history', 'list', APP_ID, '--limit', '5', '--before', '9'], fetchImpl),
+      ).resolves.toBe(0);
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+        `https://charming.test/api/v1/apps/${APP_ID}/revisions?limit=5&before=9`,
+      );
+    });
+
+    test('get --out writes the revision source into the directory', async () => {
+      const out = await mkdtemp(join(tmpdir(), 'charming-history-cli-'));
+      const source = { files: { 'package.json': '{"name":"notes"}', 'server.js': 'old' } };
+      const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ok: true, source }));
+
+      await expect(
+        run(['apps', 'history', 'get', APP_ID, '3', '--out', out], fetchImpl),
+      ).resolves.toBe(0);
+      expect(await readFile(join(out, 'server.js'), 'utf8')).toBe('old');
+    });
+
+    test('the bare topic and agent-context name the three subcommands', async () => {
+      const topic = await runBinary(['apps', 'history']);
+      for (const subcommand of ['get', 'list', 'restore']) {
+        expect(topic.stdout).toMatch(new RegExp(`^\\s+apps history ${subcommand}\\s`, 'm'));
+      }
+
+      const context = JSON.parse((await runBinary(['agent-context'])).stdout);
+      expect(context.commands.apps).toEqual(
+        expect.arrayContaining(['history list', 'history get', 'history restore']),
+      );
     });
   });
 

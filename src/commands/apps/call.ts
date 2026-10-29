@@ -31,6 +31,10 @@ export default class AppsCall extends CharmingCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsCall);
     const result = await runApps('call', [args.appId, args.operation], await this.context(flags));
-    this.output(result, { format: flags.output === 'compact' ? 'compact' : 'json' });
+    this.output(result, {
+      format: flags.output === 'compact' ? 'compact' : 'json',
+      truncationHint:
+        'Response exceeded the CLI output cap. Use `apps call --output compact` or a narrower --input to shrink it.',
+    });
   }
 }

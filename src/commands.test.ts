@@ -21,13 +21,72 @@ const APP_ID = '00000000-0000-4000-8000-000000000001';
 type TestCommand = Omit<CommandContext, 'session'> & {
   baseUrl?: string;
   command: string[];
+  spec?: unknown;
   token?: string;
 };
 
-async function runCommand({ baseUrl, token, ...rest }: TestCommand): Promise<unknown> {
+const PACKAGE_SPEC = {
+  openapi: '3.1.0',
+  paths: {
+    '/app': { post: { operationId: 'create-app', requestBody: schemaRef('AppCreateBody') } },
+    '/app/{id}': { put: { operationId: 'update-app', requestBody: schemaRef('AppUpdateBody') } },
+  },
+  components: {
+    schemas: {
+      AppCreateBody: { type: 'object', properties: { module: {}, files: {} } },
+      AppUpdateBody: { type: 'object', properties: { module: {}, files: {} } },
+    },
+  },
+};
+
+const SPEC_WITHOUT_PACKAGES = {
+  ...PACKAGE_SPEC,
+  components: {
+    schemas: {
+      AppCreateBody: { type: 'object', properties: { module: {} } },
+      AppUpdateBody: { type: 'object', properties: { module: {} } },
+    },
+  },
+};
+
+function urlOf(input: string | URL | Request): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+
+function schemaRef(name: string) {
+  return {
+    content: { 'application/json': { schema: { $ref: `#/components/schemas/${name}` } } },
+  };
+}
+
+/**
+ * Answers the schema fetch a live package save makes before it sends anything,
+ * so a test that scripts only the save's own requests sees them unshifted.
+ */
+function serveSpec(fetchImpl: typeof fetch, spec: unknown): typeof fetch {
+  return (input, init) => {
+    if (!urlOf(input).endsWith('/.well-known/openapi.json')) return fetchImpl(input, init);
+    if (spec instanceof Error) return Promise.reject(spec);
+    if (typeof spec === 'number') return Promise.resolve(new Response('', { status: spec }));
+    return Promise.resolve(Response.json(spec));
+  };
+}
+
+async function runCommand({
+  baseUrl,
+  spec = PACKAGE_SPEC,
+  token,
+  ...rest
+}: TestCommand): Promise<unknown> {
   const [topic, action, ...positionals] = rest.command;
+  const savesPackage =
+    topic === 'apps' &&
+    (action === 'create' || action === 'update') &&
+    typeof rest.options['files'] === 'string' &&
+    rest.options['dry-run'] !== true;
   const context: CommandContext = {
     ...rest,
+    fetchImpl: savesPackage && rest.fetchImpl ? serveSpec(rest.fetchImpl, spec) : rest.fetchImpl,
     session: await resolveSession({
       baseUrl,
       cwd: await directoryOutsideAnyProject(),
@@ -877,6 +936,106 @@ describe('runCommand', () => {
       },
     });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test('shows the headers a package create and update would send in their dry runs', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-headers-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi.fn<typeof fetch>();
+    const dryRun = (command: string[], options: Record<string, boolean | string>) =>
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command,
+        fetchImpl,
+        options: { 'dry-run': true, ...options },
+        token: 'chrm_user_test',
+      });
+
+    await expect(dryRun(['apps', 'update', APP_ID], { files: directory })).resolves.toMatchObject({
+      method: 'PUT',
+      headers: {
+        'If-Match': '<ETag of the current source>',
+        'Idempotency-Key': 'charming-cli-<uuid>',
+      },
+    });
+    await expect(dryRun(['apps', 'create'], { files: directory })).resolves.toMatchObject({
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'charming-cli-<uuid>' },
+    });
+    const moduleUpdate = await dryRun(['apps', 'update', APP_ID, await appDirectory()], {});
+    expect(moduleUpdate).toMatchObject({ headers: { 'If-Match': '<ETag of the current source>' } });
+    expect((moduleUpdate as { headers: object }).headers).not.toHaveProperty('Idempotency-Key');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['omits the operation', { openapi: '3.1.0', paths: {} }],
+    ['answers with a server error', 503],
+    ['cannot be fetched', new TypeError('fetch failed')],
+    [
+      'points at a schema it does not define',
+      {
+        paths: {
+          '/app/{id}': {
+            put: {
+              operationId: 'update-app',
+              requestBody: schemaRef('Missing'),
+            },
+          },
+        },
+      },
+    ],
+  ])('lets a package update through when the schema document %s', async (_name, spec) => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-open-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ source: { module: 'm' } }, { headers: { ETag: '"2"' } }),
+      )
+      .mockResolvedValueOnce(Response.json({ buildId: 'build_5' }, { status: 202 }));
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command: ['apps', 'update', APP_ID],
+        fetchImpl,
+        options: { files: directory },
+        spec,
+        token: 'chrm_user_test',
+      }),
+    ).resolves.toEqual({ buildId: 'build_5' });
+    expect(fetchImpl.mock.calls[1]?.[1]?.method).toBe('PUT');
+  });
+
+  test.each([
+    ['create', ['apps', 'create']],
+    ['update', ['apps', 'update', APP_ID]],
+  ])('refuses a package %s on a server that does not accept files', async (_name, command) => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-package-old-server-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"notes"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const requests: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      requests.push(urlOf(input));
+      return Response.json({ source: { module: 'old' } }, { headers: { ETag: '"2"' } });
+    });
+
+    await expect(
+      runCommand({
+        baseUrl: 'https://charming.test',
+        command,
+        fetchImpl,
+        options: { files: directory, yes: true },
+        spec: SPEC_WITHOUT_PACKAGES,
+        token: 'chrm_user_test',
+      }),
+    ).rejects.toThrow(
+      'https://charming.test does not accept package Apps yet. Update the server, or point --base-url at one that does.',
+    );
+    expect(requests).toEqual([]);
   });
 
   test.each([

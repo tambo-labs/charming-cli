@@ -35,6 +35,17 @@ Commands write JSON results to stdout. Login instructions and JSON errors go to 
 
 Command help and input validation come from [oclif](https://oclif.io). Run `charming <topic> <command> --help` to see the generated usage and flags for any command, or `charming --help` for the full command list.
 
+## Package builds
+
+`charming apps create --files DIR` and `charming apps update APP_ID --files DIR` send an App as a package and answer with an accepted build. Both check that the origin accepts package Apps before they send anything, and refuse with "does not accept package Apps yet" when it does not.
+
+```bash
+charming apps update APP_ID --files ./my-app --wait
+charming builds wait BUILD_ID
+```
+
+`--wait` and `builds wait` poll the build at the pace the server asks for and write one `{"event":"build_state",…}` line to stderr whenever its state changes. `--wait` first writes `{"event":"build_accepted","buildId":…}`, so a failed wait leaves an id to resume with `builds wait`. A poll that times out, drops its connection, or gets a 429 or 5xx is retried; three failures in a row stop the wait. A build that publishes prints on stdout and exits 0. A build that ends `failed`, `superseded`, `canceled`, or `expired` exits with code 6 and prints the build, including its `error`, under `error.build` on stderr. A build still running well past its `deadline` exits 2.
+
 ## Calling app operations
 
 ```bash
@@ -86,13 +97,16 @@ charming api request get-widget-runtime-issue-handoff --param appId=APP_ID --par
 
 A runtime-issue handoff requires your personal access token, app-management permission, and an unexpired handoff for the same user and app. A browser session cannot resolve it.
 
-An App's History is three operations: `list-app-revisions`, `get-app-revision`, and `restore-app-revision`. A restore sends the desired revision from the list as `If-Match` and requires `--yes`:
+## History
 
 ```bash
-charming api request list-app-revisions --param appId=APP_ID
-charming api request get-app-revision --param appId=APP_ID --param revision=3
-charming api request restore-app-revision --param appId=APP_ID --param revision=3 --param 'If-Match="6"' --param Idempotency-Key=KEY --dry-run
+charming apps history list APP_ID --limit 20
+charming apps history get APP_ID 3 --out ./revision-3
+charming apps history restore APP_ID 3 --dry-run
+charming apps history restore APP_ID 3 --yes --wait
 ```
+
+`list` pages newest first: pass `nextBefore` from one page as `--before` on the next. `get` prints a revision with its source, or writes the source into a directory with `--out`. `restore` reads the App's current revision, sends it as `If-Match` with a fresh `Idempotency-Key`, and saves the chosen revision as the newest one; the revision it replaces stays in History. It requires `--yes`, and `--dry-run` prints the request and its headers without sending anything. A package revision answers with a build: add `--wait` to follow it as `charming builds wait` does. A restore of a revision older than the plan's History window fails with `version_limit_exceeded`. The generated operations `list-app-revisions`, `get-app-revision`, and `restore-app-revision` stay available through `charming api request`.
 
 ## Environment
 

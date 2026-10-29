@@ -37,6 +37,11 @@ export async function main(
 
     const resolved = resolveCommand(config, canonical);
     if (!resolved) {
+      const topic = leadingWords(canonical);
+      if (config.findTopic(topic.join(':'))) {
+        await new Help(config).showHelp(topic);
+        return 0;
+      }
       errorOutput(`Unknown command: ${canonical.join(' ') || '(none)'}`);
       return 2;
     }
@@ -65,9 +70,13 @@ function runBuild(root: string): void {
   }
 }
 
-function resolveCommand(config: Config, argv: string[]) {
+function leadingWords(argv: string[]): string[] {
   const firstFlag = argv.findIndex((value) => value.startsWith('--'));
-  const maxWords = firstFlag === -1 ? argv.length : firstFlag;
+  return firstFlag === -1 ? argv : argv.slice(0, firstFlag);
+}
+
+function resolveCommand(config: Config, argv: string[]) {
+  const maxWords = leadingWords(argv).length;
   for (let words = maxWords; words > 0; words -= 1) {
     const id = argv.slice(0, words).join(':');
     const command = config.findCommand(id);

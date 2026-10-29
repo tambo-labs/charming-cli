@@ -1,6 +1,7 @@
 import { Args, Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
+import { followSavedBuild, requireFilesForWait, waitFlag } from '../../builds.js';
 import { runApps } from '../../commands.js';
 
 export default class AppsUpdate extends CharmingCommand {
@@ -25,16 +26,18 @@ export default class AppsUpdate extends CharmingCommand {
     module: Flags.string({ description: 'Module source file.' }),
     styles: Flags.string({ description: 'Stylesheet file.' }),
     ui: Flags.string({ description: 'UI source file.' }),
+    wait: waitFlag,
   };
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsUpdate);
-    this.output(
-      await runApps(
-        'update',
-        [args.appId, ...(args.directory ? [args.directory] : [])],
-        await this.context(flags),
-      ),
+    requireFilesForWait(flags);
+    const context = await this.context(flags);
+    const saved = await runApps(
+      'update',
+      [args.appId, ...(args.directory ? [args.directory] : [])],
+      context,
     );
+    this.output(flags.wait ? await followSavedBuild(context, saved) : saved);
   }
 }

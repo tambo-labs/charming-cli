@@ -65,7 +65,12 @@
     "bin": "charming",
     "commands": "./dist/commands",
     "dirname": "charming",
-    "topicSeparator": " "
+    "topicSeparator": " ",
+    "topics": {
+      "apps:history": {
+        "description": "List, read, and restore an App's earlier revisions."
+      }
+    }
   },
   "engines": {
     "node": ">=22"

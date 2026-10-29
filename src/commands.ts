@@ -42,8 +42,11 @@ export type CommandContext = {
 // of these for a single invocation.
 const READ_TIMEOUT_MS = 2_000;
 const SOURCE_READ_TIMEOUT_MS = 10_000;
+const SPEC_READ_TIMEOUT_MS = 10_000;
 const MUTATE_TIMEOUT_MS = 10_000;
 const CALL_TIMEOUT_MS = 30_000;
+const IF_MATCH_PREVIEW = '<ETag of the current source>';
+export const IDEMPOTENCY_KEY_PREVIEW = 'charming-cli-<uuid>';
 const APP_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UUID_APP_ID_ACTIONS = new Set(['call', 'describe', 'source', 'update', 'delete', 'rename']);
 
@@ -53,15 +56,77 @@ async function packageUpdateBody(context: CommandContext, directory: string) {
   return { files: await readAppPackage(directory), ...migrateContract(context) };
 }
 
+async function requirePackageSupport(
+  context: CommandContext,
+  operationId: 'create-app' | 'update-app',
+): Promise<void> {
+  let spec: unknown;
+  try {
+    spec = (
+      await clientFor(context).request('GET', '/.well-known/openapi.json', {
+        timeoutMs: timeoutFor(context, SPEC_READ_TIMEOUT_MS),
+      })
+    ).data;
+  } catch {
+    return;
+  }
+  if (acceptsFiles(spec, operationId) === false) {
+    throw new Error(
+      `${context.session.origin} does not accept package Apps yet. Update the server, or point --base-url at one that does.`,
+    );
+  }
+}
+
+// `undefined` means the document does not describe the operation, or describes
+// it in a shape this check does not follow (one plain `$ref` level), so the save
+// goes ahead and the server decides.
+function acceptsFiles(spec: unknown, operationId: string): boolean | undefined {
+  if (!isRecord(spec) || !isRecord(spec.paths)) return undefined;
+  for (const path of Object.values(spec.paths)) {
+    if (!isRecord(path)) continue;
+    for (const operation of Object.values(path)) {
+      if (!isRecord(operation) || operation.operationId !== operationId) continue;
+      const schema = resolveRef(spec, jsonBodySchema(operation));
+      if (!isRecord(schema) || !isRecord(schema.properties)) return undefined;
+      return 'files' in schema.properties;
+    }
+  }
+  return undefined;
+}
+
+function jsonBodySchema(operation: Record<string, unknown>): unknown {
+  const { requestBody } = operation;
+  if (!isRecord(requestBody) || !isRecord(requestBody.content)) return undefined;
+  const json = requestBody.content['application/json'];
+  return isRecord(json) ? json.schema : undefined;
+}
+
+function resolveRef(spec: Record<string, unknown>, schema: unknown): unknown {
+  if (!isRecord(schema) || typeof schema.$ref !== 'string') return schema;
+  let node: unknown = spec;
+  for (const key of schema.$ref.replace(/^#\//, '').split('/')) {
+    node = isRecord(node) ? node[key] : undefined;
+  }
+  return node;
+}
+
 function migrateContract(context: CommandContext) {
   return context.options['migrate-contract'] === true ? { migrate_contract: true } : {};
 }
 
-function timeoutFor(context: CommandContext, defaultMs: number): number {
+export function assertAppId(appId: string): void {
+  if (!APP_ID_RE.test(appId)) {
+    throw new Error(
+      'Invalid app ID. Run `charming apps list` and pass the app ID from its `id` field.',
+    );
+  }
+}
+
+export function timeoutFor(context: CommandContext, defaultMs: number): number {
   return context.timeoutMs ?? defaultMs;
 }
 
-function requireConsent(context: CommandContext, subject = 'This action'): void {
+export function requireConsent(context: CommandContext, subject = 'This action'): void {
   if (context.options['dry-run'] !== true && context.options.yes !== true) {
     throw new Error(`${subject} requires --yes. Use --dry-run to preview it.`);
   }
@@ -89,7 +154,7 @@ const REQUIRES_CONSENT = new Set([
 ]);
 const HIDDEN_CREDENTIAL_OPERATIONS = new Set(['create-token', 'poll-pairing', 'start-pairing']);
 
-type SourceResponse = {
+export type SourceResponse = {
   source?: {
     module?: unknown;
     styles?: unknown;
@@ -242,13 +307,20 @@ export async function runApps(
       body.label = `Charming CLI ${CLI_VERSION}`;
     }
     if (context.options['dry-run'] === true) {
-      return { dryRun: true, method: 'POST', path: '/app', body };
+      return {
+        dryRun: true,
+        method: 'POST',
+        path: '/app',
+        body,
+        ...(packageDirectory ? { headers: { 'Idempotency-Key': IDEMPOTENCY_KEY_PREVIEW } } : {}),
+      };
     }
     if (token && context.options.yes !== true) {
       throw new Error(
         'Authenticated create may overwrite an app with the same manifest id. Use --yes or --dry-run.',
       );
     }
+    if (packageDirectory) await requirePackageSupport(context, 'create-app');
     const data = (
       await clientFor(context, token).request('POST', '/app', {
         body,
@@ -273,11 +345,7 @@ export async function runApps(
 
   const appId = positionals[0];
   if (!appId) throw new Error(`Usage: charming apps ${action ?? '<command>'} <APP_ID>`);
-  if (action && UUID_APP_ID_ACTIONS.has(action) && !APP_ID_RE.test(appId)) {
-    throw new Error(
-      'Invalid app ID. Run `charming apps list` and pass the app ID from its `id` field.',
-    );
-  }
+  if (action && UUID_APP_ID_ACTIONS.has(action)) assertAppId(appId);
 
   if (action === 'delete') requireConsent(context);
 
@@ -295,6 +363,10 @@ export async function runApps(
       method: 'PUT',
       path: `/app/${encodeURIComponent(appId)}`,
       body,
+      headers: {
+        'If-Match': IF_MATCH_PREVIEW,
+        ...(packageDirectory ? { 'Idempotency-Key': IDEMPOTENCY_KEY_PREVIEW } : {}),
+      },
       note: 'A live update first reads the current source and sends its ETag with the write.',
     };
   }
@@ -351,6 +423,7 @@ export async function runApps(
       throw new Error(
         `A package build needs a signed-in user. Run ${loginCommand(context.session)}.`,
       );
+    if (packageDirectory) await requirePackageSupport(context, 'update-app');
     const local = packageDirectory ? null : await readBundle(positionals[1], context.options);
     const current = await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
       timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
@@ -609,8 +682,21 @@ export function agentContext(session: Pick<Session, 'origin' | 'profile'>): unkn
     },
     commands: {
       auth: ['login', 'status', 'logout'],
-      apps: ['list', 'create', 'describe', 'source', 'update', 'call', 'delete', 'rename'],
+      apps: [
+        'list',
+        'create',
+        'describe',
+        'source',
+        'update',
+        'call',
+        'delete',
+        'rename',
+        'history list',
+        'history get',
+        'history restore',
+      ],
       profile: ['list', 'current', 'use'],
+      builds: ['wait'],
       generatedApiOperations: operations.length,
       generatedApiIndex: 'charming api list',
     },
@@ -843,7 +929,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function clientFor(context: CommandContext, token?: string): CharmingClient {
+export function clientFor(context: CommandContext, token?: string): CharmingClient {
   return new CharmingClient({
     baseUrl: context.session.origin,
     fetchImpl: context.fetchImpl,
@@ -851,7 +937,7 @@ function clientFor(context: CommandContext, token?: string): CharmingClient {
   });
 }
 
-async function requireUserToken(context: CommandContext): Promise<string> {
+export async function requireUserToken(context: CommandContext): Promise<string> {
   await collectPairings(context);
   const token = context.session.token;
   if (!token) throw new Error(`Not authenticated. Run \`${loginCommand(context.session)}\`.`);
@@ -988,7 +1074,7 @@ async function readBundle(directory: string | undefined, options: Record<string,
   });
 }
 
-function packageFiles(data: SourceResponse): Record<string, string> | null {
+export function packageFiles(data: SourceResponse): Record<string, string> | null {
   const files = data.source?.files;
   if (typeof files !== 'object' || files === null) return null;
   return Object.values(files).every((text) => typeof text === 'string')
@@ -996,11 +1082,11 @@ function packageFiles(data: SourceResponse): Record<string, string> | null {
     : null;
 }
 
-function idempotencyKey(): string {
+export function idempotencyKey(): string {
   return `charming-cli-${randomUUID()}`;
 }
 
-function validSource(data: SourceResponse): {
+export function validSource(data: SourceResponse): {
   module: string;
   styles?: string | null;
   ui?: string | null;
