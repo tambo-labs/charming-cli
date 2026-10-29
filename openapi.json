@@ -10378,7 +10378,7 @@
             }
           },
           "413": {
-            "description": "Source exceeds a limit. Package body (`files`): the code files together, every file except `styles.css`, over 64 KiB (`payload_too_large`); `styles.css` over 256 KiB (`styles_too_large`). Any body over 832 KiB is refused unread (`payload_too_large`). Apps saved before packages (`module`, `ui`, `styles` body): `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`).",
+            "description": "Source exceeds a limit. Package body (`files`): the code files together, every file except `styles.css`, over 1024 KiB, or over 2048 KiB once JSON-escaped for the build (`payload_too_large`); `styles.css` over 256 KiB (`styles_too_large`). Any body over 1536 KiB is refused unread (`payload_too_large`). Apps saved before packages (`module`, `ui`, `styles` body): `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10657,7 +10657,7 @@
             }
           },
           "413": {
-            "description": "Source exceeds a limit. Package body (`files`): the code files together, every file except `styles.css`, over 64 KiB (`payload_too_large`); `styles.css` over 256 KiB (`styles_too_large`). Any body over 832 KiB is refused unread (`payload_too_large`). Apps saved before packages (`module`, `ui`, `styles` body): `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`).",
+            "description": "Source exceeds a limit. Package body (`files`): the code files together, every file except `styles.css`, over 1024 KiB, or over 2048 KiB once JSON-escaped for the build (`payload_too_large`); `styles.css` over 256 KiB (`styles_too_large`). Any body over 1536 KiB is refused unread (`payload_too_large`). Apps saved before packages (`module`, `ui`, `styles` body): `module` over 256 KiB (`module_too_large`), `ui` over 256 KiB (`ui_too_large`), `styles` over 256 KiB (`styles_too_large`).",
             "content": {
               "application/json": {
                 "schema": {
