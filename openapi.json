@@ -992,17 +992,32 @@
                   }
                 ]
               },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "dependencies",
+                  "compile"
+                ],
+                "description": "A stage only when the author's package caused the failure. `source`: the package was refused (its files, imports, or package.json, a size cap, a refused `connect-src` origin, a package name another App holds or that differs from the App's, or accepted source the current contract refuses); fix what the message names, in the file `path` names when given. `dependencies`: npm could not resolve or install the declared dependencies, or the tree has more packages than the limit; fix the package `specifier` names when given, its range in package.json, or trim the dependencies. `compile`: the compiler, or the check of the built server module, refused the App's code; fix the file and position named when given. Every other failure has no stage, because nothing in the package would fix it: a build sandbox, provider, executor, or database failing, a busy host, a cancellation, lost authority, an expired build or one that used up its attempts, an input Charming could not load, or a copy whose requested manifest id was taken. Save again."
+              },
               "target": {
                 "type": "string"
               },
               "specifier": {
                 "type": "string"
               },
+              "path": {
+                "type": "string",
+                "description": "The App file the failure points at, relative to the package root, when it points at one of the App's own files."
+              },
               "line": {
-                "type": "integer"
+                "type": "integer",
+                "description": "The 1-based line in `path`."
               },
               "column": {
-                "type": "integer"
+                "type": "integer",
+                "description": "The 1-based column in `line`."
               }
             }
           }
@@ -3614,6 +3629,7 @@
           "revision",
           "activeRevision",
           "build",
+          "publication",
           "appVersion",
           "manifestVersion",
           "capabilities",
@@ -3654,7 +3670,7 @@
             "type": "integer",
             "minimum": 0,
             "example": 4,
-            "description": "The revision visitors are served. Equal to `revision` once the latest save is live. When lower, the source in this response is not live yet; `build` says why. While `build.state` is queued, resolving, building, or validating, wait for it to finish. When it is failed or expired, read `build.error`, then fix that save and save again, or restore the active revision. When it is canceled, save again to build it, or restore the active revision. When it is superseded, read the source again. When `build` is null, the App was saved before packages and Charming stored that save without validating it because the executor was unavailable: save it again to validate and publish it. `activeRevision` and `build` are read separately, so a build that publishes between them can show a lower `activeRevision` with `build.state` published; the next read agrees."
+            "description": "The revision visitors are served. Equal to `revision` once the latest save is live. When lower, the source in this response is not live yet; `build` says why. While `build.state` is queued, resolving, building, or validating, wait for it to finish. When it is failed or expired, read `build.error`: `stage` names the build stage that failed and `path`, `line`, and `column` the file position when known; fix that save and save again, or restore the active revision. When it is canceled, save again to build it, or restore the active revision. When it is superseded, read the source again. When `build` is null, Charming has no build on record for this save: a save before packages stored without one, or a package save whose build record is gone. Save it again to build and publish it. `publication` names the state: `unpublished` means Charming holds the save without a runnable build while `activeRevision` keeps serving. `activeRevision` and `build` are read separately, so a build that publishes between them can show a lower `activeRevision` with `build.state` published; the next read agrees."
           },
           "build": {
             "type": [
@@ -3681,6 +3697,15 @@
                 "$ref": "#/components/schemas/AppBuildResponse/properties/error"
               }
             }
+          },
+          "publication": {
+            "type": "string",
+            "enum": [
+              "published",
+              "pending",
+              "unpublished"
+            ],
+            "description": "Whether `revision` is what visitors are served. `published`: it is the active revision. `pending`: its build is still running, so wait for it; or a newer save superseded it, so read the source again. `unpublished`: Charming holds this save without a runnable build, and `activeRevision` keeps serving until a later save publishes. That is a state the App can stay in, not an outage: read `build.error` for the stage and file position that failed, fix the source and save again, or restore the active revision. When `build` is null Charming has no build on record for this save; save it again to build it."
           },
           "appVersion": {
             "type": "string",
