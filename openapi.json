@@ -3,12 +3,12 @@
   "info": {
     "title": "Charming API",
     "version": "0.1.0",
-    "description": "Public HTTP surface for the Charming app runtime. The narrative agent guide lives at https://charm.ing/docs/llms-full.txt; this spec is the machine-readable source of truth for routes, request/response shapes, and error kinds.\n\nTimeout SLAs (`info[\"x-charming-sla\"]` + per-operation `x-charming-timeout-ms`) are documentation only — they describe the targets the server tries to hit, not enforced ceilings. Use them to set sensible client read timeouts, not as hard guarantees.",
+    "description": "Public HTTP surface for the Charming app runtime. The narrative agent guide lives at https://charm.ing/docs/llms-full.txt; this spec is the machine-readable source of truth for routes, request/response shapes, and error kinds.\n\nTimeout SLAs (`info[\"x-charming-sla\"]` + per-operation `x-charming-timeout-ms`) are targets the server tries to hit, not guarantees. Use them to set sensible client read timeouts. One of them is also enforced: an App operation is stopped at `call_ms` (30 s) and answered with a 504 `timeout` error whose `details` name the limit.",
     "x-charming-sla": {
       "read_ms": 2000,
       "mutate_ms": 10000,
       "call_ms": 30000,
-      "description": "Target SLAs the server tries to hit, in milliseconds. `read_ms` covers GET reads (source, describe, diag, activity, list, resolve). `mutate_ms` covers POST/PUT/PATCH/DELETE writes (create, update, source patch, delete, claim, secrets, remixable, starter-prompt, icon, feedback). `call_ms` covers `POST /app/{id}/api/{operation}` (the executor app-code budget). These are targets, not enforced ceilings — see `info.description`. Per-operation overrides ride on the operation object as `x-charming-timeout-ms`."
+      "description": "Target SLAs the server tries to hit, in milliseconds. `read_ms` covers GET reads (source, describe, diag, activity, list, resolve). `mutate_ms` covers POST/PUT/PATCH/DELETE writes (create, update, source patch, delete, claim, secrets, remixable, starter-prompt, icon, feedback). `call_ms` covers `POST /app/{id}/api/{operation}` (the executor app-code budget). `read_ms` and `mutate_ms` are targets, not enforced ceilings — see `info.description`. `call_ms` is also the enforced operation time limit: an operation still running at `call_ms` is stopped and answered with a 504 `timeout` error. Per-operation overrides ride on the operation object as `x-charming-timeout-ms`."
     }
   },
   "servers": [
@@ -2234,6 +2234,7 @@
                   "operation_not_found",
                   "method_not_allowed",
                   "operation_failed",
+                  "timeout",
                   "app_busy",
                   "visitor_rate_limited",
                   "service_busy",
@@ -4667,6 +4668,30 @@
               },
               "message": {
                 "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                "required": [
+                  "limit",
+                  "limitMs",
+                  "elapsedMs"
+                ],
+                "properties": {
+                  "limit": {
+                    "type": "string",
+                    "enum": [
+                      "operation",
+                      "sealed_fetch"
+                    ]
+                  },
+                  "limitMs": {
+                    "type": "number"
+                  },
+                  "elapsedMs": {
+                    "type": "number"
+                  }
+                }
               }
             }
           },

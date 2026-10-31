@@ -1418,6 +1418,30 @@ export const generatedOperations = [
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "details": {
+                    "type": "object",
+                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                    "required": [
+                      "limit",
+                      "limitMs",
+                      "elapsedMs"
+                    ],
+                    "properties": {
+                      "limit": {
+                        "type": "string",
+                        "enum": [
+                          "operation",
+                          "sealed_fetch"
+                        ]
+                      },
+                      "limitMs": {
+                        "type": "number"
+                      },
+                      "elapsedMs": {
+                        "type": "number"
+                      }
+                    }
                   }
                 }
               },
@@ -6591,6 +6615,30 @@ export const generatedOperations = [
                     },
                     "message": {
                       "type": "string"
+                    },
+                    "details": {
+                      "type": "object",
+                      "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                      "required": [
+                        "limit",
+                        "limitMs",
+                        "elapsedMs"
+                      ],
+                      "properties": {
+                        "limit": {
+                          "type": "string",
+                          "enum": [
+                            "operation",
+                            "sealed_fetch"
+                          ]
+                        },
+                        "limitMs": {
+                          "type": "number"
+                        },
+                        "elapsedMs": {
+                          "type": "number"
+                        }
+                      }
                     }
                   }
                 },
@@ -11774,6 +11822,30 @@ export const generatedOperations = [
                   },
                   "message": {
                     "type": "string"
+                  },
+                  "details": {
+                    "type": "object",
+                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                    "required": [
+                      "limit",
+                      "limitMs",
+                      "elapsedMs"
+                    ],
+                    "properties": {
+                      "limit": {
+                        "type": "string",
+                        "enum": [
+                          "operation",
+                          "sealed_fetch"
+                        ]
+                      },
+                      "limitMs": {
+                        "type": "number"
+                      },
+                      "elapsedMs": {
+                        "type": "number"
+                      }
+                    }
                   }
                 }
               },
