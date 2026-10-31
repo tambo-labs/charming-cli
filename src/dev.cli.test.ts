@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
-import { request as httpRequest } from 'node:http';
-import { connect } from 'node:net';
+import { createServer, request as httpRequest } from 'node:http';
+import { type AddressInfo, connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -209,6 +209,219 @@ endToEnd.each([
   expect(JSON.parse(dev.output().stderr)).toMatchObject({ ok: false, error: { kind } });
 });
 
+endToEnd('charming dev --as viewer is asked to sign in for a members-only write', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+  const dev = runDev([crudTemplate, '--port', '0', '--as', 'viewer'], cwd);
+
+  try {
+    const { url, appId } = await dev.started;
+    const added = await fetch(`${url}/app/${appId}/api/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: 'Refused' }),
+    });
+
+    expect(added.status).toBe(401);
+    expect(await added.json()).toMatchObject({ error: { kind: 'sign_in_required' } });
+  } finally {
+    dev.child.kill('SIGTERM');
+  }
+  expect(await dev.exited).toBe(0);
+});
+
+endToEnd(
+  'charming dev --check prints one JSON report and exits 9 for a broken page, on a free port',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    await writeFile(join(cwd, 'app', 'ui.js'), "throw new Error('ui exploded');\n");
+    const dev = runDev(['app', '--check', '--port', '1', '--host', '0.0.0.0'], cwd);
+
+    expect(await dev.exited).toBe(9);
+    const report = JSON.parse(dev.output().stdout) as {
+      ok: boolean;
+      errors: Array<{ message: string }>;
+    };
+    expect(report.ok).toBe(false);
+    expect(report.errors.some((error) => error.message.includes('ui exploded'))).toBe(true);
+    expect(dev.output().stderr).not.toContain('Warning: listening on');
+  },
+);
+
+endToEnd('charming dev --check exits 9 when only a --click fails', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+  await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+  const dev = runDev(['app', '--check', '--click', '#nope'], cwd);
+
+  expect(await dev.exited).toBe(9);
+  expect(JSON.parse(dev.output().stdout)).toMatchObject({
+    ok: false,
+    render: { empty: false },
+    errors: [],
+    clicks: [{ selector: '#nope', ok: false, message: 'No element matches the selector.' }],
+  });
+});
+
+endToEnd(
+  'charming dev --check exits 0 with one passing report while the server code holds a timer',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    const module = join(cwd, 'app', 'module.js');
+    await writeFile(module, `${await readFile(module, 'utf8')}\nsetInterval(() => {}, 1000);\n`);
+    const dev = runDev(['app', '--check'], cwd);
+    try {
+      const exited = await Promise.race([
+        dev.exited,
+        new Promise<'still running'>((resolve) =>
+          setTimeout(() => resolve('still running'), 15_000),
+        ),
+      ]);
+
+      expect(exited).toBe(0);
+      expect(JSON.parse(dev.output().stdout)).toMatchObject({
+        ok: true,
+        render: { empty: false },
+        errors: [],
+      });
+    } finally {
+      dev.child.kill('SIGKILL');
+    }
+  },
+);
+
+endToEnd(
+  'charming dev --check exits 2 when startup fails after the server code started a timer',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    const module = join(cwd, 'app', 'module.js');
+    await writeFile(module, `${await readFile(module, 'utf8')}\nsetInterval(() => {}, 1000);\n`);
+    const dev = runDev(['app', '--check', '--run-op', 'typo'], cwd);
+    try {
+      const exited = await Promise.race([
+        dev.exited,
+        new Promise<'still running'>((resolve) =>
+          setTimeout(() => resolve('still running'), 15_000),
+        ),
+      ]);
+
+      expect(exited).toBe(2);
+      expect(dev.output().stderr).toMatch(/"kind": "operation_not_found"/);
+      expect(dev.output().stdout).toBe('');
+    } finally {
+      dev.child.kill('SIGKILL');
+    }
+  },
+  30_000,
+);
+
+endToEnd(
+  'charming dev --check keeps its exit code and one report when the server code throws after the report',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    const module = join(cwd, 'app', 'module.js');
+    await writeFile(
+      module,
+      `${await readFile(module, 'utf8')}
+routes.push({
+  op: 'late',
+  method: 'POST',
+  handler: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    queueMicrotask(() => {
+      throw new Error('thrown after the report');
+    });
+    return { ok: true };
+  },
+});
+`,
+    );
+    const ui = join(cwd, 'app', 'ui.js');
+    await writeFile(ui, `${await readFile(ui, 'utf8')}\napi.late().catch(() => {});\n`);
+    const dev = runDev(['app', '--check'], cwd);
+
+    expect(await dev.exited).toBe(9);
+    const report = JSON.parse(dev.output().stdout) as {
+      errors: Array<{ source: string; message: string }>;
+    };
+    expect(report.errors).toEqual([
+      { source: 'operation', message: expect.stringContaining('/api/late was still running') },
+    ]);
+    expect(dev.output().stderr).not.toContain('after the report');
+  },
+  30_000,
+);
+
+endToEnd(
+  'charming dev --check reports a rejection the server code leaves unhandled at startup, as a host error',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    const module = join(cwd, 'app', 'module.js');
+    await writeFile(
+      module,
+      `${await readFile(module, 'utf8')}\nPromise.reject(new Error('rejected at startup'));\n`,
+    );
+    // The --save-state probe write is the first wait on I/O after the module loads.
+    const dev = runDev(['app', '--check', '--save-state', 'saved.json'], cwd);
+
+    expect(await dev.exited).toBe(9);
+    const report = JSON.parse(dev.output().stdout) as {
+      errors: Array<{ source: string; message: string }>;
+    };
+    expect(report.errors).toContainEqual({ source: 'host', message: 'rejected at startup' });
+  },
+);
+
+endToEnd(
+  'charming dev --check prints its report and exits 2 when the --save-state write on close fails',
+  async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await cp(crudTemplate, join(cwd, 'app'), { recursive: true });
+    const module = join(cwd, 'app', 'module.js');
+    await writeFile(module, `${await readFile(module, 'utf8')}\nsetInterval(() => {}, 1000);\n`);
+    const ui = join(cwd, 'app', 'ui.js');
+    await writeFile(
+      ui,
+      `${await readFile(ui, 'utf8')}\napi.add({ text: 'saved' });\nsetInterval(() => api.add({ text: 'unsaved' }).catch(() => {}), 200);\n`,
+    );
+    await mkdir(join(cwd, 'state'));
+    const dev = runDev(['app', '--check', '--save-state', join('state', 'saved.json')], cwd);
+    try {
+      for (let waited = 0; !existsSync(join(cwd, 'state', 'saved.json')); waited += 10) {
+        if (waited > 10_000) throw new Error(`No first save: ${dev.output().stderr}`);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await rm(join(cwd, 'state'), { recursive: true });
+      const exited = await Promise.race([
+        dev.exited,
+        new Promise<'still running'>((resolve) =>
+          setTimeout(() => resolve('still running'), 15_000),
+        ),
+      ]);
+
+      expect(exited).toBe(2);
+      expect(JSON.parse(dev.output().stdout)).toMatchObject({ render: { empty: false } });
+      expect(dev.output().stderr).toContain('Could not write --save-state');
+      expect(dev.output().stderr).toMatch(/"ok": false/);
+    } finally {
+      dev.child.kill('SIGKILL');
+    }
+  },
+  30_000,
+);
+
+endToEnd('charming dev refuses --click without --check', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+  const dev = runDev([crudTemplate, '--port', '0', '--click', '#add'], cwd);
+
+  expect(await dev.exited).toBe(2);
+  expect(dev.output().stdout).toBe('');
+  expect(dev.output().stderr).toContain('--check');
+});
+
 endToEnd('charming dev refuses an unwritable --save-state before serving', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
   const dev = runDev(
@@ -325,6 +538,16 @@ test.each([
     "export const DEV_HOST_API_VERSION = 0; export const DEV_APP_ID = 'x'; export function createDevHost() {}",
     'dev_host_mismatch',
   ],
+  [
+    'with a dev host from the release before reload on save',
+    "export const DEV_HOST_API_VERSION = 2; export const DEV_APP_ID = 'x'; export const DEV_PANEL_PATH = '/__dev'; export function createDevHost() {}",
+    'dev_host_mismatch',
+  ],
+  [
+    'with a dev host that lists no stream paths',
+    `export const DEV_HOST_API_VERSION = ${DEV_HOST_API_VERSION}; export const DEV_APP_ID = 'x'; export const DEV_PANEL_PATH = '/__dev'; export function createDevHost() {}`,
+    'dev_host_mismatch',
+  ],
 ])('charming dev explains a CLI %s', async (_label, bundle, kind) => {
   const copy = await cliCopy(bundle);
   const child = spawn(process.execPath, [
@@ -341,4 +564,150 @@ test.each([
   expect(exitCode).toBe(2);
   expect(JSON.parse(stderr)).toMatchObject({ ok: false, error: { kind } });
   expect(JSON.parse(stderr).error.message).toContain('upgrade the CLI');
+});
+
+test('charming dev refuses --pull-data on a non-loopback --host before reaching Charming', async () => {
+  const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+  const dev = runDev(
+    ['00000000-0000-4000-8000-000000000001', '--pull-data', 'exportData', '--host', '0.0.0.0'],
+    cwd,
+  );
+
+  expect(await dev.exited).toBe(2);
+  expect(JSON.parse(dev.output().stderr)).toMatchObject({
+    ok: false,
+    error: { kind: 'invalid_arguments' },
+  });
+});
+
+const LIVE_APP_ID = '00000000-0000-4000-8000-000000000001';
+
+/** A fake Charming serving the crud template as a live App whose read-only `list` returns `items`. */
+async function liveCharming(items: unknown[], use: (baseUrl: string) => Promise<void>) {
+  const source = {
+    module: await readFile(join(crudTemplate, 'module.js'), 'utf8'),
+    ui: await readFile(join(crudTemplate, 'ui.js'), 'utf8'),
+    styles: await readFile(join(crudTemplate, 'styles.css'), 'utf8'),
+  };
+  const server = createServer((request, response) => {
+    const path = new URL(request.url ?? '/', 'http://charming.test').pathname;
+    const body =
+      path === `/app/${LIVE_APP_ID}/source`
+        ? { ok: true, source }
+        : path === `/app/${LIVE_APP_ID}/agent.json`
+          ? {
+              operations: [
+                {
+                  op: 'list',
+                  method: 'GET',
+                  path: '/api/list',
+                  readOnly: true,
+                  discoveredFrom: ['routes_export'],
+                },
+              ],
+            }
+          : path === `/app/${LIVE_APP_ID}/api/list`
+            ? { ok: true, value: { items_v1: items } }
+            : null;
+    response.writeHead(body ? 200 : 404, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify(body ?? { ok: false, error: { kind: 'not_found' } }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    await use(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+endToEnd('charming dev <app-id> --pull-data serves the storage the live App returned', async () => {
+  const items = [{ id: 'live-1', text: 'Live item', done: false }];
+  await liveCharming(items, async (baseUrl) => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    const dev = runDev(
+      [
+        LIVE_APP_ID,
+        '--base-url',
+        baseUrl,
+        '--token',
+        'chrm_user_fixture',
+        '--pull-data',
+        'list',
+        '--port',
+        '0',
+      ],
+      cwd,
+    );
+    try {
+      const { url, appId } = await dev.started;
+      const listed = await fetch(`${url}/app/${appId}/api/list`);
+
+      expect(await listed.json()).toEqual({ ok: true, value: items });
+      expect(existsSync(join(cwd, LIVE_APP_ID, 'module.js'))).toBe(true);
+    } finally {
+      dev.child.kill('SIGTERM');
+    }
+    expect(await dev.exited).toBe(0);
+  });
+});
+
+endToEnd(
+  'charming dev <app-id> without --pull-data never reads the data an earlier pull left',
+  async () => {
+    const items = [{ id: 'live-1', text: 'Live item', done: false }];
+    const seeded = [{ id: 'seed-1', text: 'Seeded item', done: false }];
+    await liveCharming(items, async (baseUrl) => {
+      const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+      const auth = ['--base-url', baseUrl, '--token', 'chrm_user_fixture', '--port', '0'];
+      const listAfter = async (args: string[]) => {
+        const dev = runDev([LIVE_APP_ID, ...auth, ...args], cwd);
+        try {
+          const { url, appId } = await dev.started;
+          return await (await fetch(`${url}/app/${appId}/api/list`)).json();
+        } finally {
+          dev.child.kill('SIGTERM');
+          await dev.exited;
+        }
+      };
+      await writeFile(join(cwd, 'seed.json'), JSON.stringify({ items_v1: seeded }));
+
+      expect(await listAfter(['--pull-data', 'list'])).toEqual({ ok: true, value: items });
+      expect(existsSync(join(cwd, LIVE_APP_ID, '.charming-dev', 'state.json'))).toBe(true);
+      expect(await listAfter([])).toEqual({ ok: true, value: [] });
+      expect(await listAfter(['--out', LIVE_APP_ID])).toEqual({ ok: true, value: [] });
+      expect(await listAfter(['--state', 'seed.json'])).toEqual({ ok: true, value: seeded });
+    });
+  },
+);
+
+test('charming dev <app-id> --pull-data exits 2 with invalid_state for a symlinked .charming-dev', async () => {
+  await liveCharming([], async (baseUrl) => {
+    const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
+    await mkdir(join(cwd, 'app'));
+    await symlink(
+      await mkdtemp(join(tmpdir(), 'charming-dev-cli-elsewhere-')),
+      join(cwd, 'app', '.charming-dev'),
+    );
+    const dev = runDev(
+      [
+        LIVE_APP_ID,
+        '--base-url',
+        baseUrl,
+        '--token',
+        'chrm_user_fixture',
+        '--out',
+        'app',
+        '--pull-data',
+        'list',
+      ],
+      cwd,
+    );
+
+    expect(await dev.exited).toBe(2);
+    expect(JSON.parse(dev.output().stderr)).toMatchObject({
+      ok: false,
+      error: { kind: 'invalid_state' },
+    });
+    expect(existsSync(join(cwd, 'app', 'module.js'))).toBe(false);
+  });
 });

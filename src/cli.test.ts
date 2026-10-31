@@ -873,6 +873,73 @@ describe('main', () => {
   });
 });
 
+test('charming dev <app-id> reports a failed source read with the API error and its exit code', async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(404, { 'Content-Type': 'application/json' });
+    response.end(
+      JSON.stringify({
+        ok: false,
+        error: { kind: 'app_not_found', message: 'No such app.', recovery: { next: 'apps list' } },
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { port } = server.address() as AddressInfo;
+    const out = join(await mkdtemp(join(tmpdir(), 'charming-dev-pull-cli-')), 'app');
+
+    const failure = (await runBinary([
+      '--base-url',
+      `http://127.0.0.1:${port}`,
+      '--token',
+      'chrm_user_fixture',
+      'dev',
+      APP_ID,
+      '--out',
+      out,
+    ]).catch((caught: unknown) => caught)) as { code?: number; stderr: string };
+
+    expect(failure.code).toBe(3);
+    expect(JSON.parse(failure.stderr)).toMatchObject({
+      ok: false,
+      error: { kind: 'app_not_found', status: 404, recovery: { next: 'apps list' } },
+    });
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('charming dev <app-id> reports a stalled source read as a timeout with its exit code', async () => {
+  const server = createServer(() => undefined);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { port } = server.address() as AddressInfo;
+    const out = join(await mkdtemp(join(tmpdir(), 'charming-dev-pull-cli-')), 'app');
+
+    const failure = (await runBinary([
+      '--base-url',
+      `http://127.0.0.1:${port}`,
+      '--token',
+      'chrm_user_fixture',
+      '--timeout',
+      '200',
+      'dev',
+      APP_ID,
+      '--out',
+      out,
+    ]).catch((caught: unknown) => caught)) as { code?: number; stderr: string };
+
+    expect(failure.code).toBe(8);
+    expect(JSON.parse(failure.stderr)).toMatchObject({
+      ok: false,
+      error: { kind: 'timeout', timeoutMs: 200 },
+    });
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 async function runBinary(
   args: string[],
   cwd = process.cwd(),

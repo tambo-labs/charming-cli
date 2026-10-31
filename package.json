@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@oclif/core": "5.1.9",
+    "happy-dom": "21.0.4",
     "jsonc-parser": "3.3.1"
   },
   "devDependencies": {

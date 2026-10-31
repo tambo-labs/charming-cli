@@ -19,6 +19,7 @@ import {
   type Session,
 } from './config.js';
 import { findOperation, type Operation, operations } from './contract.js';
+import { DevError } from './dev.js';
 import {
   readAppBundle,
   readAppPackage,
@@ -114,8 +115,13 @@ function migrateContract(context: CommandContext) {
   return context.options['migrate-contract'] === true ? { migrate_contract: true } : {};
 }
 
+/** Whether a value has the shape of an App ID. */
+export function isAppId(value: string): boolean {
+  return APP_ID_RE.test(value);
+}
+
 export function assertAppId(appId: string): void {
-  if (!APP_ID_RE.test(appId)) {
+  if (!isAppId(appId)) {
     throw new Error(
       'Invalid app ID. Run `charming apps list` and pass the app ID from its `id` field.',
     );
@@ -409,9 +415,7 @@ export async function runApps(
     ).data as SourceResponse;
     const outputDirectory = stringOption(context.options, 'out');
     if (outputDirectory) {
-      const files = packageFiles(data);
-      if (files) await writeAppPackage(outputDirectory, files);
-      else await writeAppBundle(outputDirectory, validSource(data));
+      await writeSource(outputDirectory, data);
       return { id: appId, outputDirectory };
     }
     return data;
@@ -825,8 +829,41 @@ type DeclaredOperation = {
   method: string;
   path: string;
   destructive: boolean;
+  readOnly: boolean;
   fromRoutes: boolean;
 };
+
+/**
+ * The value a live App's read-only operation returns for empty input, for
+ * `charming dev --pull-data`. Refuses an operation the App does not declare
+ * read-only, so pulling data never writes to the App.
+ */
+export async function readOnlyOperationValue(
+  context: CommandContext,
+  appId: string,
+  operation: string,
+): Promise<unknown> {
+  assertAppId(appId);
+  const client = clientFor(context, await tokenForApp(context, appId));
+  const descriptor = (
+    await client.request('GET', `/app/${encodeURIComponent(appId)}/agent.json`, {
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+    })
+  ).data;
+  const declared = declaredOperations(descriptor).find((candidate) => candidate.op === operation);
+  // The App's readOnly label is advisory on the server, so a GET is required too.
+  if (!declared?.readOnly || declared.method !== 'GET') {
+    throw new DevError(
+      'invalid_arguments',
+      `App ${appId} declares no read-only GET operation named \`${operation}\`. --pull-data calls only GET operations the App declares read-only.`,
+    );
+  }
+  const result = await callAppOperation(context, client, appId, operation, {});
+  if (!isRecord(result) || result.ok !== true || !('value' in result)) {
+    throw new Error(`Operation \`${operation}\` answered without a value.`);
+  }
+  return result.value;
+}
 
 async function resolveOperationRequest(
   client: CharmingClient,
@@ -895,6 +932,7 @@ function declaredOperations(descriptor: unknown): DeclaredOperation[] {
         method: entry.method.toUpperCase(),
         path: entry.path,
         destructive: entry.destructive === true,
+        readOnly: entry.readOnly === true,
         fromRoutes:
           Array.isArray(entry.discoveredFrom) && entry.discoveredFrom.includes('routes_export'),
       },
@@ -1072,6 +1110,28 @@ async function readBundle(directory: string | undefined, options: Record<string,
     styles: stringOption(options, 'styles'),
     ui: stringOption(options, 'ui'),
   });
+}
+
+async function writeSource(directory: string, data: SourceResponse): Promise<void> {
+  const files = packageFiles(data);
+  if (files) await writeAppPackage(directory, files);
+  else await writeAppBundle(directory, validSource(data));
+}
+
+/** Write a live App's source into a directory, as `apps source --out` does. */
+export async function writeAppSource(
+  context: CommandContext,
+  appId: string,
+  directory: string,
+): Promise<void> {
+  assertAppId(appId);
+  const client = clientFor(context, await tokenForApp(context, appId));
+  const data = (
+    await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
+      timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
+    })
+  ).data as SourceResponse;
+  await writeSource(directory, data);
 }
 
 export function packageFiles(data: SourceResponse): Record<string, string> | null {
