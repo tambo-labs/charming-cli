@@ -77,7 +77,8 @@ export default class Dev extends CharmingCommand {
     styles: Flags.string({ description: 'Stylesheet file.' }),
     ui: Flags.string({ description: 'UI source file.' }),
     user: Flags.string({
-      description: 'JSON file with the signed-in user: id, and optional handle, name, image.',
+      description:
+        'JSON file with the signed-in user: id, and optional handle, name, image, email, emailVerified.',
     }),
   };
 

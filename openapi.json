@@ -2247,6 +2247,8 @@
                   "two_factor_required",
                   "reauthentication_required",
                   "forbidden_write",
+                  "email_not_verified",
+                  "email_needs_sign_in",
                   "stored_value_too_large",
                   "storage_full",
                   "invalid_module",

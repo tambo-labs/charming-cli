@@ -20,7 +20,9 @@ There is no capability `exports` array in the current contract. `routes` is the 
 
 ## `env.user`
 
-`env.user` is always present, not gated by any import: the caller's public identity (`{ id, handle?, name?, image? }`) or `null`. It lives only on `env` — read `env.user` (or `context.env.user` from a named handler context). There is no `ctx.user`.
+`env.user` is always present, not gated by any import: the signed-in caller (`{ id, handle?, name?, image?, email?, emailVerified }`) or `null` when no person is behind the call (a signed-out visitor, a Routine, a webhook, an App token). `email` is the caller's verified address and is present only when `emailVerified` is `true`; it reaches server code only, never `window.charming.user`. It lives only on `env` — read `env.user` (or `context.env.user` from a named handler context). There is no `ctx.user`.
+
+When an operation needs the address, guard it with `if (!env.user?.email) throw new CharmingHandlerError({ kind: 'email_not_verified', status: 403 });`. Charming answers 403 `email_not_verified` with "The user needs to verify their email." A caller named only by a user-bound render token (a `?t=` URL an agent handed out, a chat host's embed) reads `emailVerified: false` even when verified, and gets 403 `email_needs_sign_in` with "Open this App in Charming while signed in to use your email." instead. To try it under `charming dev`, put `email` in the `--user` file; set `"emailVerified": false` to see the unverified case.
 
 ## The result envelope
 

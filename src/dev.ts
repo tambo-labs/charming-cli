@@ -20,6 +20,8 @@ interface DevUser {
   handle?: string;
   name?: string;
   image?: string;
+  email?: string;
+  emailVerified?: boolean;
 }
 
 /** An embed-breaker `--check` reports; the dev host owns the rules. */
@@ -79,7 +81,7 @@ export interface DevServerOptions {
   state?: string;
   /** JSON file the App's storage is written to after each change and on close. */
   saveState?: string;
-  /** JSON file with the signed-in user (`id`, optional `handle`, `name`, `image`). */
+  /** JSON file with the signed-in user (`id`, optional `handle`, `name`, `image`, `email`, `emailVerified`). */
   user?: string;
   /** The caller's role on the App. Defaults to owner. */
   role?: DevRole;
@@ -928,17 +930,18 @@ async function readStateFile(path: string, flag: string): Promise<Record<string,
 async function readUserFile(path: string): Promise<DevUser> {
   const value = await readJsonFile(path, '--user');
   const user = value as Partial<Record<keyof DevUser, unknown>> | null;
-  const optional = ['handle', 'name', 'image'] as const;
+  const optional = ['handle', 'name', 'image', 'email'] as const;
   if (
     typeof user !== 'object' ||
     user === null ||
     typeof user.id !== 'string' ||
     user.id.length === 0 ||
-    optional.some((key) => user[key] !== undefined && typeof user[key] !== 'string')
+    optional.some((key) => user[key] !== undefined && typeof user[key] !== 'string') ||
+    (user.emailVerified !== undefined && typeof user.emailVerified !== 'boolean')
   ) {
     throw new DevError(
       'invalid_user',
-      `--user ${path} must hold {"id": string, "handle"?: string, "name"?: string, "image"?: string}.`,
+      `--user ${path} must hold {"id": string, "handle"?: string, "name"?: string, "image"?: string, "email"?: string, "emailVerified"?: boolean}.`,
     );
   }
   return {
@@ -946,6 +949,7 @@ async function readUserFile(path: string): Promise<DevUser> {
     ...Object.fromEntries(
       optional.flatMap((key) => (user[key] === undefined ? [] : [[key, user[key]]])),
     ),
+    ...(user.emailVerified === undefined ? {} : { emailVerified: user.emailVerified }),
   };
 }
 

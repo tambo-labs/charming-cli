@@ -200,6 +200,7 @@ endToEnd.each([
   ['--state', '[1, 2]', 'invalid_state'],
   ['--state', '{not json', 'invalid_json'],
   ['--user', '{"handle": "no-id"}', 'invalid_user'],
+  ['--user', '{"id": "user-1", "emailVerified": "yes"}', 'invalid_user'],
 ])('charming dev rejects a bad %s file %s', async (flag, contents, kind) => {
   const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));
   await writeFile(join(cwd, 'fixture.json'), contents);
