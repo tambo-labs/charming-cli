@@ -37,7 +37,7 @@ When an operation needs the address, guard it with `if (!env.user?.email) throw 
 
 For unauthenticated (open) external calls, declare both `charming:network/fetch@1.0` and `permissions.server.fetch`, listing each exact canonical HTTPS origin the app calls, e.g. `["https://api.example.com"]`. No HTTP, no wildcards, no credentials, no paths, no query strings, no fragments, no explicit default ports. Redirects must stay within the declared origins.
 
-For calls that need an API key, declare `charming:secrets/fetch@1.0` instead to get a sealed `env.fetch`. The app owner sets the secret's value under App settings → Secrets; the agent only ever references the name:
+For calls that need an API key, declare `charming:secrets/fetch@1.0` instead to get a sealed `env.fetch`. Only the app owner sets the secret's value, in App settings → Secrets; the agent only ever references the name. Give the owner a link instead of describing where to click: `https://charm.ing/<owner-handle>/~/apps/<app-name>/settings/secrets?name=NAME`, with the real handle and app name (`get_app` returns the base as `secretsUrl`), one `name=` per secret, and an optional short `&reason=` saying why. Never put a value in the link:
 
 ```js
 // header form
