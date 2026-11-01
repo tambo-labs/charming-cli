@@ -1,5 +1,19 @@
 # usecharming
 
+## 0.9.2
+
+### Patch Changes
+
+- [#7586](https://github.com/tambo-ai/charming/pull/7586) [`e166174`](https://github.com/tambo-ai/charming/commit/e1661741837b40f6c6bcd88c955a1b99ee4b8485) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Read many storage keys in one call. `kv.get(keys)` and `env.storage.get(keys)` read up to 1,000 keys into a `Map`, and `list({ prefix, limit, cursor })` returns one page, `{ keys: [{ name }], list_complete, cursor }`, in UTF-8 byte order. Each call is one database statement, so loading a large collection no longer costs a round trip per key. `get(key)` and `list()` with no argument behave as before.
+
+  `list` with an options object is new behavior for the 21 Apps that already passed `{ prefix }` and had it ignored: they now get the prefix-filtered first page instead of every key. The page is iterable over its key names, so `for (const key of await storage.list({ prefix }))` keeps working, and code written for the Workers KV shape starts showing its data. `list` with any argument that is not an object still returns every key.
+
+  A refused bulk read throws an `Error` whose `kind` is `too_many_keys`, `payload_too_large` (about 10 MiB), `invalid_input`, or `storage_method_unavailable` when the App host has no bulk reads yet. Migration 0129 adds the byte-order index on `app_storage` that the page query uses. The Dynamic Workers host streams bulk responses through instead of parsing them, and must be redeployed after the server for bulk reads to work there.
+
+- [#7588](https://github.com/tambo-ai/charming/pull/7588) [`5a1c562`](https://github.com/tambo-ai/charming/commit/5a1c5627999b02747ed84cde5df26148a3742d81) Thanks [@michaelmagan](https://github.com/michaelmagan)! - `create_app`, `update_app`, `get_app`, and `get_app_source` now end with a "Suggested improvements" block, and return the same items as `codeAdvisories`, when an App's server code has a pattern that makes runs slow: a storage-loading function called more than once in one op, a loop that awaits one `fetch` per item, a `module` or `ui` above 90% of its cap, or a Routine whose runs used most of the time limit. Apply every item in one `update_app` call. Nothing is refused or slowed; viewers and end users never see the block.
+
+- [#7553](https://github.com/tambo-ai/charming/pull/7553) [`cfb4ded`](https://github.com/tambo-ai/charming/commit/cfb4ded2536803ec4804dfb85d06efec63af3045) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency @oclif/core to v5.1.10
+
 ## 0.9.1
 
 ### Patch Changes
