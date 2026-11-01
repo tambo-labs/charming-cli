@@ -2251,6 +2251,8 @@
                   "email_needs_sign_in",
                   "stored_value_too_large",
                   "storage_full",
+                  "too_many_keys",
+                  "storage_method_unavailable",
                   "invalid_module",
                   "invalid_ui",
                   "invalid_files",

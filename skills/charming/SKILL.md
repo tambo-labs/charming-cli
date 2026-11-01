@@ -126,6 +126,8 @@ export const routes = [
 
 `env.storage` (`get` / `put` / `delete` / `list`) stores JSON values **directly**. Never `JSON.stringify` on the way in or `JSON.parse` on the way out. Storage is per-app and survives updates, so iterate freely.
 
+To load many keys, read a page and then its values in one call each, never one `get` per key: `const page = await env.storage.list({ prefix: 'task:', cursor })`, then `const values = await env.storage.get(page.keys.map((key) => key.name))` (a `Map`, up to 1,000 keys), and loop while `page.cursor` is set. See `resources/contract.md` for the caps and errors.
+
 `env.storage` works everywhere the app runs — the web app and inside Claude/ChatGPT. `localStorage` / `sessionStorage` / `IndexedDB` need the `charming:browser/storage@1.0` capability _and_ are empty inside chat hosts. Anything the user expects to keep belongs in `env.storage`.
 
 Keep user data in `env.storage`, never in module constants — a shared or templated copy of the app then starts empty instead of leaking the author's data.

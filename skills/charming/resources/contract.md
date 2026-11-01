@@ -18,6 +18,26 @@ Camera, microphone, location, screen capture, clipboard reading, and MIDI need n
 
 There is no capability `exports` array in the current contract. `routes` is the only way to expose an operation to callers.
 
+## `env.storage`
+
+`env.storage` follows Workers KV: `get(key)`, `put(key, value)`, `delete(key)`, `list()`, plus two forms for reading many keys.
+
+- `get(keys)` reads up to 1,000 keys in one call and resolves to a `Map` in the order asked, each key once, with keys that hold no value left out. A second argument such as `'json'` is ignored.
+- `list({ prefix, limit, cursor })` returns one page, `{ keys: [{ name }], list_complete, cursor }`, of up to `limit` keys (1 to 1,000, default 1,000) in UTF-8 byte order. Pass `cursor` back while `list_complete` is `false`. A cursor works only for the same App and prefix. The page is also iterable over its key names, so `for (const key of await env.storage.list({ prefix }))` reads the first page; `list()` with no argument still returns every key as a `string[]`.
+
+```js
+let cursor;
+const tasks = [];
+do {
+  const page = await env.storage.list({ prefix: 'task:', cursor });
+  const values = await env.storage.get(page.keys.map((key) => key.name));
+  tasks.push(...values.values());
+  cursor = page.cursor;
+} while (cursor);
+```
+
+Each `get(key)` is a database round trip, so a loop of them over a growing collection can run a Routine out of time; a few known keys are fine. A bulk read returns at most 10 MiB of keys and values (one value alone returns whatever its size). A refused call throws an `Error` whose `kind` is `too_many_keys`, `payload_too_large`, `invalid_input`, or `storage_method_unavailable` (the host has no bulk reads yet).
+
 ## `env.user`
 
 `env.user` is always present, not gated by any import: the signed-in caller (`{ id, handle?, name?, image?, email?, emailVerified }`) or `null` when no person is behind the call (a signed-out visitor, a Routine, a webhook, an App token). `email` is the caller's verified address and is present only when `emailVerified` is `true`; it reaches server code only, never `window.charming.user`. It lives only on `env` — read `env.user` (or `context.env.user` from a named handler context). There is no `ctx.user`.
