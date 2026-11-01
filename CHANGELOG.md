@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.9.1
+
+### Patch Changes
+
+- [#7541](https://github.com/tambo-ai/charming/pull/7541) [`69904c1`](https://github.com/tambo-ai/charming/commit/69904c150da70d4496a70450b1906fb86214e8cc) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Open the Secrets page from a link that names the secrets to add. `?name=STRIPE_KEY` (repeatable, with an optional short `reason=`) lists the names, quotes the reason as text from the link, fills in the name, and puts the cursor in the Value field. The banner claims no sender, because anyone with access to the App can build the link. `get_app` now gives the owner a `secretsUrl`, and the app guide tells agents to hand over that link instead of describing where to click. When an owner's call fails with `secret_not_found` for a secret that is not set, the error reads `NAME isn't set. Add it here: <link>`. An old App Settings address keeps its query when it redirects after a rename.
+
 ## 0.9.0
 
 ### Minor Changes
