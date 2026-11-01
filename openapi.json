@@ -10851,7 +10851,7 @@
       "post": {
         "operationId": "call-app-operation",
         "summary": "Call a declared app route or its unmatched-request fallback",
-        "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. A declared route handler returns exactly its `outputSchema` value without adding a transport envelope unless those fields belong to the schema; Charming validates it and wraps HTTP success as `{ ok: true, value }`. `window.charming.api` uses `renderToken` and unwraps that envelope, so in-page callers receive the value directly. If no declared route matches, the optional `default.fetch` handles the request and its `Response` passes through unchanged; without that fallback, Charming returns a 404. A request body over 1 MiB is refused with 413 `payload_too_large` before the app sees it. Direct callers should use `appToken` or `userToken`.",
+        "description": "External callers must use Bearer auth. The platform strips `/app/<id>` so the app sees `/api/<operation>`. A declared route handler returns exactly its `outputSchema` value without adding a transport envelope unless those fields belong to the schema; Charming validates it and wraps HTTP success as `{ ok: true, value }`. `window.charming.api` uses `renderToken` and unwraps that envelope, so in-page callers receive the value directly. If no declared route matches, the optional `default.fetch` handles the request and its `Response` passes through unchanged; without that fallback, Charming returns a 404. A request body over 1 MiB is refused with 413 `payload_too_large` before the app sees it. Direct callers should use `appToken` or `userToken`. Every response to a caller the App admits carries `x-charming-app-version`, the App's live revision. A page may send `x-charming-page-version`, the revision it was built from; a call that fails because the page is out of date is not counted as a fault in the App.",
         "security": [
           {
             "appToken": []
@@ -10888,7 +10888,7 @@
             }
           },
           "401": {
-            "description": "Authentication required.",
+            "description": "Authentication required. A page whose token expired gets error kind `token_expired` with `error.recovery`; reloading the page mints a fresh token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12747,7 +12747,7 @@
             }
           },
           "401": {
-            "description": "Anonymous caller's `buildy_sse_<id>` cookie was once valid but its 1-hour TTL elapsed. Error kind: `sse_cookie_expired` — reload `/app/{id}` so the render-token bridge re-issues a fresh cookie.",
+            "description": "Anonymous caller's `buildy_sse_<id>` cookie was once valid but its 1-hour TTL elapsed. Error kind: `sse_cookie_expired` — reload `/app/{id}` so the render-token bridge re-issues a fresh cookie. A page whose signed token expired gets error kind `token_expired` with `error.recovery`; reload the page.",
             "content": {
               "application/json": {
                 "schema": {
