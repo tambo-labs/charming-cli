@@ -1,5 +1,15 @@
 # usecharming
 
+## 0.9.3
+
+### Patch Changes
+
+- [#7601](https://github.com/tambo-ai/charming/pull/7601) [`9cbfff4`](https://github.com/tambo-ai/charming/commit/9cbfff4690b016f79828373152e98cb65e536529) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Migrate an App saved before packages without resending its source. In a migration save (`update_app` or `PUT /app/:id` with `migrate_contract: true`), a file can be `{ from: "module" | "ui" | "styles", edits }`, built from the App's current source at the expected revision, so a 270 KB App migrates with a request of about 2 KB. Other saves refuse `from`.
+
+  A migration whose `package.json` has no `description` key keeps the App's current description. A migration is refused as `invalid_module`, with the line and the fix, when `server.js` keeps a `manifest` export, a route handler still reads `env.storage`, `env.assets`, `env.log`, `env.fetch`, or `env.apps`, `kv`, `assets`, or `log` is used without its import, or a `{{secret:…}}` placeholder has no sealed fetch import. On every exact-edit path, an edit that would grow one file, or the files other than `styles.css` together, past the 1024 KiB package budget is refused with `payload_too_large` before the text is built.
+
+- [#7605](https://github.com/tambo-ai/charming/pull/7605) [`4525293`](https://github.com/tambo-ai/charming/commit/45252939620be9f64f504e63df577f013488e4b1) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Point `module_too_large` and `ui_too_large` at the migration that needs no resend. For an App saved before packages, the `update_app` error text and the `shrink` recovery on `PUT /app/:id` and `PATCH /app/:id/source` now show the `files` shape with `{ "from": "module", "edits": [...] }`, and the `module-near-cap` advisory and the size-limit docs say the same. A package App and `styles_too_large` are unchanged.
+
 ## 0.9.2
 
 ### Patch Changes
