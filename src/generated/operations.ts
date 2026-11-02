@@ -1421,7 +1421,7 @@ export const generatedOperations = [
                   },
                   "details": {
                     "type": "object",
-                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, how long the run went in ms, and where the time went.",
                     "required": [
                       "limit",
                       "limitMs",
@@ -1440,6 +1440,66 @@ export const generatedOperations = [
                       },
                       "elapsedMs": {
                         "type": "number"
+                      },
+                      "timings": {
+                        "type": "object",
+                        "description": "Where the run spent its time, when the host measured it: `wallMs`, the storage calls it made and the ms at least one was in flight, the sealed fetch calls the host made for it and their ms (a fetch from `charming:network/fetch@1.0` is not counted), and how many other Routines of the same App ran alongside it and for how many ms.",
+                        "required": [
+                          "wallMs",
+                          "storage",
+                          "fetch",
+                          "overlappingRoutines"
+                        ],
+                        "properties": {
+                          "wallMs": {
+                            "type": "number"
+                          },
+                          "storage": {
+                            "type": "object",
+                            "required": [
+                              "calls",
+                              "ms"
+                            ],
+                            "properties": {
+                              "calls": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "fetch": {
+                            "type": "object",
+                            "required": [
+                              "count",
+                              "ms"
+                            ],
+                            "properties": {
+                              "count": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "overlappingRoutines": {
+                            "type": "object",
+                            "required": [
+                              "count",
+                              "ms"
+                            ],
+                            "properties": {
+                              "count": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
@@ -6618,7 +6678,7 @@ export const generatedOperations = [
                     },
                     "details": {
                       "type": "object",
-                      "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                      "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, how long the run went in ms, and where the time went.",
                       "required": [
                         "limit",
                         "limitMs",
@@ -6637,6 +6697,66 @@ export const generatedOperations = [
                         },
                         "elapsedMs": {
                           "type": "number"
+                        },
+                        "timings": {
+                          "type": "object",
+                          "description": "Where the run spent its time, when the host measured it: `wallMs`, the storage calls it made and the ms at least one was in flight, the sealed fetch calls the host made for it and their ms (a fetch from `charming:network/fetch@1.0` is not counted), and how many other Routines of the same App ran alongside it and for how many ms.",
+                          "required": [
+                            "wallMs",
+                            "storage",
+                            "fetch",
+                            "overlappingRoutines"
+                          ],
+                          "properties": {
+                            "wallMs": {
+                              "type": "number"
+                            },
+                            "storage": {
+                              "type": "object",
+                              "required": [
+                                "calls",
+                                "ms"
+                              ],
+                              "properties": {
+                                "calls": {
+                                  "type": "number"
+                                },
+                                "ms": {
+                                  "type": "number"
+                                }
+                              }
+                            },
+                            "fetch": {
+                              "type": "object",
+                              "required": [
+                                "count",
+                                "ms"
+                              ],
+                              "properties": {
+                                "count": {
+                                  "type": "number"
+                                },
+                                "ms": {
+                                  "type": "number"
+                                }
+                              }
+                            },
+                            "overlappingRoutines": {
+                              "type": "object",
+                              "required": [
+                                "count",
+                                "ms"
+                              ],
+                              "properties": {
+                                "count": {
+                                  "type": "number"
+                                },
+                                "ms": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -11857,7 +11977,7 @@ export const generatedOperations = [
                   },
                   "details": {
                     "type": "object",
-                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, and how long the run went in ms.",
+                    "description": "Present when `kind` is `timeout`: which time limit stopped the run, the limit in ms, how long the run went in ms, and where the time went.",
                     "required": [
                       "limit",
                       "limitMs",
@@ -11876,6 +11996,66 @@ export const generatedOperations = [
                       },
                       "elapsedMs": {
                         "type": "number"
+                      },
+                      "timings": {
+                        "type": "object",
+                        "description": "Where the run spent its time, when the host measured it: `wallMs`, the storage calls it made and the ms at least one was in flight, the sealed fetch calls the host made for it and their ms (a fetch from `charming:network/fetch@1.0` is not counted), and how many other Routines of the same App ran alongside it and for how many ms.",
+                        "required": [
+                          "wallMs",
+                          "storage",
+                          "fetch",
+                          "overlappingRoutines"
+                        ],
+                        "properties": {
+                          "wallMs": {
+                            "type": "number"
+                          },
+                          "storage": {
+                            "type": "object",
+                            "required": [
+                              "calls",
+                              "ms"
+                            ],
+                            "properties": {
+                              "calls": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "fetch": {
+                            "type": "object",
+                            "required": [
+                              "count",
+                              "ms"
+                            ],
+                            "properties": {
+                              "count": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "overlappingRoutines": {
+                            "type": "object",
+                            "required": [
+                              "count",
+                              "ms"
+                            ],
+                            "properties": {
+                              "count": {
+                                "type": "number"
+                              },
+                              "ms": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
                       }
                     }
                   }
