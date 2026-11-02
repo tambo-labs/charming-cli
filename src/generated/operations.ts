@@ -3535,7 +3535,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/apps/{appId}/activity",
     "summary": "Get an app’s activity timeline",
-    "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
+    "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. A failed App action carries the App’s own `errorMessage` and the `path` it was called at. `recentFailures` counts failed calls for people using the live version. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
     "parameters": [
       {
         "description": "",
@@ -3607,7 +3607,8 @@ export const generatedOperations = [
           "appId",
           "items",
           "hasMore",
-          "retention"
+          "retention",
+          "recentFailures"
         ],
         "properties": {
           "ok": {
@@ -3623,6 +3624,24 @@ export const generatedOperations = [
           "hasMore": {
             "type": "boolean",
             "description": "True when older entries exist. Fetch them with `before` and `beforeId` set from the oldest entry returned."
+          },
+          "recentFailures": {
+            "type": "object",
+            "required": [
+              "count",
+              "windowHours"
+            ],
+            "description": "How many calls failed for people using the live version over the last 7 days, or the plan window when it is shorter. Counts recipients’ failed calls and refusals at the App’s run ceiling, not a Routine’s own failures.",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "windowHours": {
+                "type": "integer",
+                "description": "The hours counted back from now."
+              }
+            }
           },
           "retention": {
             "type": "object",
