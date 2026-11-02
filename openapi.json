@@ -2308,6 +2308,9 @@
                   "candidate_effects_unsupported",
                   "old_string_not_found",
                   "old_string_not_unique",
+                  "invalid_bucket",
+                  "bucket_unset",
+                  "empty_edits",
                   "edits_too_large",
                   "manifest_id_conflict",
                   "manifest_id_immutable",
@@ -3063,12 +3066,68 @@
         },
         "additionalProperties": false
       },
+      "AppFileFromSource": {
+        "type": "object",
+        "description": "Migration saves only: a file built from a field of the App's current source, at the If-Match revision, with exact edits applied in order. Edits across all files count toward one cap of 100.",
+        "required": [
+          "from"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "enum": [
+              "module",
+              "ui",
+              "styles"
+            ],
+            "description": "The field of the current source the file starts from."
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "old_string",
+                "new_string"
+              ],
+              "properties": {
+                "old_string": {
+                  "type": "string"
+                },
+                "new_string": {
+                  "type": "string"
+                },
+                "replace_all": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Omit to copy the field unchanged."
+          }
+        },
+        "additionalProperties": false
+      },
       "AppUpdateBody": {
         "type": "object",
         "properties": {
           "files": {
-            "$ref": "#/components/schemas/AppFiles",
-            "description": "The whole replacement tree of a package App. Required for an App on the package contract; statically checked and built after acceptance. Mutually exclusive with module, ui, styles, and description."
+            "type": "object",
+            "description": "The whole replacement tree of a package App, as in AppFiles. Required for an App on the package contract; statically checked and built after acceptance. When the save migrates an App saved before packages, a file may be an AppFileFromSource instead of its text, so the request carries only the changes. Mutually exclusive with module, ui, styles, and description.",
+            "required": [
+              "package.json",
+              "server.js"
+            ],
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/components/schemas/AppFileFromSource"
+                }
+              ]
+            }
           },
           "module": {
             "type": "string",
@@ -10550,7 +10609,7 @@
       "put": {
         "operationId": "update-app",
         "summary": "Update an existing app",
-        "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
+        "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; a migration may build a file from the current source with AppFileFromSource instead of resending it; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
         "security": [
           {
             "appToken": []

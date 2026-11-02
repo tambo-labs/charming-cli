@@ -10666,7 +10666,7 @@ export const generatedOperations = [
     "method": "PUT",
     "path": "/app/{id}",
     "summary": "Update an existing app",
-    "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
+    "description": "Storage survives updates. Existing contracts retain synchronous PUT and optional If-Match. A package App takes its whole tree as files and requires Idempotency-Key and If-Match carrying the current desired source revision; a migration may build a file from the current source with AppFileFromSource instead of resending it; accepted source advances desired while active remains the last working build. Successful builds publish automatically; later saves supersede pending builds.",
     "parameters": [
       {
         "description": "",
@@ -10707,27 +10707,59 @@ export const generatedOperations = [
         "properties": {
           "files": {
             "type": "object",
-            "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+            "description": "The whole replacement tree of a package App, as in AppFiles. Required for an App on the package contract; statically checked and built after acceptance. When the save migrates an App saved before packages, a file may be an AppFileFromSource instead of its text, so the request carries only the changes. Mutually exclusive with module, ui, styles, and description.",
             "required": [
               "package.json",
               "server.js"
             ],
-            "properties": {
-              "package.json": {
-                "type": "string"
-              },
-              "server.js": {
-                "type": "string"
-              },
-              "ui.js": {
-                "type": "string"
-              },
-              "styles.css": {
-                "type": "string"
-              }
-            },
             "additionalProperties": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "description": "Migration saves only: a file built from a field of the App's current source, at the If-Match revision, with exact edits applied in order. Edits across all files count toward one cap of 100.",
+                  "required": [
+                    "from"
+                  ],
+                  "properties": {
+                    "from": {
+                      "type": "string",
+                      "enum": [
+                        "module",
+                        "ui",
+                        "styles"
+                      ],
+                      "description": "The field of the current source the file starts from."
+                    },
+                    "edits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "old_string",
+                          "new_string"
+                        ],
+                        "properties": {
+                          "old_string": {
+                            "type": "string"
+                          },
+                          "new_string": {
+                            "type": "string"
+                          },
+                          "replace_all": {
+                            "type": "boolean"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "description": "Omit to copy the field unchanged."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
             }
           },
           "module": {
