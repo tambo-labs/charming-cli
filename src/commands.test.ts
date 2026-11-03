@@ -1745,11 +1745,14 @@ describe('runCommand', () => {
     }
   });
 
+  // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
   test('does not delete a saved token while a legacy ~/.buildy credential would keep signing in', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'charming-auth-'));
     const configDirectory = join(directory, 'charming');
     const credentialsPath = join(configDirectory, 'credentials.json');
+    // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
     await mkdir(join(directory, 'home', '.buildy'), { recursive: true });
+    // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
     await writeFile(join(directory, 'home', '.buildy', 'user-token'), 'chrm_user_legacy\n');
     await mkdir(configDirectory);
     await writeFile(

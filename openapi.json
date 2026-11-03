@@ -12821,7 +12821,7 @@
       "get": {
         "operationId": "subscribe-app-events",
         "summary": "Subscribe to the live-state SSE stream for an app",
-        "description": "Server-Sent Events stream of `state-changed` notifications. Each event id is `<server-epoch>:<rev>`; the browser `EventSource` replays via `Last-Event-ID` on reconnect, and the server emits a synthetic `state-changed` event with `source: \"reconnect-resync\"` and `result: null` whenever the client's id belongs to an older epoch or claims an unseen revision. The `overcapacity` event is emitted (and the stream closed) when the per-app subscriber cap is reached. Heartbeats are SSE comment lines (`: ping`) every 15s.\n\nAuth posture is broader than the owner endpoints: appToken, userToken, renderToken (bearer or `?t=` query), or the path-scoped `buildy_sse_<id>` HMAC cookie minted by the `/app/{id}` render-bridge when a render-token rendered the page. The `{}` (no-auth) option in `security` covers the cookie path — OpenAPI cannot model a per-app cookie name as a fixed scheme.",
+        "description": "Server-Sent Events stream of `state-changed` notifications. Each event id is `<server-epoch>:<rev>`; the browser `EventSource` replays via `Last-Event-ID` on reconnect, and the server emits a synthetic `state-changed` event with `source: \"reconnect-resync\"` and `result: null` whenever the client's id belongs to an older epoch or claims an unseen revision. The `overcapacity` event is emitted (and the stream closed) when the per-app subscriber cap is reached. Heartbeats are SSE comment lines (`: ping`) every 15s.\n\nAuth posture is broader than the owner endpoints: appToken, userToken, renderToken (bearer or `?t=` query), or the path-scoped `charming_sse_<id>` HMAC cookie minted by the `/app/{id}` render-bridge when a render-token rendered the page. The `{}` (no-auth) option in `security` covers the cookie path — OpenAPI cannot model a per-app cookie name as a fixed scheme.",
         "x-charming-timeout-ms": null,
         "x-charming-timeout-note": "Long-lived SSE stream — do not set a client read timeout below the 15s heartbeat interval. The stream stays open until the client disconnects, the per-app subscriber cap is hit, or the server shuts down.",
         "security": [
@@ -12888,7 +12888,7 @@
             }
           },
           "401": {
-            "description": "Anonymous caller's `buildy_sse_<id>` cookie was once valid but its 1-hour TTL elapsed. Error kind: `sse_cookie_expired` — reload `/app/{id}` so the render-token bridge re-issues a fresh cookie. A page whose signed token expired gets error kind `token_expired` with `error.recovery`; reload the page.",
+            "description": "Anonymous caller's `charming_sse_<id>` cookie was once valid but its 1-hour TTL elapsed. Error kind: `sse_cookie_expired` — reload `/app/{id}` so the render-token bridge re-issues a fresh cookie. A page whose signed token expired gets error kind `token_expired` with `error.recovery`; reload the page.",
             "content": {
               "application/json": {
                 "schema": {

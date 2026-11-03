@@ -318,6 +318,7 @@ async function legacyFallback(
   if (session.origin !== PRODUCTION_BASE_URL) return undefined;
   if (session.profile !== undefined && session.profile !== DEFAULT_PROFILE) return undefined;
   try {
+    // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
     const path = options.legacyTokenPath ?? join(homedir(), '.buildy', 'user-token');
     return (await readFile(path, 'utf8')).trim() || undefined;
   } catch (error) {

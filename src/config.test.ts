@@ -252,6 +252,7 @@ describe('credential resolution', () => {
     expect(session.token).toBeUndefined();
   });
 
+  // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
   test('falls back to the legacy ~/.buildy token for the default profile and reports it alongside a saved one', async () => {
     const options = await legacyStore({});
     const legacyTokenPath = join(options.configDir, 'legacy-token');
