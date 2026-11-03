@@ -2885,10 +2885,7 @@
         ],
         "properties": {
           "$schema": {
-            "enum": [
-              "https://charm.ing/schema/app-package/2026-10-25.json",
-              "https://charm.ing/schema/app-package/next.json"
-            ]
+            "const": "https://charm.ing/schema/app-package/2026-10-25.json"
           },
           "name": {
             "type": "string",
