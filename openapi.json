@@ -2394,6 +2394,7 @@
                   "connector_unavailable",
                   "connector_cross_site",
                   "connector_blocked_by_team",
+                  "connector_route_not_declared",
                   "connector_holder_only",
                   "storage_limit_exceeded",
                   "copy_data_forbidden",
