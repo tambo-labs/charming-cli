@@ -2392,6 +2392,7 @@
                   "connector_no_person",
                   "connector_reconnect_required",
                   "connector_unavailable",
+                  "connector_tool_failed",
                   "connector_cross_site",
                   "connector_blocked_by_team",
                   "connector_route_not_declared",
