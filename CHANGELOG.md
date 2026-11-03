@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.9.5
+
+### Patch Changes
+
+- [#7646](https://github.com/tambo-ai/charming/pull/7646) [`3c3129f`](https://github.com/tambo-ai/charming/commit/3c3129f74aa4384999aba6564bbb63047f260421) Thanks [@lachieh](https://github.com/lachieh)! - Regenerate the OpenAPI snapshot, which now names the SSE cookie `charming_sse_<id>`.
+
 ## 0.9.4
 
 ### Patch Changes
