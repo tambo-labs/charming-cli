@@ -1,5 +1,13 @@
 # usecharming
 
+## 0.9.4
+
+### Patch Changes
+
+- [#7631](https://github.com/tambo-ai/charming/pull/7631) [`022cace`](https://github.com/tambo-ai/charming/commit/022cace02fbbae63e2bc279c9c0bef912ea1077e) Thanks [@michaelmagan](https://github.com/michaelmagan)! - A Routine run now records where its time went: the storage calls it made and how long they took, the sealed fetch calls the server made for it, and how many other Routines of the same App ran at the same time. A timed-out run's `last_error.message` ends with one sentence naming those numbers, and `last_error.details.timings` carries them as `{ wallMs, storage: { calls, ms }, fetch: { count, ms }, overlappingRoutines: { count, ms } }`; the `timeout` kind and the existing `details` fields are unchanged. The `routine-near-limit` advisory on `get_app` and `get_app_source` adds the same numbers for the run it names. Only callers who could already read a Routine's errors see them.
+
+  `@usecharming/sandbox` exports `createRunMeter`; pass it to `buildEnv` as `meter` to count an invocation's storage calls and sealed fetches on the host, including a run the time limit stopped.
+
 ## 0.9.3
 
 ### Patch Changes
