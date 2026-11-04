@@ -9,6 +9,12 @@ name: Release
 #
 # A tag alone doesn't publish: `bun run check` (the same gate ci.yml
 # runs) must pass, and the tag must match package.json's version.
+# The release is created as a draft with a portable charming-<version>.tar.gz
+# (the package plus its production dependencies, run with Node 22+). The
+# packslip job signs that archive into a bundle with a keyless attestation
+# and holds no release write access; publish-release uploads the bundle
+# and publishes the draft, so `mise use packslip:tambo-labs/charming-cli`
+# installs the CLI and its skill.
 # Follow-up channels run as reusable jobs because a release created by
 # GITHUB_TOKEN does not trigger another workflow.
 
@@ -70,7 +76,62 @@ jobs:
         # No NODE_AUTH_TOKEN: the trusted publisher on npmjs.com supplies
         # credentials via OIDC and attaches a provenance attestation.
 
-      - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+      - name: Build the portable archive
+        run: bash scripts/build-release-archive.sh "${{ steps.version.outputs.version }}" dist-release
+
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag --draft "dist-release/charming-${{ steps.version.outputs.version }}.tar.gz"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: charming-archive
+          path: dist-release/charming-*.tar.gz
+          if-no-files-found: error
+
+  packslip:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # keyless signing
+      attestations: write # build provenance attestation
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: charming-archive
+          path: dist
+
+      - uses: jdx/packslip@44e50e5f64551234b4a382d991bd7f7f7d021d06 # v1.11.3
+        id: packslip
+        with:
+          artifacts: dist/charming-*.tar.gz
+          bin: charming=charming/bin/run.js
+          require: bin:node@22
+          resources: skill/charming=archive:charming/skills/charming
+          upload: false
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: charming-packslip
+          path: ${{ steps.packslip.outputs.bundle }}
+          if-no-files-found: error
+
+  publish-release:
+    needs: packslip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # upload the bundle and publish the release
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: charming-packslip
+          path: bundle
+
+      - name: Attach the bundle and publish
+        run: |
+          gh release upload "$GITHUB_REF_NAME" bundle/* --repo "$GITHUB_REPOSITORY"
+          gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
 

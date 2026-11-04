@@ -8,7 +8,11 @@ Build and manage personal apps hosted by [Charming](https://charm.ing) from a te
 npm install -g usecharming
 # or
 brew install tambo-labs/tap/charming
+# or
+mise use -g packslip:tambo-labs/charming-cli
 ```
+
+The mise install runs the signed release archive, which needs Node 22 or newer on your PATH. It also installs the `charming` skill; `mise skills sync` links it for your agent.
 
 To install from source:
 
