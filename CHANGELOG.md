@@ -1,5 +1,11 @@
 # usecharming
 
+## 0.10.0
+
+### Minor Changes
+
+- [#7725](https://github.com/tambo-ai/charming/pull/7725) [`d21f488`](https://github.com/tambo-ai/charming/commit/d21f488bc2fffeb29fe61dc19a4234f07741d5d1) Thanks [@lachieh](https://github.com/lachieh)! - Sign each release as a packslip, so `mise use packslip:tambo-labs/charming-cli` installs the CLI and its `charming` skill. The install needs Node 22 or newer on your PATH.
+
 ## 0.9.5
 
 ### Patch Changes

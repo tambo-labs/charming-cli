@@ -1,6 +1,6 @@
 {
   "name": "usecharming",
-  "version": "0.9.5",
+  "version": "0.10.0",
   "type": "module",
   "description": "Build and manage apps hosted by Charming.",
   "license": "MIT",
