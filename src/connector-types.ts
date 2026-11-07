@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { lstat, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -303,8 +304,12 @@ const FUNCTIONS_PER_REQUEST = 50;
  * tool's schemas at the version the import names. A toolkit the server
  * refuses is left out and named in `errors`, and the rest are still written.
  */
-export async function runTypes(context: CommandContext, directory: string) {
-  const files = await readAppPackage(directory);
+export async function runTypes(
+  context: CommandContext,
+  directory: string,
+  read?: Record<string, string>,
+) {
+  const files = read ?? (await readAppPackage(directory));
   const path = resolve(directory, DECLARATIONS_FILE);
   if ((await lstat(path).catch(() => null))?.isSymbolicLink())
     throw new Error(
@@ -345,4 +350,55 @@ export async function runTypes(context: CommandContext, directory: string) {
     })),
     ...(errors.length > 0 ? { errors } : {}),
   };
+}
+
+/**
+ * Keeps `charming-env.d.ts` current while `charming dev` runs: each call
+ * writes it again when the App's toolkit imports changed since the last
+ * write, for an App that holds a `.ts` file, imports a toolkit, or already
+ * has the file. The session is resolved on the first write, and a refused
+ * toolkit is asked for again on the next call. Calls run one at a time, and a
+ * failure is logged rather than thrown, so the dev server keeps serving.
+ */
+export function typesRefresher(
+  context: () => Promise<CommandContext>,
+  directory: string,
+  log: (line: string) => void,
+): () => Promise<void> {
+  let written: string | undefined;
+  let queue = Promise.resolve();
+  const refresh = async () => {
+    let files: Record<string, string>;
+    try {
+      files = await readAppPackage(directory);
+    } catch {
+      return;
+    }
+    const imports = findToolkitImports(files);
+    if (
+      imports.length === 0 &&
+      !Object.keys(files).some((path) => path.endsWith('.ts')) &&
+      !existsSync(resolve(directory, DECLARATIONS_FILE))
+    )
+      return;
+    const key = JSON.stringify(imports);
+    if (key === written) return;
+    written = key;
+    try {
+      const result = await runTypes(await context(), directory, files);
+      const count = result.modules.reduce((total, module) => total + module.functions.length, 0);
+      log(
+        `Wrote ${DECLARATIONS_FILE} with the Route type and ${count} connector ${count === 1 ? 'function' : 'functions'}.`,
+      );
+      if (result.errors) written = undefined;
+      for (const error of result.errors ?? [])
+        log(`${DECLARATIONS_FILE} leaves out ${error.specifier}: ${error.message}`);
+    } catch (error) {
+      written = undefined;
+      log(
+        `Could not write ${DECLARATIONS_FILE}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+  return () => (queue = queue.then(refresh));
 }

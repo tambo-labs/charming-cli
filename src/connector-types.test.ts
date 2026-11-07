@@ -13,6 +13,7 @@ import {
   ROUTE_TYPE_KEYS,
   runTypes,
   schemaType,
+  typesRefresher,
 } from './connector-types.js';
 import { readAppPackage } from './files.js';
 
@@ -397,5 +398,200 @@ describe('runTypes', () => {
       [DECLARATIONS_FILE]: '',
     });
     expect(Object.keys(await readAppPackage(dir))).toEqual(['package.json', 'server.js']);
+  });
+});
+
+describe('typesRefresher', () => {
+  let directory: string | undefined;
+  afterEach(async () => {
+    if (directory) await rm(directory, { recursive: true, force: true });
+  });
+
+  async function app(route: string) {
+    directory = await mkdtemp(join(tmpdir(), 'charming-types-dev-'));
+    await mkdir(join(directory, 'routes'));
+    await writeFile(join(directory, 'package.json'), '{"name":"inbox"}');
+    await writeFile(
+      join(directory, 'server.js'),
+      "export { default as list } from './routes/list.ts';",
+    );
+    await writeFile(join(directory, 'routes/list.ts'), route);
+    return directory;
+  }
+
+  function contextFor(token: string | null) {
+    const requested: string[] = [];
+    const context = {
+      options: {},
+      session: { origin: 'https://charming.test', ...(token ? { token } : {}) },
+      fetchImpl: (async (input: string | URL | Request) => {
+        const url = input instanceof Request ? input.url : input.toString();
+        requested.push(url);
+        const functions = new URL(url).searchParams.get('functions')!.split(',');
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            tools: functions.map((name) => ({ ...FETCH, function: name })),
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      }) as typeof fetch,
+    } as unknown as CommandContext;
+    return { context, requested };
+  }
+
+  const importing = (names: string) =>
+    `import { ${names} } from '${GMAIL}';\nexport default { op: 'list', handler: () => 1 };`;
+
+  it('writes again only when the toolkit imports change', async () => {
+    const dir = await app(importing('gmailFetchEmails'));
+    const { context, requested } = contextFor('chrm_user_test');
+    const lines: string[] = [];
+    const refresh = typesRefresher(
+      () => Promise.resolve(context),
+      dir,
+      (line) => lines.push(line),
+    );
+
+    await refresh();
+    await refresh();
+    expect(requested).toHaveLength(1);
+    expect(lines).toEqual([
+      `Wrote ${DECLARATIONS_FILE} with the Route type and 1 connector function.`,
+    ]);
+
+    await writeFile(join(dir, 'routes/list.ts'), importing('gmailFetchEmails, gmailSendEmail'));
+    await refresh();
+    expect(requested).toHaveLength(2);
+    expect(await readFile(join(dir, DECLARATIONS_FILE), 'utf8')).toContain(
+      'export function gmailSendEmail(',
+    );
+  });
+
+  it('logs a failure instead of throwing, and tries again on the next change', async () => {
+    const dir = await app(importing('gmailFetchEmails'));
+    const lines: string[] = [];
+    const signedOut = typesRefresher(
+      () => Promise.resolve(contextFor(null).context),
+      dir,
+      (line) => lines.push(line),
+    );
+
+    await expect(signedOut()).resolves.toBeUndefined();
+    await signedOut();
+    expect(lines).toEqual([
+      expect.stringMatching(
+        new RegExp(`^Could not write ${DECLARATIONS_FILE.replace('.', '\\.')}: Not authenticated`),
+      ),
+      expect.stringMatching(/^Could not write/),
+    ]);
+  });
+
+  it('leaves a JavaScript App with no toolkit import alone', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'charming-types-dev-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"plain"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    const { context, requested } = contextFor('chrm_user_test');
+
+    await typesRefresher(
+      () => Promise.resolve(context),
+      directory,
+      () => {},
+    )();
+
+    expect(requested).toEqual([]);
+    await expect(readFile(join(directory, DECLARATIONS_FILE), 'utf8')).rejects.toThrow();
+  });
+
+  it('turns overlapping calls into one request, and stays silent on an unreadable package', async () => {
+    const dir = await app(importing('gmailFetchEmails'));
+    const { context, requested } = contextFor('chrm_user_test');
+    const refresh = typesRefresher(
+      () => Promise.resolve(context),
+      dir,
+      () => {},
+    );
+
+    await Promise.all([refresh(), refresh(), refresh()]);
+    expect(requested).toHaveLength(1);
+
+    await rm(join(dir, 'server.js'));
+    await expect(refresh()).resolves.toBeUndefined();
+  });
+
+  it('logs a toolkit the server refuses and asks for it again on the next call', async () => {
+    const dir = await app(importing('gmailFetchEmails'));
+    let refused = true;
+    const requested: string[] = [];
+    const context = {
+      options: {},
+      session: { origin: 'https://charming.test', token: 'chrm_user_test' },
+      fetchImpl: (async (input: string | URL | Request) => {
+        requested.push(input instanceof Request ? input.url : input.toString());
+        return refused
+          ? new Response(
+              JSON.stringify({
+                ok: false,
+                error: { kind: 'rate_limited', message: 'Try again later.' },
+              }),
+              {
+                status: 429,
+                headers: { 'content-type': 'application/json' },
+              },
+            )
+          : new Response(JSON.stringify({ ok: true, tools: [FETCH] }), {
+              headers: { 'content-type': 'application/json' },
+            });
+      }) as typeof fetch,
+    } as unknown as CommandContext;
+    const lines: string[] = [];
+    const refresh = typesRefresher(
+      () => Promise.resolve(context),
+      dir,
+      (line) => lines.push(line),
+    );
+
+    await refresh();
+    refused = false;
+    await refresh();
+
+    expect(requested).toHaveLength(2);
+    expect(lines).toEqual([
+      `Wrote ${DECLARATIONS_FILE} with the Route type and 0 connector functions.`,
+      `${DECLARATIONS_FILE} leaves out ${GMAIL}: Try again later.`,
+      `Wrote ${DECLARATIONS_FILE} with the Route type and 1 connector function.`,
+    ]);
+  });
+
+  it('logs a session that cannot be resolved instead of stopping', async () => {
+    const dir = await app(importing('gmailFetchEmails'));
+    const lines: string[] = [];
+    const refresh = typesRefresher(
+      () => Promise.reject(new Error('Profile "work" is not saved on this machine.')),
+      dir,
+      (line) => lines.push(line),
+    );
+
+    await expect(refresh()).resolves.toBeUndefined();
+    expect(lines).toEqual([
+      `Could not write ${DECLARATIONS_FILE}: Profile "work" is not saved on this machine.`,
+    ]);
+  });
+
+  it('rewrites an existing file once the last toolkit import is gone from a JavaScript App', async () => {
+    directory = await mkdtemp(join(tmpdir(), 'charming-types-dev-'));
+    await writeFile(join(directory, 'package.json'), '{"name":"plain"}');
+    await writeFile(join(directory, 'server.js'), 'export const routes = [];');
+    await writeFile(join(directory, DECLARATIONS_FILE), `declare module '${GMAIL}' {}`);
+    const { context, requested } = contextFor('chrm_user_test');
+
+    await typesRefresher(
+      () => Promise.resolve(context),
+      directory,
+      () => {},
+    )();
+
+    expect(requested).toEqual([]);
+    expect(await readFile(join(directory, DECLARATIONS_FILE), 'utf8')).not.toContain(GMAIL);
   });
 });

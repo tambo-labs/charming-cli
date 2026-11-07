@@ -342,6 +342,37 @@ describe.skipIf(!existsSync(vendoredDevHost))('a package directory', () => {
     await rm(directory, { recursive: true, force: true });
   });
 
+  test('serves a next App whose route file is TypeScript', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'charming-dev-package-ts-'));
+    await mkdir(join(directory, 'routes'));
+    await writeFile(
+      join(directory, 'package.json'),
+      JSON.stringify({ $schema: 'https://charm.ing/schema/app-package/next.json', name: 'typed' }),
+    );
+    await writeFile(
+      join(directory, 'server.js'),
+      "export { default as greet } from './routes/greet.ts';",
+    );
+    await writeFile(
+      join(directory, 'routes', 'greet.ts'),
+      "interface Greeting { text: string }\nexport default { op: 'greet', method: 'GET', handler: async (): Promise<Greeting> => ({ text: 'typed' }) };",
+    );
+
+    const server = await startDevServer({
+      directory,
+      host: '127.0.0.1',
+      port: 0,
+      log: (line) => lines.push(line),
+    });
+    try {
+      const greeting = await httpFetch(`${server.url}/app/${server.appId}/api/greet`);
+      expect(await greeting.json()).toEqual({ ok: true, value: { text: 'typed' } });
+    } finally {
+      await server.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 120_000);
+
   test('serves the sources --module names even beside a package.json', async () => {
     const directory = await appDirectory();
     await writeFile(join(directory, 'package.json'), '{"name": 1}');
@@ -956,7 +987,7 @@ describe.skipIf(!existsSync(vendoredDevHost))('reload on save', () => {
     expect(performance.now() - started).toBeLessThan(2_000);
   });
 
-  test('ignores state files, their temp files, hidden files, and node_modules anywhere in a package App, and still sees a source edit', async () => {
+  test('ignores state files, their temp files, hidden files, node_modules anywhere, and charming-env.d.ts in a package App, and still sees a source edit', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'charming-dev-package-'));
     await writeFile(join(directory, 'package.json'), '{"name": "watched"}');
     await mkdir(join(directory, 'src', '.cache'), { recursive: true });
@@ -987,6 +1018,7 @@ describe.skipIf(!existsSync(vendoredDevHost))('reload on save', () => {
     await writeFile(join(directory, 'src', '.cache', 'x.js'), 'x');
     await writeFile(join(directory, 'node_modules', 'dep', 'x.js'), 'x');
     await writeFile(join(directory, 'src', 'node_modules', 'x.js'), 'x');
+    await writeFile(join(directory, 'charming-env.d.ts'), 'export {};');
     await settle();
     const afterIgnored = changes;
     const seen = new Promise<void>((resolve) => (onChange = resolve));

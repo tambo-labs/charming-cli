@@ -8,6 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { DECLARATIONS_FILE } from './connector-types.js';
 import { readAppBundle, readAppPackage } from './files.js';
 
 /** A package App's file tree, or an App saved before packages as its three sources. */
@@ -98,6 +99,8 @@ export interface DevServerOptions {
   shutdownGraceMs?: number;
   /** Wall-clock limit per operation; the dev host defaults to production's. */
   operationTimeoutMs?: number;
+  /** Called after a watched source file changes, once the change settles. */
+  onSourceChange?: () => void;
 }
 
 export interface DevServer {
@@ -232,7 +235,10 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
       `--run-op ${op}: ${error.message ?? `the dev host answered ${response.status}`} Declared operations: ${error.knownOps.join(', ')}.`,
     );
   }
-  const watcher = watchSources(options, () => active.refresh());
+  const watcher = watchSources(options, () => {
+    active.refresh();
+    options.onSourceChange?.();
+  });
   return {
     url: binding.url,
     panelUrl: `${binding.url}${devHostModule.DEV_PANEL_PATH}`,
@@ -279,6 +285,7 @@ export function watchSources(
     const path = resolve(root, file);
     if (ignored.some((state) => path === state || path === stateTemporaryPath(state))) return false;
     const parts = relative(root, path).split(sep);
+    if (relative(root, path) === DECLARATIONS_FILE) return false;
     return !parts.some((part) => part.startsWith('.') || part === 'node_modules');
   };
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -334,7 +341,7 @@ function errorBody(body: unknown): { kind?: string; message?: string; knownOps?:
  * A directory with a package.json is a package App. `--module`, `--ui`, and
  * `--styles` name the sources of an App saved before packages.
  */
-function isPackageSource(
+export function isPackageSource(
   options: Pick<DevServerOptions, 'directory' | 'module' | 'ui' | 'styles'>,
 ): boolean {
   if (options.module || options.ui || options.styles) return false;

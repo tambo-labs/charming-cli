@@ -65,8 +65,11 @@ function rawStatusLine(url: string, head: string) {
   });
 }
 
-function runDev(args: string[], cwd: string) {
-  const child = spawn(process.execPath, [binary, 'dev', ...args], { cwd });
+function runDev(args: string[], cwd: string, env?: NodeJS.ProcessEnv) {
+  const child = spawn(process.execPath, [binary, 'dev', ...args], {
+    cwd,
+    ...(env ? { env: { ...process.env, ...env } } : {}),
+  });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));
@@ -85,6 +88,76 @@ function runDev(args: string[], cwd: string) {
   started.catch(() => undefined);
   return { child, exited, started, output: () => ({ stdout, stderr }) };
 }
+
+async function typedApp(): Promise<{ cwd: string; env: NodeJS.ProcessEnv }> {
+  const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-types-'));
+  await mkdir(join(cwd, 'app', 'routes'), { recursive: true });
+  await writeFile(
+    join(cwd, 'app', 'package.json'),
+    JSON.stringify({ $schema: 'https://charm.ing/schema/app-package/next.json', name: 'typed' }),
+  );
+  await writeFile(
+    join(cwd, 'app', 'server.js'),
+    "export { default as greet } from './routes/greet.ts';",
+  );
+  await writeFile(
+    join(cwd, 'app', 'routes', 'greet.ts'),
+    "export default { op: 'greet', handler: async (): Promise<string> => 'hi' };",
+  );
+  return { cwd, env: { HOME: cwd, XDG_CONFIG_HOME: join(cwd, 'config'), CHARMING_TOKEN: '' } };
+}
+
+async function eventually(check: () => boolean, ms = 10_000): Promise<boolean> {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return check();
+}
+
+endToEnd(
+  'charming dev writes charming-env.d.ts for a TypeScript App, and --no-types does not',
+  async () => {
+    const { cwd, env } = await typedApp();
+    const declarations = join(cwd, 'app', 'charming-env.d.ts');
+    const dev = runDev(['app', '--port', '0'], cwd, env);
+    try {
+      await dev.started;
+      expect(await eventually(() => existsSync(declarations))).toBe(true);
+      expect(await readFile(declarations, 'utf8')).toContain("declare module 'charming'");
+    } finally {
+      dev.child.kill('SIGINT');
+      await dev.exited;
+    }
+
+    await rm(declarations);
+    const quiet = runDev(['app', '--port', '0', '--no-types'], cwd, env);
+    try {
+      await quiet.started;
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      expect(existsSync(declarations)).toBe(false);
+    } finally {
+      quiet.child.kill('SIGINT');
+      await quiet.exited;
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+  120_000,
+);
+
+endToEnd(
+  'charming dev --check writes no charming-env.d.ts',
+  async () => {
+    const { cwd, env } = await typedApp();
+    const check = runDev(['app', '--check'], cwd, env);
+    await check.exited;
+
+    expect(existsSync(join(cwd, 'app', 'charming-env.d.ts'))).toBe(false);
+    await rm(cwd, { recursive: true, force: true });
+  },
+  120_000,
+);
 
 endToEnd('charming dev serves the app, runs its operations, and saves state on exit', async () => {
   const cwd = await mkdtemp(join(tmpdir(), 'charming-dev-cli-'));

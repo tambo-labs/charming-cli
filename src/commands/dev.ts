@@ -1,9 +1,10 @@
 import { Args, Flags } from '@oclif/core';
 
 import { CharmingCommand, writeErrorOutput } from '../base-command.js';
+import { typesRefresher } from '../connector-types.js';
 import { checkApp, recordProcessFailures } from '../dev-check.js';
 import { devTarget, pullLiveApp } from '../dev-pull.js';
-import { DEV_ROLES, startDevServer } from '../dev.js';
+import { DEV_ROLES, isPackageSource, startDevServer } from '../dev.js';
 import { ApiError, TimeoutError } from '../http.js';
 import { currentExitCode, setExitCode } from '../runtime.js';
 
@@ -75,6 +76,12 @@ export default class Dev extends CharmingCommand {
       multiple: true,
     }),
     styles: Flags.string({ description: 'Stylesheet file.' }),
+    types: Flags.boolean({
+      default: true,
+      allowNo: true,
+      description:
+        'Keep charming-env.d.ts current for a package App with TypeScript or connector imports. Needs a signed-in profile for connector types; --no-types turns it off.',
+    }),
     ui: Flags.string({ description: 'UI source file.' }),
     user: Flags.string({
       description:
@@ -93,6 +100,10 @@ export default class Dev extends CharmingCommand {
     // records what it throws from before the dev server starts.
     const failures = flags.check ? recordProcessFailures() : undefined;
     let server;
+    let refreshTypes: (() => Promise<void>) | undefined;
+    // The dev host applies the App's outbound policy to the global fetch, so
+    // the CLI's own calls to Charming keep the fetch from before it starts.
+    const charmingFetch = globalThis.fetch.bind(globalThis);
     try {
       const target = devTarget(args.directory, {
         out: flags.out,
@@ -110,7 +121,26 @@ export default class Dev extends CharmingCommand {
         });
         state ??= pulled.statePath;
       }
+      refreshTypes =
+        flags.types &&
+        !flags.check &&
+        isPackageSource({
+          directory: target.directory,
+          module: flags.module,
+          ui: flags.ui,
+          styles: flags.styles,
+        })
+          ? typesRefresher(
+              async () => {
+                const context = await this.context(flags);
+                return { ...context, fetchImpl: context.fetchImpl ?? charmingFetch };
+              },
+              target.directory ?? '.',
+              log,
+            )
+          : undefined;
       server = await startDevServer({
+        onSourceChange: refreshTypes,
         directory: target.directory,
         host: flags.check ? '127.0.0.1' : flags.host,
         log,
@@ -159,6 +189,7 @@ export default class Dev extends CharmingCommand {
       await exitCheck();
     }
 
+    void refreshTypes?.();
     this.log(
       JSON.stringify(
         { ok: true, url: server.url, appId: server.appId, panelUrl: server.panelUrl },
