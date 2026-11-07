@@ -79,7 +79,8 @@ const SKIPPED_DIRECTORIES = new Set(['node_modules']);
  * and styles.css at the root, and every .js, .mjs, .ts, or .json file beneath it,
  * keyed by its path relative to the directory with forward slashes. Hidden
  * entries, node_modules, lockfiles, editor configs, nested package.json files,
- * and other file types stay on disk. Charming refuses a file no entry imports, so keep only what the App
+ * TypeScript declaration files such as charming-env.d.ts, and other file types
+ * stay on disk. Charming refuses a file no entry imports, so keep only what the App
  * uses in the directory.
  */
 export async function readAppPackage(directory: string): Promise<Record<string, string>> {
@@ -111,7 +112,10 @@ async function packageFileKeys(root: string): Promise<string[]> {
       }
       if (!entry.isFile()) continue;
       const key = relative(root, path).split(sep).join('/');
-      if (ROOT_ONLY_FILES.has(key) || (PACKAGE_FILE.test(key) && !SKIPPED_FILES.has(entry.name)))
+      if (
+        ROOT_ONLY_FILES.has(key) ||
+        (PACKAGE_FILE.test(key) && !SKIPPED_FILES.has(entry.name) && !key.endsWith('.d.ts'))
+      )
         keys.push(key);
     }
   }

@@ -99,6 +99,14 @@ The report:
 | `clicks[]` | `{selector, ok, message?}`, one per `--click`. A selector that matches nothing, or is not valid CSS, fails. |
 | `findings[]` | `{rule, path, line?, message}`: embed-breakers in the app's browser-side source (`path` is the file) or the rendered page (`path` is `rendered`). Rules: `blocking-dialog` (`alert`, `confirm`, `prompt`), `new-tab-link` (`target="_blank"`), `raw-fetch` (only when the app declares no `connect-src` origins), `legacy-operation-call` (`api.operation(...)`), `undeclared-web-storage` (web storage without `charming:browser/storage@1.0`), `undeclared-image-origin` (an image from an origin the app does not declare in `img-src`, other than the page's own), `stale-brand-name`. |
 
+### Types for route files
+
+```bash
+charming types ./my-app
+```
+
+`charming types [directory]` writes `charming-env.d.ts` in an App directory. It declares the `Route` type under `charming`, so a TypeScript route file can end in `export default { … } satisfies Route` after `import type { Route } from 'charming'`, and a module for each `charming:connectors/<toolkit>@<version>` import the App's code makes, with a typed function for every tool it imports: `(input, options: { reason: string }) => Promise<result>`, from the tool's schemas at that version. A schema shape the command cannot express becomes `unknown`, so the types can be looser than Charming's checks but never stricter. Most tool inputs leave their objects open, so a misspelled optional field still type-checks; a missing required field or `reason` does not. A toolkit the server refuses, such as an import of a name it has no tool for, is listed in `errors` and left out, and the rest are still written. Run it again after changing a toolkit import. Reading the schemas needs a signed-in profile. `apps create --files` and `apps update --files` leave `.d.ts` files out of the package.
+
 ## Teams and ownership transfer
 
 Discover existing team operations with `charming api list` and inspect each one with `charming api describe OPERATION_ID`.

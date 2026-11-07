@@ -5294,7 +5294,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/connectors/{service}/versions/{version}/tools",
     "summary": "Read the schemas of connector tools at a toolkit version",
-    "description": "Returns the JSON Schema of each named tool's input and output at one Composio toolkit version, the version an App's `charming:connectors/<service>@<version>` import names. Charming reads a version's schemas from Composio the first time anyone asks and keeps them. Name up to 50 tools by slug in `slugs`. Each caller may cause up to 200 reads from Composio an hour; schemas already stored cost nothing.",
+    "description": "Returns the JSON Schema of each named tool's input and output at one Composio toolkit version, the version an App's `charming:connectors/<service>@<version>` import names. Charming reads a version's schemas from Composio the first time anyone asks and keeps them. Name up to 50 tools, by slug in `slugs` or by the name an App imports in `functions`. Each caller may cause up to 200 reads from Composio an hour; schemas already stored cost nothing.",
     "parameters": [
       {
         "description": "A connector catalog service slug, such as `gmail`.",
@@ -5316,10 +5316,19 @@ export const generatedOperations = [
         }
       },
       {
-        "description": "Comma-separated tool slugs, such as `GMAIL_FETCH_EMAILS,GMAIL_SEND_EMAIL`; at most 50.",
+        "description": "Comma-separated tool slugs, such as `GMAIL_FETCH_EMAILS,GMAIL_SEND_EMAIL`; at most 50. Pass this or `functions`.",
         "in": "query",
         "name": "slugs",
-        "required": true,
+        "required": false,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "Comma-separated names an App imports the tools under, such as `gmailFetchEmails,gmailSendEmail`; at most 50. Pass this or `slugs`.",
+        "in": "query",
+        "name": "functions",
+        "required": false,
         "schema": {
           "type": "string"
         }
@@ -5385,7 +5394,7 @@ export const generatedOperations = [
     ],
     "streaming": false,
     "timeoutMs": 20000,
-    "usage": "charming api request get-connector-tool-schemas --param service=VALUE --param version=VALUE --param slugs=VALUE"
+    "usage": "charming api request get-connector-tool-schemas --param service=VALUE --param version=VALUE"
   },
   {
     "id": "get-design-guide-prompt",
