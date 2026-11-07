@@ -883,7 +883,7 @@ export const generatedOperations = [
         "properties": {
           "files": {
             "type": "object",
-            "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+            "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths, and on the next contract .ts files, read with their types erased. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
             "required": [
               "package.json",
               "server.js"
@@ -4774,7 +4774,7 @@ export const generatedOperations = [
               },
               "files": {
                 "type": "object",
-                "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
+                "description": "An App as a package: each key is a relative path, each value that file's text. Holds package.json (see AppPackage) and the server entry server.js; optionally ui.js, styles.css, and any other .js, .mjs, or .json files the entries import with relative paths, and on the next contract .ts files, read with their types erased. package.json may declare `\"$schema\": \"https://charm.ing/schema/app-package/2026-10-25.json\"`.",
                 "required": [
                   "package.json",
                   "server.js"

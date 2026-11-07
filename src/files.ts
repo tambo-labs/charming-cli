@@ -60,7 +60,7 @@ export async function writeAppBundle(
     await writeFile(resolve(output, 'styles.css'), source.styles);
 }
 
-const PACKAGE_FILE = /(?:^|\/)[^/]+\.(?:js|mjs|json)$/;
+const PACKAGE_FILE = /(?:^|\/)[^/]+\.(?:js|mjs|ts|json)$/;
 const ROOT_ONLY_FILES = new Set(['package.json', 'styles.css']);
 const SKIPPED_FILES = new Set([
   'package.json',
@@ -76,7 +76,7 @@ const SKIPPED_DIRECTORIES = new Set(['node_modules']);
 
 /**
  * Reads an App directory as the package tree Charming accepts: package.json
- * and styles.css at the root, and every .js, .mjs, or .json file beneath it,
+ * and styles.css at the root, and every .js, .mjs, .ts, or .json file beneath it,
  * keyed by its path relative to the directory with forward slashes. Hidden
  * entries, node_modules, lockfiles, editor configs, nested package.json files,
  * and other file types stay on disk. Charming refuses a file no entry imports, so keep only what the App
