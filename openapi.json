@@ -5089,6 +5089,57 @@
           }
         }
       },
+      "ConnectorToolSchemasResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "service",
+          "version",
+          "tools"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "tool",
+                "function",
+                "inputSchema",
+                "outputSchema"
+              ],
+              "properties": {
+                "tool": {
+                  "type": "string",
+                  "description": "The tool slug."
+                },
+                "function": {
+                  "type": "string",
+                  "description": "The name the toolkit module exports the tool under."
+                },
+                "inputSchema": {
+                  "description": "The JSON Schema of the tool's input."
+                },
+                "outputSchema": {
+                  "description": "The JSON Schema of the tool's result."
+                }
+              }
+            }
+          }
+        }
+      },
       "RoutineListResponse": {
         "type": "object",
         "required": [
@@ -14353,6 +14404,113 @@
           },
           "401": {
             "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/connectors/{service}/versions/{version}/tools": {
+      "parameters": [
+        {
+          "name": "service",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "A connector catalog service slug, such as `gmail`."
+        },
+        {
+          "name": "version",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^\\d{8}_\\d{2}$"
+          },
+          "description": "A Composio toolkit version, such as `20261029_00`."
+        }
+      ],
+      "get": {
+        "operationId": "get-connector-tool-schemas",
+        "summary": "Read the schemas of connector tools at a toolkit version",
+        "description": "Returns the JSON Schema of each named tool's input and output at one Composio toolkit version, the version an App's `charming:connectors/<service>@<version>` import names. Charming reads a version's schemas from Composio the first time anyone asks and keeps them. Name up to 50 tools by slug in `slugs`. Each caller may cause up to 200 reads from Composio an hour; schemas already stored cost nothing.",
+        "security": [
+          {
+            "userToken": []
+          }
+        ],
+        "x-charming-timeout-ms": 20000,
+        "parameters": [
+          {
+            "name": "slugs",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated tool slugs, such as `GMAIL_FETCH_EMAILS,GMAIL_SEND_EMAIL`; at most 50."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Each named tool with its schemas, in the order asked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorToolSchemasResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The version or a tool slug is not one Charming accepts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The service is not in the catalog, or Composio has no such tool at that version or retired the version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The caller has used its hourly allowance of 200 schema reads from Composio. Schemas already stored cost nothing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Composio could not answer, or connectors are off on this server.",
             "content": {
               "application/json": {
                 "schema": {

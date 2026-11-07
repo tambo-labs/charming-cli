@@ -5290,6 +5290,104 @@ export const generatedOperations = [
     "usage": "charming api request get-app-template-listing --param appId=VALUE"
   },
   {
+    "id": "get-connector-tool-schemas",
+    "method": "GET",
+    "path": "/api/v1/connectors/{service}/versions/{version}/tools",
+    "summary": "Read the schemas of connector tools at a toolkit version",
+    "description": "Returns the JSON Schema of each named tool's input and output at one Composio toolkit version, the version an App's `charming:connectors/<service>@<version>` import names. Charming reads a version's schemas from Composio the first time anyone asks and keeps them. Name up to 50 tools by slug in `slugs`. Each caller may cause up to 200 reads from Composio an hour; schemas already stored cost nothing.",
+    "parameters": [
+      {
+        "description": "A connector catalog service slug, such as `gmail`.",
+        "in": "path",
+        "name": "service",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "A Composio toolkit version, such as `20261029_00`.",
+        "in": "path",
+        "name": "version",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^\\d{8}_\\d{2}$"
+        }
+      },
+      {
+        "description": "Comma-separated tool slugs, such as `GMAIL_FETCH_EMAILS,GMAIL_SEND_EMAIL`; at most 50.",
+        "in": "query",
+        "name": "slugs",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Each named tool with its schemas, in the order asked.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "service",
+          "version",
+          "tools"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "tool",
+                "function",
+                "inputSchema",
+                "outputSchema"
+              ],
+              "properties": {
+                "tool": {
+                  "type": "string",
+                  "description": "The tool slug."
+                },
+                "function": {
+                  "type": "string",
+                  "description": "The name the toolkit module exports the tool under."
+                },
+                "inputSchema": {
+                  "description": "The JSON Schema of the tool's input."
+                },
+                "outputSchema": {
+                  "description": "The JSON Schema of the tool's result."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 20000,
+    "usage": "charming api request get-connector-tool-schemas --param service=VALUE --param version=VALUE --param slugs=VALUE"
+  },
+  {
     "id": "get-design-guide-prompt",
     "method": "GET",
     "path": "/api/prompts/charming-design-guide",
