@@ -1,5 +1,23 @@
 # usecharming
 
+## 0.11.0
+
+### Minor Changes
+
+- [#7791](https://github.com/tambo-ai/charming/pull/7791) [`f160430`](https://github.com/tambo-ai/charming/commit/f1604308806bf2ebba5a97e99346459b659b684e) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - `charming types [directory]` writes `charming-env.d.ts` in an App directory: the `Route` type under `charming`, and a typed function for each connector tool the App's code imports, at the version its `charming:connectors/<toolkit>@<version>` import names, so `tsc` or an editor reports a wrong input or a missing `reason` before a save. `apps create --files` and `apps update --files` leave `.d.ts` files out of the package. `GET /api/v1/connectors/{service}/versions/{version}/tools` also takes `functions=`, the names an App imports the tools under.
+
+- [#7790](https://github.com/tambo-ai/charming/pull/7790) [`33dccc1`](https://github.com/tambo-ai/charming/commit/33dccc1db44459a16e1c11a0cc8a6b89d5c08b3f) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - `GET /api/v1/connectors/{service}/versions/{version}/tools?slugs=…` returns each named connector tool's function name and the JSON Schema of its input and result at one Composio toolkit version, for up to 50 tools. Charming reads a version's schemas from Composio the first time and keeps them. A service outside the catalog, or a version Composio does not have or has retired, answers 404 with what to import instead; a bad version or tool slug answers 400; a Composio outage answers 503. Each caller may cause up to 200 Composio reads an hour; schemas already stored cost nothing, and past the allowance the endpoint answers 429 `rate_limited`.
+
+- [#7792](https://github.com/tambo-ai/charming/pull/7792) [`bdac111`](https://github.com/tambo-ai/charming/commit/bdac1119b793996311d03a813632f966b88eda97) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - `charming dev` keeps `charming-env.d.ts` current for a package App that holds a `.ts` file or a connector toolkit import: it writes the file at startup and again whenever the App's toolkit imports change, logs a line instead of stopping when it cannot (for example when signed out), and never writes it under `--check`. `--no-types` turns it off.
+
+- [#7789](https://github.com/tambo-ai/charming/pull/7789) [`0d4eb6d`](https://github.com/tambo-ai/charming/commit/0d4eb6d75628fa82a1ced16354bedacf6ab16a6e) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - On the `next` package contract, route files and the helpers they import may be TypeScript (`.ts`), such as `routes/list.ts` with `export default { … } satisfies Route`. Charming reads them with their types erased in place, so every save refusal still names the author's file and line. Only TypeScript whose types can be removed is accepted: an `enum`, a `namespace`, or constructor parameter properties are refused with the line and what to write instead, and `.tsx` is not accepted. The build bundles `.ts` files with their types removed. An App on the 2026-10-25 contract that holds a `.ts` file is refused, with how to opt into next or rename the file.
+
+### Patch Changes
+
+- [#7812](https://github.com/tambo-ai/charming/pull/7812) [`bf42bf3`](https://github.com/tambo-ai/charming/commit/bf42bf3956f3e2f3faa45680fd86ec2b35b00c54) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - The package contract whose routes import connector toolkits as functions is released as `2026-11-09`. A package.json opts in with `"$schema": "https://charm.ing/schema/app-package/2026-11-09.json"`, which the server now serves. Apps saved on the unstable `next` contract move to the date. A save that names `https://charm.ing/schema/app-package/next.json` is refused with the dated URLs to use, since no unreleased contract is open.
+
+- [#7727](https://github.com/tambo-ai/charming/pull/7727) [`3e65d37`](https://github.com/tambo-ai/charming/commit/3e65d37e2fd2726bfd5bc0507553b1f6f737a661) Thanks [@renovate](https://github.com/apps/renovate)! - Update dependency @oclif/core to v5.1.11
+
 ## 0.10.0
 
 ### Minor Changes
