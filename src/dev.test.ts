@@ -347,7 +347,10 @@ describe.skipIf(!existsSync(vendoredDevHost))('a package directory', () => {
     await mkdir(join(directory, 'routes'));
     await writeFile(
       join(directory, 'package.json'),
-      JSON.stringify({ $schema: 'https://charm.ing/schema/app-package/next.json', name: 'typed' }),
+      JSON.stringify({
+        $schema: 'https://charm.ing/schema/app-package/2026-11-09.json',
+        name: 'typed',
+      }),
     );
     await writeFile(
       join(directory, 'server.js'),

@@ -94,7 +94,10 @@ async function typedApp(): Promise<{ cwd: string; env: NodeJS.ProcessEnv }> {
   await mkdir(join(cwd, 'app', 'routes'), { recursive: true });
   await writeFile(
     join(cwd, 'app', 'package.json'),
-    JSON.stringify({ $schema: 'https://charm.ing/schema/app-package/next.json', name: 'typed' }),
+    JSON.stringify({
+      $schema: 'https://charm.ing/schema/app-package/2026-11-09.json',
+      name: 'typed',
+    }),
   );
   await writeFile(
     join(cwd, 'app', 'server.js'),
