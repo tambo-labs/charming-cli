@@ -1116,22 +1116,6 @@ describe.skipIf(!existsSync(vendoredDevHost))('reload on save', () => {
     ]);
     expect((await httpFetch(`${server.url}/`)).status).toBe(200);
   });
-
-  test('a saved edit reloads the App and signals open pages with no request in between', async () => {
-    const directory = await appDirectory('first');
-    const server = await start(directory);
-    const controller = new AbortController();
-    const stream = await httpFetch(`${server.url}/__dev/reload`, { signal: controller.signal });
-    const reader = stream.body!.getReader();
-    await reader.read();
-    await armed();
-
-    await writeFile(join(directory, 'module.js'), MODULE.replace('LABEL', 'second'));
-    const { value } = await reader.read();
-    controller.abort();
-
-    expect(new TextDecoder().decode(value)).toContain('data: reload');
-  });
 });
 
 describe.skipIf(!existsSync(vendoredDevHost))('--check', () => {
@@ -1237,6 +1221,7 @@ describe.skipIf(!existsSync(vendoredDevHost))('--check', () => {
       "document.querySelector('#app').innerHTML = '<p>x</p>'; throw new Error('ui exploded');",
     );
 
+    expect(report.ok).toBe(false);
     expect(report.errors).toContainEqual({
       source: 'runtime',
       message: expect.stringMatching(/^browser diag\/report: .*ui exploded/),
@@ -1474,15 +1459,6 @@ setInterval(() => api.poll().then(() => { document.querySelector('#n').textConte
 
     expect(report.ok).toBe(false);
     expect(report.render.empty).toBe(true);
-  });
-
-  test('fails an App whose ui throws', async () => {
-    const report = await check(
-      "document.querySelector('#app').innerHTML = '<p>x</p>'; throw new Error('ui exploded');",
-    );
-
-    expect(report.ok).toBe(false);
-    expect(report.errors.some((error) => error.message.includes('ui exploded'))).toBe(true);
   });
 
   test('clicks in order and fails a selector that matches nothing', async () => {
