@@ -2301,6 +2301,8 @@
                   "missing_description",
                   "invalid_description",
                   "rate_limited",
+                  "push_unavailable",
+                  "push_device_in_use",
                   "image_origin_denied",
                   "too_many_requests",
                   "expired",
