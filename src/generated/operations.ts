@@ -6689,6 +6689,203 @@ export const generatedOperations = [
     "usage": "charming api request list-apps"
   },
   {
+    "id": "list-routine-runs",
+    "method": "GET",
+    "path": "/api/v1/routines/{routineId}/runs",
+    "summary": "List a Routine's recent runs",
+    "description": "Session-gated; requires `app:write` on the routine's app. Each tick the Routine ran, failed, or was deferred, newest first. The list covers the plan's activity window (24 hours on Free, 30 days on Pro, 90 days on the Team plan), and `retention` gives the cutoff used. The log is best-effort: runs are recorded as telemetry, which can drop rows under load, and a busy app keeps only its newest 1,000 successful and 1,000 failed runs across all callers, so runs can be missing before the window ends. The Routine's own `last_run_at`, `last_outcome` and `last_error` are always recorded. Deferrals the app's run ceiling refused are grouped, and `count` says how many ticks one row stands for. Page with `before` and `beforeId` from the oldest run returned.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "routineId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "description": "The `ran_at` of the oldest run you already have: return older runs.",
+        "in": "query",
+        "name": "before",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      {
+        "description": "The `id` of the oldest run you already have. Pairs with `before` for an exact page boundary. Ignored without `before`.",
+        "in": "query",
+        "name": "beforeId",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      {
+        "description": "Runs per page, 1 to 100.",
+        "in": "query",
+        "name": "limit",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "The Routine's recent runs.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "runs",
+          "has_more",
+          "retention"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "ran_at",
+                "outcome",
+                "count",
+                "duration_ms",
+                "error_kind",
+                "error_message",
+                "time_limit"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Pass back as `beforeId`, with `ran_at` as `before`, to page further."
+                },
+                "ran_at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "success",
+                    "failure",
+                    "deferred"
+                  ]
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Ticks this row stands for. Above 1 only for deferrals the app’s run ceiling grouped."
+                },
+                "duration_ms": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "error_kind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "error_message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The message the app’s own code raised, when it raised one."
+                },
+                "time_limit": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "description": "The host time limit that stopped the run, when one did.",
+                  "required": [
+                    "limit",
+                    "limit_ms",
+                    "elapsed_ms"
+                  ],
+                  "properties": {
+                    "limit": {
+                      "type": "string"
+                    },
+                    "limit_ms": {
+                      "type": "integer"
+                    },
+                    "elapsed_ms": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when older runs exist inside the window. Fetch them with `before` and `beforeId` from the last run returned."
+          },
+          "retention": {
+            "type": "object",
+            "required": [
+              "tier",
+              "hours",
+              "since",
+              "truncated"
+            ],
+            "description": "The plan window this read used. Older runs are hidden, not deleted.",
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "free",
+                  "pro",
+                  "business",
+                  "enterprise"
+                ]
+              },
+              "hours": {
+                "type": "integer",
+                "description": "Length of the plan window."
+              },
+              "since": {
+                "type": "string",
+                "format": "date-time",
+                "description": "The cutoff this read used."
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "True when the plan window set the cutoff."
+              }
+            }
+          }
+        }
+      }
+    },
+    "security": [
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 2000,
+    "usage": "charming api request list-routine-runs --param routineId=VALUE"
+  },
+  {
     "id": "list-routines",
     "method": "GET",
     "path": "/api/v1/routines",
