@@ -33,7 +33,7 @@
     "oclif",
     "mcp",
     "agent",
-    "personal-software"
+    "small-business"
   ],
   "scripts": {
     "build": "rm -rf dist && bun node_modules/typescript/bin/tsc -p tsconfig.build.json",

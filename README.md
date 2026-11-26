@@ -1,6 +1,6 @@
 # Charming CLI
 
-Build and manage personal apps hosted by [Charming](https://charm.ing) from a terminal or coding agent.
+Build and manage apps for your business or yourself, hosted by [Charming](https://charm.ing), from a terminal or coding agent.
 
 ## Install
 

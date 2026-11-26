@@ -1,6 +1,6 @@
 ---
 name: charming
-description: Build, inspect, update, and call hosted personal apps with the Charming CLI. Covers the app contract (manifest, capabilities, env.storage, routes, window.charming.api), the sandbox rules, and the CLI workflow. Use when a user wants to create or manage an interactive personal app hosted by Charming.
+description: Build, inspect, update, and call hosted apps with the Charming CLI. Covers the app contract (manifest, capabilities, env.storage, routes, window.charming.api), the sandbox rules, and the CLI workflow. Use when a user wants to create or manage an interactive app hosted by Charming, such as a booking page or client list for their business, or an app for themselves.
 license: MIT
 compatibility: Requires the charming CLI, Node.js 22 or newer, and network access to charm.ing.
 metadata:
@@ -17,9 +17,9 @@ metadata:
 
 # Charming CLI
 
-Charming is a hosting platform for personal apps you and your agent build, update, and use together. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming@0.1.1` (check [npm](https://www.npmjs.com/package/usecharming) for the latest version).
+Charming is a hosting platform for the apps you and your agent build, update, and use together, from the tools a business runs on to apps for yourself. Learn more at [usecharming.com](https://usecharming.com). Install: `npm install -g usecharming@0.1.1` (check [npm](https://www.npmjs.com/package/usecharming) for the latest version).
 
-Charming hosts small single-purpose personal apps. You write two files, push them with `charming`, and the user gets a real URL with real storage that any agent — including this one, later — can keep editing.
+Charming hosts small single-purpose apps, like a booking page, an intake form, or a reading list. You write two files, push them with `charming`, and the user gets a real URL with real storage that any agent — including this one, later — can keep editing.
 
 An app is a directory:
 

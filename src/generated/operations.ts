@@ -1525,7 +1525,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/teams",
     "summary": "Create a team",
-    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Business plan and are set up with Charming.",
+    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Team plan and are set up with Charming.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
@@ -3441,7 +3441,7 @@ export const generatedOperations = [
                   "since",
                   "truncated"
                 ],
-                "description": "The plan window this read used: 24 hours on Free, 30 days on Pro, 90 days on Business. Older events are hidden, not deleted.",
+                "description": "The plan window this read used: 24 hours on Free, 30 days on Pro, 90 days on the Team plan. Older events are hidden, not deleted.",
                 "properties": {
                   "tier": {
                     "type": "string",
@@ -3535,7 +3535,7 @@ export const generatedOperations = [
     "method": "GET",
     "path": "/api/v1/apps/{appId}/activity",
     "summary": "Get an app’s activity timeline",
-    "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. A failed App action carries the App’s own `errorMessage` and the `path` it was called at. `recentFailures` counts failed calls for people using the live version. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on Business. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
+    "description": "Requires a personal access token or session cookie and `app:manage`. Newest-first feed merging published versions, renders/runs, API-call outcomes, sharing changes, and feedback. Each entry carries only the fields its kind allows — never a viewer id, an actor, a grantee, or an email address. A failed App action carries the App’s own `errorMessage` and the `path` it was called at. `recentFailures` counts failed calls for people using the live version. The feed covers the plan’s window: 24 hours on Free, 30 days on Pro, 90 days on the Team plan. `retention` gives the cutoff used. Retention is a rolling window, not a compliance audit log.",
     "parameters": [
       {
         "description": "",
