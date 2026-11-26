@@ -1,5 +1,23 @@
 # usecharming
 
+## 0.11.2
+
+### Patch Changes
+
+- [#8027](https://github.com/tambo-ai/charming/pull/8027) [`7ab052f`](https://github.com/tambo-ai/charming/commit/7ab052f5fc3edee0f1741014ad08451095c68974) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Free now includes 1 Routine per account and per app, no Webhooks, 1 connected service, and 50 connector calls a month. Creating past those refuses with `routine_limit_exceeded`, `webhook_limit_exceeded`, or the new `connector_connection_limit_exceeded` (429, `limit: "connector_connections_per_owner"`), each with the plan refusal fields and `upgradeUrl`. Pro and the Team plan include 25 connected services, per seat on the Team plan.
+
+  Removing the Charming mark moves to the Team plan. An App whose mark a Pro owner already removed stays unbranded while they stay on a paid plan, but a Pro owner can no longer remove it from another App. Existing Routines, Webhooks, and connections over the new caps keep working.
+
+  The Team plan has no seat minimum: a team is billed $14 a month for each member, one seat at least, and its allowances scale from one seat. A Business grant with no seat count takes the team's member count.
+
+- [#8015](https://github.com/tambo-ai/charming/pull/8015) [`bd9abd8`](https://github.com/tambo-ai/charming/commit/bd9abd8acd05b66397f5c9d50c289d6d38c2fead) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Lead the agent-facing descriptors with the apps a small business builds to cancel a subscription, and keep personal apps as a second use. `agent.json`, `agent-card.json`, `mcp.json`, the published build skill, and the CLI README and skill now name booking pages, client CRMs, intake forms, and invoices, and `agent.json` says "Free to start" in place of "Personal apps are free".
+
+  Share cards default to the footer line "Build your own apps.", the first onboarding email suggests a booking page, and the dashboard's team plan line asks "Using Charming for your business?". The `/docs/work` section is now "Charming for your team" at the same URLs: it lists what the Business plan adds, drops the single sign-on and SCIM claims, and its security page speaks to an owner keeping business and customer data private.
+
+- [#8015](https://github.com/tambo-ai/charming/pull/8015) [`bd9abd8`](https://github.com/tambo-ai/charming/commit/bd9abd8acd05b66397f5c9d50c289d6d38c2fead) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Call the per-seat team plan the Team plan everywhere a person or their AI reads it, matching the pricing page: the billing page, plan badges, Routine and activity limits, the teams settings card, the checkout email, the `plan_required` message for teams, the API and OpenAPI descriptions, and the docs limits table, which now heads its column "Team plan". The dashboard's team plan line ends in "Contact us".
+
+  Lead the product's suggestions with business apps. The first-app prompt and the new-app prompt ask which subscription to replace, the log-in explainer asks for a booking page, the onboarding follow-up asks "Which subscription could you replace?", and MCP tool descriptions use booking pages, client lists, and price lists as their examples. The widget's signed-out panel now reads "Build your own apps. Cancel the subscriptions."
+
 ## 0.11.1
 
 ### Patch Changes
