@@ -2374,6 +2374,7 @@
                   "secret_not_found",
                   "invalid_icon",
                   "team_slug_taken",
+                  "unpaid_team_limit",
                   "already_on_team_plan",
                   "already_billed",
                   "billing_unavailable",
@@ -2452,7 +2453,7 @@
                   "business",
                   "enterprise"
                 ],
-                "description": "Present on every plan refusal: the tier the caller was refused under. Its presence is what marks an error as a plan refusal rather than a validation or permission failure."
+                "description": "Present on every plan refusal: the tier the caller was refused under. On `unpaid_team_limit`, the tier of the team the caller already owns. Its presence is what marks an error as a plan refusal rather than a validation or permission failure."
               },
               "limit": {
                 "type": [
@@ -2482,12 +2483,12 @@
                   "watermark_removal",
                   "teams"
                 ],
-                "description": "On a `plan_required` refusal, the capability the plan does not include. Never paired with `limit` / `max`."
+                "description": "On a `plan_required` or `unpaid_team_limit` refusal, the capability the plan does not include. Never paired with `limit` / `max`."
               },
               "upgradeUrl": {
                 "type": "string",
                 "format": "uri",
-                "description": "Absolute link to the owner's own billing page, where the refusal is lifted — the team's page for a team-owned app. Omitted only when the owner has no handle and therefore no settings page of their own, so treat it as optional and fall back to your own copy. MCP appends it as an `Upgrade: <url>` last line; the CLI prints it under the message."
+                "description": "Absolute link to the owner's own billing page, where the refusal is lifted — the team's page for a team-owned app, and on `unpaid_team_limit` the page of the team the caller already owns. Omitted only when the owner has no handle and therefore no settings page of their own, so treat it as optional and fall back to your own copy. MCP appends it as an `Upgrade: <url>` last line; the CLI prints it under the message."
               },
               "missingLevels": {
                 "type": "array",
@@ -5587,10 +5588,11 @@
             }
           },
           "403": {
-            "description": "Refused by the plugin gate, or the invitation’s team requires two-factor authentication and the caller has not turned it on (`two_factor_required`).",
+            "description": "Refused by the plugin gate, the invitation’s team requires two-factor authentication and the caller has not turned it on (`two_factor_required`), or the team is not on a plan that includes teams (`plan_required`, with the refusal extras and the team billing page as `upgradeUrl`). A refused resend leaves the invitation’s expiry as it was.",
             "x-error-kinds": [
               "forbidden",
-              "two_factor_required"
+              "two_factor_required",
+              "plan_required"
             ],
             "x-error-kinds-relayed": true,
             "content": {
@@ -5711,9 +5713,10 @@
             }
           },
           "409": {
-            "description": "The slug is already taken.",
+            "description": "The slug is already taken (`team_slug_taken`), or the caller already owns a team that is not on the Team plan (`unpaid_team_limit`, with the refusal extras and that team's billing page as `upgradeUrl`).",
             "x-error-kinds": [
-              "team_slug_taken"
+              "team_slug_taken",
+              "unpaid_team_limit"
             ],
             "content": {
               "application/json": {
@@ -5726,7 +5729,7 @@
         },
         "operationId": "create-team",
         "summary": "Create a team",
-        "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. The slug shares the handle namespace with user handles.",
+        "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. A person can own one team that is not on the Team plan; while they do, creating another is refused with `unpaid_team_limit`. The slug shares the handle namespace with user handles.",
         "security": [
           {
             "userToken": []

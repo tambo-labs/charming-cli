@@ -1525,7 +1525,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/teams",
     "summary": "Create a team",
-    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. The slug shares the handle namespace with user handles.",
+    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. A person can own one team that is not on the Team plan; while they do, creating another is refused with `unpaid_team_limit`. The slug shares the handle namespace with user handles.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
