@@ -1,5 +1,17 @@
 # usecharming
 
+## 0.12.0
+
+### Minor Changes
+
+- [#8080](https://github.com/tambo-ai/charming/pull/8080) [`85637b5`](https://github.com/tambo-ai/charming/commit/85637b596a6a53e0a13c994d111b26e0887e8be0) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - Add the `start-team-checkout` operation. `charming api request start-team-checkout --param teamId=<id>` opens Stripe Checkout for the team's Team plan and returns the checkout URL. Only a team owner can run it, and a team already on the Team plan answers `already_on_team_plan`.
+
+### Patch Changes
+
+- [#8080](https://github.com/tambo-ai/charming/pull/8080) [`85637b5`](https://github.com/tambo-ai/charming/commit/85637b596a6a53e0a13c994d111b26e0887e8be0) Thanks [@akhileshrangani4](https://github.com/akhileshrangani4)! - A person can own one team that isn't on the Team plan. While they do, `POST /api/v1/teams` answers `409 unpaid_team_limit` with an `upgradeUrl` to that team's billing page, and Settings › Teams shows a link to upgrade it in place of the create form. Teams on Business or Enterprise, and teams the person is only an admin or member of, don't count.
+
+  Resending an invitation for a team that isn't on the Team plan now answers `403 plan_required` with an `upgradeUrl`, as inviting someone does, and leaves the invitation's expiry as it was. A co-owner can now start Team plan checkout after another owner's attempt failed partway, instead of Stripe refusing it.
+
 ## 0.11.2
 
 ### Patch Changes
