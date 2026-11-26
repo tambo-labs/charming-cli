@@ -1525,7 +1525,7 @@ export const generatedOperations = [
     "method": "POST",
     "path": "/api/v1/teams",
     "summary": "Create a team",
-    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Team plan and are set up with Charming.",
+    "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. The slug shares the handle namespace with user handles.",
     "parameters": [],
     "requestBody": {
       "mediaType": "application/json",
@@ -10224,6 +10224,54 @@ export const generatedOperations = [
     "streaming": false,
     "timeoutMs": 10000,
     "usage": "charming api request start-pairing --body @body.json"
+  },
+  {
+    "id": "start-team-checkout",
+    "method": "POST",
+    "path": "/api/v1/teams/{teamId}/billing/checkout",
+    "summary": "Start Team plan checkout",
+    "description": "User-gated (`chrm_user_*` or session); the caller must be an owner of the team. Opens a Stripe Checkout session for the Team plan, one seat for each current member, billed to the caller’s email, and returns its URL. Asking again expires the earlier link, so one link stays payable. The session returns to the team’s billing page.",
+    "parameters": [
+      {
+        "description": "",
+        "in": "path",
+        "name": "teamId",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": null,
+    "response": {
+      "description": "Checkout opened.",
+      "schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "url"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "The Stripe Checkout page to send the browser to."
+          }
+        }
+      }
+    },
+    "security": [
+      "sessionCookie",
+      "userToken"
+    ],
+    "streaming": false,
+    "timeoutMs": 10000,
+    "usage": "charming api request start-team-checkout --param teamId=VALUE"
   },
   {
     "id": "submit-app-feedback",

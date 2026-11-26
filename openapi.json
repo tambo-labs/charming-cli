@@ -267,6 +267,25 @@
           }
         }
       },
+      "TeamCheckoutResponse": {
+        "type": "object",
+        "required": [
+          "ok",
+          "url"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "The Stripe Checkout page to send the browser to."
+          }
+        }
+      },
       "TeamConnectorsResponse": {
         "type": "object",
         "required": [
@@ -2355,6 +2374,11 @@
                   "secret_not_found",
                   "invalid_icon",
                   "team_slug_taken",
+                  "already_on_team_plan",
+                  "already_billed",
+                  "billing_unavailable",
+                  "business_price_unavailable",
+                  "no_billing_email",
                   "already_member",
                   "two_factor_required",
                   "recent_login_required",
@@ -5257,10 +5281,11 @@
             }
           },
           "403": {
-            "description": "Caller does not manage the app / cannot create in the team, or is an App account that has not joined Charming.",
+            "description": "Caller does not manage the app / cannot create in the team, is an App account that has not joined Charming, or the team is not on a plan that includes teams (`plan_required`, with the refusal extras and the team billing page as `upgradeUrl`).",
             "x-error-kinds": [
               "forbidden",
-              "account_not_joined"
+              "account_not_joined",
+              "plan_required"
             ],
             "content": {
               "application/json": {
@@ -5673,9 +5698,8 @@
             }
           },
           "403": {
-            "description": "The caller's plan does not include teams, or the caller is an App account that has not joined Charming.",
+            "description": "The caller is an App account that has not joined Charming.",
             "x-error-kinds": [
-              "plan_required",
               "account_not_joined"
             ],
             "content": {
@@ -5702,7 +5726,7 @@
         },
         "operationId": "create-team",
         "summary": "Create a team",
-        "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. The slug shares the handle namespace with user handles. Refused with 403 `plan_required` (`feature: 'teams'`) unless the caller's plan includes teams; teams come with the Team plan and are set up with Charming.",
+        "description": "User-gated (`chrm_user_*` or session). Creates a team; the caller becomes its owner. A new team is on Free until its owner buys the Team plan from its billing page, and cannot add apps or people until then. The slug shares the handle namespace with user handles.",
         "security": [
           {
             "userToken": []
@@ -6182,6 +6206,127 @@
         "operationId": "get-team-audit",
         "summary": "Get a team’s audit trail",
         "description": "User-gated (`chrm_user_*` or session); the caller must be an owner/admin of the team. Newest-first (unless `sort` says otherwise) feed of share/publish lifecycle events AND end-user activity (renders, API calls) for every app the team owns. Defaults to the trailing 7 days.",
+        "security": [
+          {
+            "userToken": []
+          },
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/teams/{teamId}/billing/checkout": {
+      "post": {
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkout opened.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCheckoutResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The team has no owner email to bill.",
+            "x-error-kinds": [
+              "no_billing_email"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required.",
+            "x-error-kinds": [
+              "unauthorized"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller is an admin or member of the team rather than an owner (`forbidden`), or an App account that has not joined Charming (`account_not_joined`).",
+            "x-error-kinds": [
+              "forbidden",
+              "account_not_joined"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such team, or the caller is not a member of it.",
+            "x-error-kinds": [
+              "not_found"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The team’s plan already includes teams, paid or granted (`already_on_team_plan`), or Stripe still holds a subscription for it that does not entitle it: waiting on its first payment, unpaid, or paused (`already_billed`). That subscription is settled in the Stripe billing portal, not with a second checkout.",
+            "x-error-kinds": [
+              "already_on_team_plan",
+              "already_billed"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stripe is not set up in this environment (`billing_unavailable`), or Stripe has no live Team plan price (`business_price_unavailable`).",
+            "x-error-kinds": [
+              "billing_unavailable",
+              "business_price_unavailable"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "start-team-checkout",
+        "summary": "Start Team plan checkout",
+        "description": "User-gated (`chrm_user_*` or session); the caller must be an owner of the team. Opens a Stripe Checkout session for the Team plan, one seat for each current member, billed to the caller’s email, and returns its URL. Asking again expires the earlier link, so one link stays payable. The session returns to the team’s billing page.",
         "security": [
           {
             "userToken": []
@@ -6807,10 +6952,11 @@
             }
           },
           "403": {
-            "description": "Refused by the plugin gate (caller is not an owner/admin), or the team requires two-factor authentication and the caller has not turned it on (`two_factor_required`).",
+            "description": "Refused by the plugin gate (caller is not an owner/admin), the team requires two-factor authentication and the caller has not turned it on (`two_factor_required`), or the team is not on a plan that includes teams (`plan_required`, with the refusal extras and the team billing page as `upgradeUrl`).",
             "x-error-kinds": [
               "forbidden",
-              "two_factor_required"
+              "two_factor_required",
+              "plan_required"
             ],
             "x-error-kinds-relayed": true,
             "content": {
@@ -6913,10 +7059,11 @@
             }
           },
           "403": {
-            "description": "Caller may not add members (or may not grant owner), or the person to add is an App account that has not joined Charming.",
+            "description": "Caller may not add members (or may not grant owner), the person to add is an App account that has not joined Charming, or the team is not on a plan that includes teams (`plan_required`, with the refusal extras and the team billing page as `upgradeUrl`).",
             "x-error-kinds": [
               "forbidden",
-              "account_not_joined"
+              "account_not_joined",
+              "plan_required"
             ],
             "content": {
               "application/json": {
