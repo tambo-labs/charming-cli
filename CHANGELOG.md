@@ -1,5 +1,13 @@
 # usecharming
 
+## 0.13.1
+
+### Patch Changes
+
+- [#8094](https://github.com/tambo-ai/charming/pull/8094) [`b034d39`](https://github.com/tambo-ai/charming/commit/b034d394f355992bc8a86c093859d500007de767) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Run CLI commands, login and build polling, local development sessions, and credential store updates with Effect. Local builds select Node when the CLI starts under Bun's Node shim.
+
+- [#8121](https://github.com/tambo-ai/charming/pull/8121) [`c0a533c`](https://github.com/tambo-ai/charming/commit/c0a533c1c615d0a9e1607a61e973b346095921cd) Thanks [@michaelmagan](https://github.com/michaelmagan)! - Save local app writes and notify connected viewers when the client that made the change disconnects before receiving its response.
+
 ## 0.13.0
 
 ### Minor Changes
