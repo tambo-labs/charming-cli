@@ -1,5 +1,15 @@
 # usecharming
 
+## 0.13.0
+
+### Minor Changes
+
+- [#8093](https://github.com/tambo-ai/charming/pull/8093) [`c732940`](https://github.com/tambo-ai/charming/commit/c7329405d51fd58f906c58f5b8a477033ce22f0c) Thanks [@lachieh](https://github.com/lachieh)! - Give each Routine its own settings page with its recent runs, and add `GET /api/v1/routines/{routineId}/runs`, which lists a Routine's runs, failures, and skips inside the plan's activity window. The Routines list now shows each Routine's state and last error in a compact row that links to its page, with a Logs link to the run log and delete moved to the page.
+
+  A stopped Routine's email, push, and inbox notification now opens that Routine's page through `/dashboard/apps/{appId}/routines/{routineId}`. Older `/dashboard/apps/{appId}` links keep working.
+
+  The CLI gains `charming api request list-routine-runs` for the same endpoint, which the published OpenAPI spec now describes.
+
 ## 0.12.0
 
 ### Minor Changes
