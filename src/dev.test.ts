@@ -211,6 +211,53 @@ describe.skipIf(!existsSync(vendoredDevHost))('startDevServer', () => {
     expect((await resumed.json()).value.visits).toBe(6);
   });
 
+  test('persists an admitted write after the caller disconnects without another request', async () => {
+    const directory = await appDirectory();
+    const saved = join(directory, 'saved.json');
+    const wrote = Promise.withResolvers<void>();
+    await writeFile(
+      join(directory, 'module.js'),
+      MODULE.replace(
+        "'charming:storage/kv@1.0'",
+        "'charming:storage/kv@1.0', 'charming:logging/emit@1.0'",
+      ).replace(
+        "await env.storage.put('visits', 100);",
+        "await env.storage.put('visits', 100); env.log.info('written');",
+      ),
+    );
+    const server = await startDevServer({
+      directory,
+      saveState: saved,
+      host: '127.0.0.1',
+      port: 0,
+      log: (line) => {
+        if (line === 'app log info: written') wrote.resolve();
+      },
+    });
+    servers.push(server);
+    const controller = new AbortController();
+    const request = httpFetch(`${server.url}/app/${server.appId}/api/writeThenHang`, {
+      method: 'POST',
+      body: '{}',
+      signal: controller.signal,
+    });
+    try {
+      await Promise.race([
+        wrote.promise,
+        request.then((response) => {
+          throw new Error(`Guest returned HTTP ${response.status} before saving.`);
+        }),
+      ]);
+      controller.abort();
+      await expect(request).rejects.toThrow();
+      await expect
+        .poll(async () => JSON.parse(await readFile(saved, 'utf8').catch(() => 'null')))
+        .toEqual({ visits: 100 });
+    } finally {
+      controller.abort();
+    }
+  });
+
   test('stops within the grace period while an operation never finishes, still saving', async () => {
     const directory = await appDirectory();
     const saved = join(directory, 'saved.json');

@@ -16,7 +16,7 @@ import * as Semaphore from 'effect/Semaphore';
 
 import { DECLARATIONS_FILE } from './connector-types.js';
 import { readAppBundleEffect, readAppPackageEffect } from './files.js';
-import { fromPromise } from './io.js';
+import { fromPromise, toPromise } from './io.js';
 
 /** A package App's file tree, or an App saved before packages as its three sources. */
 type DevAppSource =
@@ -143,14 +143,14 @@ export function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTNAMES.has(bracketless(host));
 }
 
-export function startDevServer(options: DevServerOptions): Promise<DevServer> {
+export const startDevServerEffect = Effect.fnUntraced(function* (options: DevServerOptions) {
   const scope = Scope.makeUnsafe();
-  return Effect.runPromise(
-    openDevServer(options, scope).pipe(
-      Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(scope, exit) : Effect.void)),
-    ),
+  return yield* openDevServer(options, scope).pipe(
+    Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(scope, exit) : Effect.void)),
   );
-}
+});
+
+export const startDevServer = toPromise(startDevServerEffect);
 
 const openDevServer = Effect.fnUntraced(function* (
   options: DevServerOptions,
@@ -697,8 +697,7 @@ class DevSession {
             duplex: 'half',
           } as RequestInit),
         ),
-      );
-      yield* stateFile.saveIfChanged(host);
+      ).pipe(Effect.ensuring(Effect.suspend(() => stateFile.saveIfChanged(host))));
       for (const [name, value] of answer.headers) {
         if (name !== 'set-cookie') response.setHeader(name, value);
       }

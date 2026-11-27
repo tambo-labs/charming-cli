@@ -4,7 +4,7 @@ import * as Effect from 'effect/Effect';
 import * as Option from 'effect/Option';
 
 import type { CheckFinding, DevServer } from './dev.js';
-import { fromPromise, promiseFn } from './io.js';
+import { fromPromise, toPromise } from './io.js';
 
 /** What `charming dev --check` prints. Agents parse it; add fields, never rename them. */
 export interface CheckReport {
@@ -134,7 +134,7 @@ function terminateTrailingComments(html: string): string {
  * findings. `logLines` reads the dev host log, so the check counts the
  * failures it logged during the run.
  */
-export const checkApp = promiseFn(function* (
+export const checkAppEffect = Effect.fnUntraced(function* (
   server: DevServer,
   options: {
     clicks: readonly string[];
@@ -333,3 +333,5 @@ export const checkApp = promiseFn(function* (
     findings,
   };
 });
+
+export const checkApp = toPromise(checkAppEffect);

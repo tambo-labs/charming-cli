@@ -1,12 +1,15 @@
 import { Args, Flags } from '@oclif/core';
+import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
 
 import { CharmingCommand, writeErrorOutput } from '../base-command.js';
 import { makeTypesRefresher } from '../connector-types.js';
-import { checkApp, recordProcessFailures } from '../dev-check.js';
+import { checkAppEffect, recordProcessFailures } from '../dev-check.js';
 import { devTarget, pullLiveAppEffect } from '../dev-pull.js';
-import { DEV_ROLES, isPackageSource, startDevServer } from '../dev.js';
+import { DEV_ROLES, isPackageSource, startDevServerEffect } from '../dev.js';
 import { ApiError, TimeoutError } from '../http.js';
+import { fromPromise } from '../io.js';
 import { currentExitCode, setExitCode } from '../runtime.js';
 
 export default class Dev extends CharmingCommand {
@@ -100,12 +103,10 @@ export default class Dev extends CharmingCommand {
     // The App's server code runs in this process from startup, so a check
     // records what it throws from before the dev server starts.
     const failures = flags.check ? recordProcessFailures() : undefined;
-    let server;
-    let refreshTypes: (() => Promise<void>) | undefined;
     // The dev host applies the App's outbound policy to the global fetch, so
     // the CLI's own calls to Charming keep the fetch from before it starts.
     const charmingFetch = globalThis.fetch.bind(globalThis);
-    try {
+    const start = Effect.gen({ self: this }, function* () {
       const target = devTarget(args.directory, {
         out: flags.out,
         pullData: flags['pull-data'],
@@ -116,15 +117,14 @@ export default class Dev extends CharmingCommand {
       });
       let state = flags.state;
       if (target.kind === 'live') {
-        const pulled = await this.withContext(flags, (context) =>
-          pullLiveAppEffect(context, target, {
-            dataOperation: flags['pull-data'],
-            log,
-          }),
-        );
+        const context = yield* this.contextEffect(flags);
+        const pulled = yield* pullLiveAppEffect(context, target, {
+          dataOperation: flags['pull-data'],
+          log,
+        });
         state ??= pulled.statePath;
       }
-      refreshTypes =
+      const refreshTypes =
         flags.types &&
         !flags.check &&
         isPackageSource({
@@ -144,7 +144,7 @@ export default class Dev extends CharmingCommand {
               log,
             )
           : undefined;
-      server = await startDevServer({
+      const server = yield* startDevServerEffect({
         onSourceChange: refreshTypes,
         directory: target.directory,
         host: flags.check ? '127.0.0.1' : flags.host,
@@ -162,54 +162,60 @@ export default class Dev extends CharmingCommand {
         ui: flags.ui,
         user: flags.user,
       });
-    } catch (error) {
-      failures?.stop();
-      // A failed call to Charming keeps the CLI's usual error output and exit code.
-      if (error instanceof ApiError || error instanceof TimeoutError) throw error;
-      fail(error);
-      if (flags.check) {
-        ignoreLateFailures();
-        await exitCheck();
-      }
-      return;
-    }
+      return { server, refreshTypes };
+    });
+    await Effect.runPromise(
+      Effect.gen({ self: this }, function* () {
+        const opened = yield* Effect.exit(start);
+        if (Exit.isFailure(opened)) {
+          failures?.stop();
+          const error = Cause.squash(opened.cause);
+          if (error instanceof ApiError || error instanceof TimeoutError)
+            return yield* Effect.fail(error);
+          fail(error);
+          if (flags.check) ignoreLateFailures();
+          return;
+        }
 
-    if (failures) {
-      try {
-        const report = await checkApp(server, { clicks: flags.click ?? [], logLines, failures });
-        ignoreLateFailures();
-        this.log(JSON.stringify(report, null, 2));
-        if (!report.ok) setExitCode(CHECK_FAILED_EXIT_CODE);
-      } catch (error) {
-        ignoreLateFailures();
-        fail(error);
-      }
-      failures.stop();
-      // A failed --save-state write on close replaces the check's exit code.
-      try {
-        await server.close();
-      } catch (error) {
-        fail(error);
-      }
-      await exitCheck();
-    }
-
-    void refreshTypes?.();
-    this.log(
-      JSON.stringify(
-        { ok: true, url: server.url, appId: server.appId, panelUrl: server.panelUrl },
-        null,
-        2,
-      ),
+        const { server, refreshTypes } = opened.value;
+        const serve = Effect.gen({ self: this }, function* () {
+          if (failures) {
+            const outcome = yield* Effect.exit(
+              checkAppEffect(server, { clicks: flags.click ?? [], logLines, failures }),
+            );
+            ignoreLateFailures();
+            failures.stop();
+            if (Exit.isFailure(outcome)) {
+              fail(Cause.squash(outcome.cause));
+            } else {
+              this.log(JSON.stringify(outcome.value, null, 2));
+              if (!outcome.value.ok) setExitCode(CHECK_FAILED_EXIT_CODE);
+            }
+            return;
+          }
+          void refreshTypes?.();
+          this.log(
+            JSON.stringify(
+              { ok: true, url: server.url, appId: server.appId, panelUrl: server.panelUrl },
+              null,
+              2,
+            ),
+          );
+          process.stderr.write(
+            `Serving the app at ${server.url}, with its operations and call log at ${server.panelUrl}. Press Ctrl+C to stop.\n`,
+          );
+          yield* waitForStop;
+        });
+        yield* serve.pipe(
+          Effect.ensuring(
+            fromPromise(() => server.close()).pipe(
+              Effect.catch((error) => Effect.sync(() => fail(error))),
+            ),
+          ),
+        );
+      }),
     );
-    process.stderr.write(
-      `Serving the app at ${server.url}, with its operations and call log at ${server.panelUrl}. Press Ctrl+C to stop.\n`,
-    );
-    try {
-      await Effect.runPromise(waitForStop);
-    } finally {
-      await server.close().catch(fail);
-    }
+    if (flags.check) await exitCheck();
   }
 }
 
