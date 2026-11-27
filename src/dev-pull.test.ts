@@ -14,10 +14,12 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import type { CommandContext } from './commands.js';
-import { devTarget, PULLED_STATE_PATH, pullLiveApp } from './dev-pull.js';
+import { devTarget, PULLED_STATE_PATH, pullLiveApp, pullLiveAppEffect } from './dev-pull.js';
 import { readAppPackage } from './files.js';
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -350,6 +352,28 @@ describe('pullLiveApp', () => {
     expect(error).toBeInstanceOf(Error);
     expect(await readdir(join(directory, '..'))).toEqual([]);
     expect(live(directory).pullSource).toBe(true);
+  });
+
+  test('interrupting a source pull removes its staging directory before returning', async () => {
+    const { context } = liveApp({});
+    const directory = await emptyDirectory();
+    const parent = join(directory, '..');
+    const started = Promise.withResolvers<void>();
+    const response = Promise.withResolvers<Response>();
+    context.fetchImpl = async () => {
+      started.resolve();
+      return response.promise;
+    };
+
+    const pull = Effect.runFork(pullLiveAppEffect(context, live(directory), { log: () => {} }));
+    try {
+      await started.promise;
+      expect(await readdir(parent)).toHaveLength(1);
+      await Effect.runPromise(Fiber.interrupt(pull));
+      expect(await readdir(parent)).toEqual([]);
+    } finally {
+      response.resolve(Response.json({ source: { files: FILES } }));
+    }
   });
 
   test('takes back the entries it moved when a later move fails', async () => {

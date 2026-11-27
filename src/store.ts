@@ -3,6 +3,11 @@ import { chmod, link, mkdir, readFile, rename, rm, stat, writeFile } from 'node:
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import * as Clock from 'effect/Clock';
+import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
+
+import { fileOperation, readOptionalText } from './file-io.js';
 import { normalizeOrigin, PRODUCTION_BASE_URL } from './origin.js';
 import { DEFAULT_PROFILE, isValidProfileName, MAX_PROFILE_NAME_LENGTH } from './profile-name.js';
 
@@ -39,12 +44,16 @@ export function configPath(options: StoreOptions): string {
   return join(configDirectory(options), CONFIG_FILE);
 }
 
-export async function readStore(options: StoreOptions): Promise<Store> {
+export function readStore(options: StoreOptions): Promise<Store> {
+  return Effect.runPromise(loadStore(options));
+}
+
+export const loadStore = Effect.fnUntraced(function* (options: StoreOptions) {
   const directory = configDirectory(options);
   const configFile = join(directory, CONFIG_FILE);
   const credentialsFile = join(directory, CREDENTIALS_FILE);
-  const config = (await readJson(configFile)) ?? {};
-  const credentials = (await readJson(credentialsFile)) ?? {};
+  const config = (yield* readJson(configFile)) ?? {};
+  const credentials = (yield* readJson(credentialsFile)) ?? {};
   const store: Store = {
     appTokens: {},
     pairings: {},
@@ -81,50 +90,61 @@ export async function readStore(options: StoreOptions): Promise<Store> {
 
   migrateLegacy(config, store);
   return store;
-}
+});
 
 // Parallel CLI commands share one store, so every read-modify-write holds a lock
 // file carrying a per-holder nonce. A lock older than LOCK_STALE_MS belongs to a
 // process that died holding it.
-export async function updateStore<T>(
-  options: StoreOptions,
-  mutate: (store: Store) => T,
-): Promise<T> {
-  const directory = configDirectory(options);
-  await ensureDirectory(directory);
-  const lock = join(directory, LOCK_FILE);
-  const nonce = `${process.pid}-${randomUUID()}`;
-  await acquireLock(lock, nonce);
-  try {
-    const store = await readStore(options);
-    const result = mutate(store);
-    await writeStore(store, options);
-    return result;
-  } finally {
-    if ((await readLock(lock)) === nonce) await rm(lock, { force: true });
-  }
+export function updateStore<T>(options: StoreOptions, mutate: (store: Store) => T): Promise<T> {
+  return Effect.runPromise(updateStoreEffect(options, mutate));
 }
 
-async function acquireLock(path: string, nonce: string): Promise<void> {
-  const startedAt = Date.now();
+export const updateStoreEffect = Effect.fnUntraced(function* <T>(
+  options: StoreOptions,
+  mutate: (store: Store) => T,
+): Effect.fn.Return<T, Error> {
+  const directory = configDirectory(options);
+  const lock = join(directory, LOCK_FILE);
+  const nonce = `${process.pid}-${randomUUID()}`;
+  yield* fileOperation(() => ensureDirectory(directory));
+  return yield* Effect.gen(function* () {
+    yield* acquireLock(lock, nonce);
+    const store = yield* loadStore(options);
+    const result = mutate(store);
+    yield* Effect.uninterruptible(writeStore(store, options));
+    return result;
+  }).pipe(
+    Effect.onExit(() =>
+      fileOperation(async () => {
+        if ((await readLock(lock)) === nonce) await rm(lock, { force: true });
+      }),
+    ),
+  );
+});
+
+const acquireLock = Effect.fnUntraced(function* (path: string, nonce: string) {
+  const startedAt = yield* Clock.currentTimeMillis;
   let announced = false;
   while (true) {
-    try {
-      await writeFile(path, nonce, { flag: 'wx', mode: 0o600 });
-      return;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
-    const holder = await readLock(path);
-    const lockedAt = await stat(path).then(
-      ({ mtimeMs }) => mtimeMs,
-      () => undefined,
+    const attempt = yield* Effect.result(
+      Effect.uninterruptible(
+        fileOperation(() => writeFile(path, nonce, { flag: 'wx', mode: 0o600 })),
+      ),
     );
-    if (holder !== undefined && lockedAt !== undefined && Date.now() - lockedAt > LOCK_STALE_MS) {
-      await reclaimStaleLock(path, holder, nonce);
+    if (Result.isSuccess(attempt)) return;
+    if ((attempt.failure as NodeJS.ErrnoException).code !== 'EEXIST')
+      return yield* Effect.fail(attempt.failure);
+    const holder = yield* fileOperation(() => readLock(path));
+    const lockedAt = yield* fileOperation(() => stat(path)).pipe(
+      Effect.map(({ mtimeMs }) => mtimeMs),
+      Effect.catch(() => Effect.succeed(undefined)),
+    );
+    const now = yield* Clock.currentTimeMillis;
+    if (holder !== undefined && lockedAt !== undefined && now - lockedAt > LOCK_STALE_MS) {
+      yield* Effect.uninterruptible(fileOperation(() => reclaimStaleLock(path, holder, nonce)));
       continue;
     }
-    if (!announced && Date.now() - startedAt > LOCK_NOTICE_MS) {
+    if (!announced && now - startedAt > LOCK_NOTICE_MS) {
       announced = true;
       process.stderr.write(
         `${JSON.stringify({
@@ -133,9 +153,9 @@ async function acquireLock(path: string, nonce: string): Promise<void> {
         })}\n`,
       );
     }
-    await new Promise((resolve) => setTimeout(resolve, LOCK_RETRY_MS));
+    yield* Effect.sleep(LOCK_RETRY_MS);
   }
-}
+});
 
 // Only one waiter's rename of the stale file succeeds. A moved file that holds a
 // different nonce than the stale one belongs to a new holder, so it goes back.
@@ -161,9 +181,9 @@ async function ensureDirectory(directory: string): Promise<void> {
   if (await mkdir(directory, { mode: 0o700, recursive: true })) await chmod(directory, 0o700);
 }
 
-async function writeStore(store: Store, options: StoreOptions): Promise<void> {
+const writeStore = Effect.fnUntraced(function* (store: Store, options: StoreOptions) {
   const directory = configDirectory(options);
-  await ensureDirectory(directory);
+  yield* fileOperation(() => ensureDirectory(directory));
 
   const profileTokens = {
     ...store.unknown.credentialProfiles,
@@ -175,7 +195,7 @@ async function writeStore(store: Store, options: StoreOptions): Promise<void> {
   };
   const apps = nonEmpty(store.appTokens);
   const pairings = nonEmpty(store.pairings);
-  await writeAtomically(
+  yield* writeAtomically(
     join(directory, CREDENTIALS_FILE),
     {
       ...store.unknown.credentials,
@@ -189,7 +209,7 @@ async function writeStore(store: Store, options: StoreOptions): Promise<void> {
   const profiles = Object.fromEntries(
     Object.entries(store.profiles).map(([name, profile]) => [name, { origin: profile.origin }]),
   );
-  await writeAtomically(
+  yield* writeAtomically(
     join(directory, CONFIG_FILE),
     {
       ...store.unknown.config,
@@ -198,7 +218,7 @@ async function writeStore(store: Store, options: StoreOptions): Promise<void> {
     },
     0o644,
   );
-}
+});
 
 export function setAppSecret(
   secrets: AppSecrets,
@@ -299,34 +319,33 @@ function configDirectory(options: StoreOptions): string {
     : join(homedir(), '.config', 'charming');
 }
 
-async function writeAtomically(
+const writeAtomically = Effect.fnUntraced(function* (
   path: string,
   value: Record<string, unknown>,
   mode: number,
-): Promise<void> {
+) {
   if (Object.keys(value).length === 0) {
-    await rm(path, { force: true });
+    yield* fileOperation(() => rm(path, { force: true }));
     return;
   }
   const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
-  try {
+  yield* fileOperation(async () => {
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: 'wx', mode });
     await chmod(temporary, mode);
     await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
-  }
-}
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.andThen(
+        fileOperation(() => rm(temporary, { force: true })),
+        Effect.fail(error),
+      ),
+    ),
+  );
+});
 
-async function readJson(path: string): Promise<Record<string, unknown> | undefined> {
-  let text: string;
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (error) {
-    if (isMissingFile(error)) return undefined;
-    throw error;
-  }
+const readJson = Effect.fnUntraced(function* (path: string) {
+  const text = yield* readOptionalText(path);
+  if (text === undefined) return undefined;
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -335,7 +354,7 @@ async function readJson(path: string): Promise<Record<string, unknown> | undefin
   }
   if (!isRecord(value)) invalid(path, 'the file must contain a JSON object');
   return value;
-}
+});
 
 function record(value: unknown, path: string, key: string): Record<string, unknown> {
   if (value === undefined) return {};
@@ -351,8 +370,4 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isMissingFile(error: unknown): boolean {
-  return (
-    error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
-  );
-}
+export { isMissingFile } from './file-io.js';

@@ -1,6 +1,10 @@
 import { get } from 'node:http';
 
+import * as Effect from 'effect/Effect';
+import * as Option from 'effect/Option';
+
 import type { CheckFinding, DevServer } from './dev.js';
+import { fromPromise, promiseFn } from './io.js';
 
 /** What `charming dev --check` prints. Agents parse it; add fields, never rename them. */
 export interface CheckReport {
@@ -45,19 +49,20 @@ const RUNTIME_REPORT_LINE = /^browser (?:diag|load-error)\/report: /;
  * process's global fetch with the App's outbound policy, so read it over
  * plain HTTP.
  */
-function readPage(url: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const request = get(url, (response) => {
+function readPage(url: string) {
+  return Effect.callback<string, Error>((resume, signal) => {
+    const request = get(url, { signal }, (response) => {
       let body = '';
       response.setEncoding('utf8').on('data', (chunk: string) => (body += chunk));
-      response.on('end', () => resolve(body));
+      response.on('error', (error) => resume(Effect.fail(error)));
+      response.on('end', () => resume(Effect.succeed(body)));
     });
     request.setTimeout(PAGE_READ_TIMEOUT_MS, () =>
       request.destroy(
         new Error(`The dev server did not serve the page within ${PAGE_READ_TIMEOUT_MS}ms.`),
       ),
     );
-    request.on('error', reject);
+    request.on('error', (error) => resume(Effect.fail(error)));
   });
 }
 
@@ -116,10 +121,6 @@ function reasonText(reason: unknown): string {
   return JSON.stringify(reason) ?? 'undefined';
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /** A `<script>` that ends in a `//` comment swallows happy-dom's closing wrapper, so end each with a newline. */
 function terminateTrailingComments(html: string): string {
   return html.replace(/(\/\/[^\n<]*)<\/script>/g, '$1\n</script>');
@@ -133,7 +134,7 @@ function terminateTrailingComments(html: string): string {
  * findings. `logLines` reads the dev host log, so the check counts the
  * failures it logged during the run.
  */
-export async function checkApp(
+export const checkApp = promiseFn(function* (
   server: DevServer,
   options: {
     clicks: readonly string[];
@@ -141,9 +142,11 @@ export async function checkApp(
     logLines: readonly string[];
     failures: ProcessFailures;
   },
-): Promise<CheckReport> {
+): Effect.fn.Return<CheckReport, unknown> {
   const { failures } = options;
-  const { Browser, DOMException, VirtualConsoleLogLevelEnum } = await import('happy-dom');
+  const { Browser, DOMException, VirtualConsoleLogLevelEnum } = yield* fromPromise(
+    () => import('happy-dom'),
+  );
   const beforePage = failures.raised.length;
   const pageRealm = { url: `${server.url}/`, DOMException };
   const errors: CheckReport['errors'] = [];
@@ -191,9 +194,8 @@ export async function checkApp(
       },
     },
   });
-  let observed: Pick<CheckReport, 'render' | 'clicks' | 'findings'>;
   let beforeClose = Number.POSITIVE_INFINITY;
-  try {
+  const observed = yield* Effect.gen(function* () {
     const page = browser.newPage();
     const window = page.mainFrame.window;
     window.addEventListener('error', (event) => {
@@ -209,7 +211,7 @@ export async function checkApp(
       pageError(reasonText(reason));
     });
 
-    const html = await readPage(`${server.url}/`);
+    const html = yield* readPage(`${server.url}/`);
     const started = performance.now();
     page.url = `${server.url}/`;
     page.content = terminateTrailingComments(html);
@@ -227,13 +229,12 @@ export async function checkApp(
      * success lines do not count, so an App that polls can still go quiet,
      * and one that never does stops at the cap.
      */
-    const settle = async () => {
-      const completed = await Promise.race([
-        page.waitUntilComplete().then(() => true),
-        delay(TASKS_TIMEOUT_MS).then(() => false),
-      ]);
+    const settle = Effect.gen(function* () {
+      const completed = yield* fromPromise(() => page.waitUntilComplete()).pipe(
+        Effect.timeoutOption(TASKS_TIMEOUT_MS),
+      );
       // A request that errors leaves no trace, but none is in flight once every task is done.
-      if (completed) inFlight.clear();
+      if (Option.isSome(completed)) inFlight.clear();
       const deadline = performance.now() + QUIET_TIMEOUT_MS;
       let snapshot = '';
       let quietSince = performance.now();
@@ -250,14 +251,17 @@ export async function checkApp(
           (started) => started < deadline && now - started < REQUEST_TIMEOUT_MS,
         );
         if (now >= deadline && !waiting) return;
-        await delay(POLL_MS);
+        yield* Effect.sleep(POLL_MS);
       }
-    };
+    });
     for (let waited = 0; waited < RENDER_TIMEOUT_MS && !app()?.children.length; waited += POLL_MS) {
-      await delay(POLL_MS);
+      yield* Effect.sleep(POLL_MS);
     }
-    const render = { ms: Math.round(performance.now() - started), empty: !app()?.children.length };
-    await settle();
+    const render = {
+      ms: Math.round(performance.now() - started),
+      empty: !app()?.children.length,
+    };
+    yield* settle;
 
     const clicks: CheckReport['clicks'] = [];
     for (const selector of options.clicks) {
@@ -273,7 +277,7 @@ export async function checkApp(
         continue;
       }
       (target as unknown as { click(): void }).click();
-      await settle();
+      yield* settle;
       clicks.push({ selector, ok: true });
     }
 
@@ -289,11 +293,15 @@ export async function checkApp(
       if (entry.level !== VirtualConsoleLogLevelEnum.error) continue;
       pageError(entry.message.map(String).join(' '));
     }
-    observed = { render, clicks, findings: server.check(app()?.innerHTML ?? null) };
-  } finally {
-    beforeClose = failures.raised.length;
-    await browser.close();
-  }
+    return { render, clicks, findings: server.check(app()?.innerHTML ?? null) };
+  }).pipe(
+    Effect.ensuring(
+      Effect.promise(async () => {
+        beforeClose = failures.raised.length;
+        await browser.close();
+      }),
+    ),
+  );
 
   // A rejection the page leaves unhandled, such as an operation that failed
   // inside a click handler, surfaces on this process rather than the page,
@@ -324,4 +332,4 @@ export async function checkApp(
     clicks,
     findings,
   };
-}
+});

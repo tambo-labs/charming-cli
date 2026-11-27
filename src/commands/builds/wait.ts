@@ -1,7 +1,7 @@
 import { Args } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { waitForBuild } from '../../builds.js';
+import { pollBuild } from '../../builds.js';
 
 export default class BuildsWait extends CharmingCommand {
   static override args = { buildId: Args.string({ required: true }) };
@@ -11,6 +11,6 @@ export default class BuildsWait extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(BuildsWait);
-    this.output(await waitForBuild(await this.context(flags), args.buildId));
+    this.output(await this.withContext(flags, (context) => pollBuild(context, args.buildId)));
   }
 }

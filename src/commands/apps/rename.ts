@@ -1,7 +1,7 @@
 import { Args, Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runApps } from '../../commands.js';
+import { runAppsEffect } from '../../commands.js';
 
 export default class AppsRename extends CharmingCommand {
   static override args = {
@@ -17,6 +17,10 @@ export default class AppsRename extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsRename);
-    this.output(await runApps('rename', [args.appId, args.name], await this.context(flags)));
+    this.output(
+      await this.withContext(flags, (context) =>
+        runAppsEffect('rename', [args.appId, args.name], context),
+      ),
+    );
   }
 }

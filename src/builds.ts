@@ -1,7 +1,11 @@
 import { Flags } from '@oclif/core';
+import * as Clock from 'effect/Clock';
+import * as Effect from 'effect/Effect';
+import * as Schedule from 'effect/Schedule';
 
-import { type CommandContext, clientFor, requireUserToken } from './commands.js';
+import { type CommandContext, clientFor, requireUserTokenEffect } from './commands.js';
 import { ApiError } from './http.js';
+import { toPromise } from './io.js';
 
 const TERMINAL_STATES = new Set(['published', 'failed', 'superseded', 'canceled', 'expired']);
 const DEFAULT_POLL_MS = 2_000;
@@ -43,35 +47,44 @@ export class BuildNotPublishedError extends Error {
 }
 
 /** Follows the build a package save started; any other result passes through. */
-export async function followSavedBuild(context: CommandContext, saved: unknown): Promise<unknown> {
+export const followSavedBuildEffect = Effect.fnUntraced(function* (
+  context: CommandContext,
+  saved: unknown,
+) {
   const buildId =
     typeof saved === 'object' && saved !== null && 'buildId' in saved ? saved.buildId : undefined;
   if (typeof buildId !== 'string') return saved;
   process.stderr.write(`${JSON.stringify({ event: 'build_accepted', buildId })}\n`);
-  return waitForBuild(context, buildId);
+  return yield* pollBuild(context, buildId);
+});
+
+export const followSavedBuild = toPromise(followSavedBuildEffect);
+
+export function waitForBuild(context: CommandContext, buildId: string): Promise<unknown> {
+  return Effect.runPromise(pollBuild(context, buildId));
 }
 
-export async function waitForBuild(context: CommandContext, buildId: string): Promise<unknown> {
-  const client = clientFor(context, await requireUserToken(context));
+export const pollBuild = Effect.fnUntraced(function* (context: CommandContext, buildId: string) {
+  const token = yield* requireUserTokenEffect(context);
+  const client = clientFor(context, token);
   const path = `/api/v1/app-builds/${encodeURIComponent(buildId)}`;
+  const poll = client
+    .requestEffect('GET', path, { timeoutMs: context.timeoutMs ?? POLL_TIMEOUT_MS })
+    .pipe(
+      Effect.retry({
+        while: isTransient,
+        times: MAX_POLL_FAILURES - 1,
+        schedule: Schedule.spaced(DEFAULT_POLL_MS),
+      }),
+    );
   let reported: unknown;
-  let failures = 0;
   while (true) {
-    let data: unknown;
-    try {
-      data = (
-        await client.request('GET', path, { timeoutMs: context.timeoutMs ?? POLL_TIMEOUT_MS })
-      ).data;
-      failures = 0;
-    } catch (error) {
-      failures += 1;
-      if (!isTransient(error) || failures >= MAX_POLL_FAILURES) throw error;
-      await wait(DEFAULT_POLL_MS);
-      continue;
-    }
+    const { data } = yield* poll;
     if (typeof data !== 'object' || data === null) {
-      throw new Error(
-        `Charming returned an empty status for build ${buildId}. Check it with \`charming api request get-app-build --param buildId=${buildId}\`.`,
+      return yield* Effect.fail(
+        new Error(
+          `Charming returned an empty status for build ${buildId}. Check it with \`charming api request get-app-build --param buildId=${buildId}\`.`,
+        ),
       );
     }
     const build: Build = data;
@@ -83,26 +96,28 @@ export async function waitForBuild(context: CommandContext, buildId: string): Pr
     }
     if (build.state === 'published') return build;
     if (typeof build.state === 'string' && TERMINAL_STATES.has(build.state)) {
-      throw new BuildNotPublishedError({ ...build, buildId });
+      return yield* Effect.fail(new BuildNotPublishedError({ ...build, buildId }));
     }
-    if (pastDeadline(build)) {
-      throw new Error(
-        `Build ${buildId} is still ${String(build.state)} after its deadline (${String(build.deadline)}). Check it with \`charming api request get-app-build --param buildId=${buildId}\`.`,
+    if (pastDeadline(build, yield* Clock.currentTimeMillis)) {
+      return yield* Effect.fail(
+        new Error(
+          `Build ${buildId} is still ${String(build.state)} after its deadline (${String(build.deadline)}). Check it with \`charming api request get-app-build --param buildId=${buildId}\`.`,
+        ),
       );
     }
-    await wait(pollInterval(build));
+    yield* Effect.sleep(pollInterval(build));
   }
-}
+});
 
 function isTransient(error: unknown): boolean {
   if (error instanceof ApiError) return error.status >= 500 || error.status === 429;
   return true;
 }
 
-function pastDeadline(build: Build): boolean {
+function pastDeadline(build: Build, now: number): boolean {
   if (typeof build.deadline !== 'string') return false;
   const deadline = Date.parse(build.deadline);
-  return Number.isFinite(deadline) && Date.now() > deadline + DEADLINE_GRACE_MS;
+  return Number.isFinite(deadline) && now > deadline + DEADLINE_GRACE_MS;
 }
 
 function pollInterval(build: Build): number {
@@ -111,8 +126,4 @@ function pollInterval(build: Build): number {
     return DEFAULT_POLL_MS;
   }
   return Math.min(seconds * 1_000, MAX_POLL_MS);
-}
-
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

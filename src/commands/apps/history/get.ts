@@ -1,7 +1,7 @@
 import { Args, Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../../base-command.js';
-import { runHistory } from '../../../history.js';
+import { runHistoryEffect } from '../../../history.js';
 
 export default class AppsHistoryGet extends CharmingCommand {
   static override args = {
@@ -18,6 +18,10 @@ export default class AppsHistoryGet extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsHistoryGet);
-    this.output(await runHistory('get', [args.appId, args.revision], await this.context(flags)));
+    this.output(
+      await this.withContext(flags, (context) =>
+        runHistoryEffect('get', [args.appId, args.revision], context),
+      ),
+    );
   }
 }

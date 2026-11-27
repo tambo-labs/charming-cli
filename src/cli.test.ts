@@ -909,8 +909,11 @@ test('charming dev <app-id> reports a failed source read with the API error and 
   }
 });
 
-test('charming dev <app-id> reports a stalled source read as a timeout with its exit code', async () => {
-  const server = createServer(() => undefined);
+test('charming dev <app-id> times out while reading an unfinished source response', async () => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.write('{');
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   try {
     const { port } = server.address() as AddressInfo;

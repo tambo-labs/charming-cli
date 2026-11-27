@@ -1,7 +1,8 @@
 import { Args, Flags } from '@oclif/core';
+import * as Effect from 'effect/Effect';
 
 import { CharmingCommand } from '../../base-command.js';
-import { currentProfile, useProfile } from '../../config.js';
+import { selectedProfile, useProfileEffect } from '../../config.js';
 
 export default class ProfileUse extends CharmingCommand {
   static override args = { name: Args.string({ required: true }) };
@@ -18,7 +19,16 @@ export default class ProfileUse extends CharmingCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ProfileUse);
     const { request } = this.sessionRequest(flags);
-    const selected = await useProfile(args.name, { cwd: request.cwd, project: flags.project });
-    this.output({ ...selected, current: await currentProfile(request) });
+    this.output(
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const selected = yield* useProfileEffect(args.name, {
+            cwd: request.cwd,
+            project: flags.project,
+          });
+          return { ...selected, current: yield* selectedProfile(request) };
+        }),
+      ),
+    );
   }
 }

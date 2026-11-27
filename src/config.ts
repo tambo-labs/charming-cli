@@ -1,20 +1,22 @@
-import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import * as Effect from 'effect/Effect';
+
+import { readOptionalText } from './file-io.js';
+import { toPromise } from './io.js';
 import { PRODUCTION_BASE_URL, normalizeOrigin } from './origin.js';
 import { DEFAULT_PROFILE, validateProfileName } from './profile-name.js';
-import { findProjectConfig, writeProjectProfile } from './project-config.js';
+import { findProjectConfigEffect, writeProjectProfileEffect } from './project-config.js';
 import {
   configPath,
   deleteAppSecret,
-  isMissingFile,
   originProfileName,
-  readStore,
+  loadStore,
   setAppSecret,
   type Store,
   type StoreOptions,
-  updateStore,
+  updateStoreEffect,
 } from './store.js';
 
 export { PRODUCTION_BASE_URL } from './origin.js';
@@ -46,11 +48,17 @@ export type SessionRequest = StoreOptions & {
 
 type Selection = { name: string; path?: string; source: ProfileSource };
 
-export async function resolveSession(request: SessionRequest = {}): Promise<Session> {
+export function resolveSession(request: SessionRequest = {}): Promise<Session> {
+  return Effect.runPromise(sessionFor(request));
+}
+
+export const sessionFor = Effect.fnUntraced(function* (
+  request: SessionRequest,
+): Effect.fn.Return<Session, Error> {
   const env = request.env ?? process.env;
   const purpose = request.purpose ?? 'use';
-  const store = await readStore(request);
-  const selection = await selectProfile(request, env, store);
+  const store = yield* loadStore(request);
+  const selection = yield* selectProfile(request, env, store);
   const override = originOverride(request, env);
   const lenient =
     purpose !== 'login' &&
@@ -78,7 +86,7 @@ export async function resolveSession(request: SessionRequest = {}): Promise<Sess
       `Profile ${name} (selected by ${describeSelection(matched)}) is not saved on this machine. Run \`charming auth login --profile ${name}\` to sign in to it.`,
     );
   }
-  const legacy = await legacyFallback(session, request);
+  const legacy = yield* legacyFallback(session, request);
   if (saved?.token) {
     return {
       ...session,
@@ -88,22 +96,22 @@ export async function resolveSession(request: SessionRequest = {}): Promise<Sess
     };
   }
   return legacy ? { ...session, token: legacy, tokenSource: 'legacy' } : session;
-}
+});
 
-export async function saveLogin(session: Session, token: string): Promise<void> {
+export const saveLoginEffect = Effect.fnUntraced(function* (session: Session, token: string) {
   const name = requireProfile(session);
-  await updateStore({}, (store) => {
+  yield* updateStoreEffect({}, (store) => {
     store.profiles[name] = { origin: session.origin, token };
     delete store.pairings[session.origin];
     if (session.profileSource === 'flag') store.selected = name;
   });
-}
+});
 
-export async function logout(
-  session: Session,
-): Promise<{ appTokensRemoved: number; profile: string | null }> {
+export const saveLogin = toPromise(saveLoginEffect);
+
+export const logoutEffect = Effect.fnUntraced(function* (session: Session) {
   const name = session.profile;
-  return updateStore({}, (store) => {
+  return yield* updateStoreEffect({}, (store) => {
     if (name && name !== DEFAULT_PROFILE && !store.profiles[name]) {
       throw new Error(`Profile ${name} has no saved credential.`);
     }
@@ -122,14 +130,21 @@ export async function logout(
     }
     return { appTokensRemoved, profile: name ?? null };
   });
-}
+});
 
-export async function listProfiles(request: SessionRequest = {}): Promise<{
-  current: CurrentProfile;
-  profiles: Array<{ name: string; origin: string; selected: boolean; signedIn: boolean }>;
-}> {
-  const current = await currentProfile(request);
-  const store = await readStore(request);
+export const logout = toPromise(logoutEffect);
+
+export const listProfilesEffect = Effect.fnUntraced(function* (
+  request: SessionRequest = {},
+): Effect.fn.Return<
+  {
+    current: CurrentProfile;
+    profiles: Array<{ name: string; origin: string; selected: boolean; signedIn: boolean }>;
+  },
+  Error
+> {
+  const current = yield* selectedProfile(request);
+  const store = yield* loadStore(request);
   return {
     current,
     profiles: Object.entries(store.profiles)
@@ -141,7 +156,9 @@ export async function listProfiles(request: SessionRequest = {}): Promise<{
         signedIn: profile.token !== undefined,
       })),
   };
-}
+});
+
+export const listProfiles = toPromise(listProfilesEffect);
 
 type CurrentProfile = {
   origin: string;
@@ -152,8 +169,14 @@ type CurrentProfile = {
   source: ProfileSource;
 };
 
-export async function currentProfile(request: SessionRequest = {}): Promise<CurrentProfile> {
-  const session = await resolveSession({ ...request, purpose: 'inspect' });
+export function currentProfile(request: SessionRequest = {}): Promise<CurrentProfile> {
+  return Effect.runPromise(selectedProfile(request));
+}
+
+export const selectedProfile = Effect.fnUntraced(function* (
+  request: SessionRequest,
+): Effect.fn.Return<CurrentProfile, Error> {
+  const session = yield* sessionFor({ ...request, purpose: 'inspect' });
   return {
     origin: session.origin,
     originSource: session.originSource,
@@ -162,26 +185,28 @@ export async function currentProfile(request: SessionRequest = {}): Promise<Curr
     saved: session.saved,
     source: session.profileSource,
   };
-}
+});
 
-export async function useProfile(
+export const useProfileEffect = Effect.fnUntraced(function* (
   name: string,
   request: StoreOptions & { cwd?: string; project?: boolean } = {},
-): Promise<{ path: string; profile: string }> {
+): Effect.fn.Return<{ path: string; profile: string }, Error> {
   validateProfileName(name);
   if (request.project) {
-    requireSavedProfile(await readStore(request), name);
+    requireSavedProfile(yield* loadStore(request), name);
     return {
-      ...(await writeProjectProfile(name, boundaries(request, request.env ?? process.env))),
+      ...(yield* writeProjectProfileEffect(name, boundaries(request, request.env ?? process.env))),
       profile: name,
     };
   }
-  await updateStore(request, (store) => {
+  yield* updateStoreEffect(request, (store) => {
     requireSavedProfile(store, name);
     store.selected = name;
   });
   return { path: configPath(request), profile: name };
-}
+});
+
+export const useProfile = toPromise(useProfileEffect);
 
 function requireSavedProfile(store: Store, name: string): void {
   if (name !== DEFAULT_PROFILE && !store.profiles[name]) {
@@ -191,55 +216,67 @@ function requireSavedProfile(store: Store, name: string): void {
   }
 }
 
-export async function loadAppToken(
+export const loadAppTokenEffect = Effect.fnUntraced(function* (
   origin: string,
   appId: string,
   options: StoreOptions = {},
-): Promise<string | undefined> {
-  return (await readStore(options)).appTokens[origin]?.[appId];
-}
+): Effect.fn.Return<string | undefined, Error> {
+  return (yield* loadStore(options)).appTokens[origin]?.[appId];
+});
 
-export async function saveAppToken(
+export const loadAppToken = toPromise(loadAppTokenEffect);
+
+export const saveAppTokenEffect = Effect.fnUntraced(function* (
   origin: string,
   appId: string,
   token: string,
   options: StoreOptions = {},
-): Promise<void> {
-  await updateStore(options, (store) => setAppSecret(store.appTokens, origin, appId, token));
-}
+) {
+  yield* updateStoreEffect(options, (store) => setAppSecret(store.appTokens, origin, appId, token));
+});
 
-export async function savePairing(
+export const saveAppToken = toPromise(saveAppTokenEffect);
+
+export const savePairingEffect = Effect.fnUntraced(function* (
   origin: string,
   appId: string,
   deviceCode: string,
-): Promise<void> {
-  await updateStore({}, (store) => setAppSecret(store.pairings, origin, appId, deviceCode));
-}
+) {
+  yield* updateStoreEffect({}, (store) => setAppSecret(store.pairings, origin, appId, deviceCode));
+});
 
-export async function loadPairings(origin: string): Promise<Record<string, string>> {
-  return (await readStore({})).pairings[origin] ?? {};
-}
+export const savePairing = toPromise(savePairingEffect);
 
-export async function dropPairing(origin: string, appId: string): Promise<void> {
-  await updateStore({}, (store) => deleteAppSecret(store.pairings, origin, appId));
-}
+export const loadPairingsEffect = Effect.fnUntraced(function* (origin: string) {
+  return (yield* loadStore({})).pairings[origin] ?? {};
+});
 
-export async function dropAppToken(origin: string, appId: string): Promise<void> {
-  await updateStore({}, (store) => deleteAppSecret(store.appTokens, origin, appId));
-}
+export const loadPairings = toPromise(loadPairingsEffect);
 
-async function selectProfile(
+export const dropPairingEffect = Effect.fnUntraced(function* (origin: string, appId: string) {
+  yield* updateStoreEffect({}, (store) => deleteAppSecret(store.pairings, origin, appId));
+});
+
+export const dropPairing = toPromise(dropPairingEffect);
+
+export const dropAppTokenEffect = Effect.fnUntraced(function* (origin: string, appId: string) {
+  yield* updateStoreEffect({}, (store) => deleteAppSecret(store.appTokens, origin, appId));
+});
+
+export const dropAppToken = toPromise(dropAppTokenEffect);
+
+const selectProfile = Effect.fnUntraced(function* (
   request: SessionRequest,
   env: NodeJS.ProcessEnv,
   store: Store,
-): Promise<Selection> {
+): Effect.fn.Return<Selection, Error> {
   if (request.profile !== undefined) return validated({ name: request.profile, source: 'flag' });
   if (env.CHARMING_PROFILE) return validated({ name: env.CHARMING_PROFILE, source: 'env' });
-  const project = await findProjectConfig(boundaries(request, env));
+  const project = yield* findProjectConfigEffect(boundaries(request, env));
   if (project?.profile) return { name: project.profile, path: project.path, source: 'project' };
   if (store.selected) return validated({ name: store.selected, source: 'home' });
   return { name: DEFAULT_PROFILE, source: 'default' };
-}
+});
 
 function describeSelection(selection: Selection | undefined): string {
   if (selection?.source === 'flag') return '--profile';
@@ -311,21 +348,16 @@ function overrideToken(
   return undefined;
 }
 
-async function legacyFallback(
+const legacyFallback = Effect.fnUntraced(function* (
   session: Session,
   options: { legacyTokenPath?: string },
-): Promise<string | undefined> {
+) {
   if (session.origin !== PRODUCTION_BASE_URL) return undefined;
   if (session.profile !== undefined && session.profile !== DEFAULT_PROFILE) return undefined;
-  try {
-    // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
-    const path = options.legacyTokenPath ?? join(homedir(), '.buildy', 'user-token');
-    return (await readFile(path, 'utf8')).trim() || undefined;
-  } catch (error) {
-    if (isMissingFile(error)) return undefined;
-    throw error;
-  }
-}
+  // oxlint-disable-next-line charming/no-retired-name -- credential the published CLI reads from users' machines
+  const path = options.legacyTokenPath ?? join(homedir(), '.buildy', 'user-token');
+  return (yield* readOptionalText(path))?.trim() || undefined;
+});
 
 function requireProfile(session: Session): string {
   if (!session.profile) throw new Error('No profile selected. Pass --profile NAME.');

@@ -1,8 +1,9 @@
 import { Args, Flags } from '@oclif/core';
+import * as Effect from 'effect/Effect';
 
 import { CharmingCommand } from '../../base-command.js';
-import { followSavedBuild, requireFilesForWait, waitFlag } from '../../builds.js';
-import { runApps } from '../../commands.js';
+import { followSavedBuildEffect, requireFilesForWait, waitFlag } from '../../builds.js';
+import { runAppsEffect } from '../../commands.js';
 
 export default class AppsUpdate extends CharmingCommand {
   static override args = {
@@ -32,12 +33,17 @@ export default class AppsUpdate extends CharmingCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsUpdate);
     requireFilesForWait(flags);
-    const context = await this.context(flags);
-    const saved = await runApps(
-      'update',
-      [args.appId, ...(args.directory ? [args.directory] : [])],
-      context,
+    this.output(
+      await this.withContext(flags, (context) =>
+        Effect.gen(function* () {
+          const saved = yield* runAppsEffect(
+            'update',
+            [args.appId, ...(args.directory ? [args.directory] : [])],
+            context,
+          );
+          return flags.wait ? yield* followSavedBuildEffect(context, saved) : saved;
+        }),
+      ),
     );
-    this.output(flags.wait ? await followSavedBuild(context, saved) : saved);
   }
 }

@@ -1,7 +1,7 @@
 import { Args } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runApi } from '../../commands.js';
+import { runApiEffect } from '../../commands.js';
 
 export default class ApiDescribe extends CharmingCommand {
   static override args = { operationId: Args.string({ required: true }) };
@@ -10,6 +10,12 @@ export default class ApiDescribe extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ApiDescribe);
-    this.output(await runApi('describe', [args.operationId], await this.context(flags, 'inspect')));
+    this.output(
+      await this.withContext(
+        flags,
+        (context) => runApiEffect('describe', [args.operationId], context),
+        'inspect',
+      ),
+    );
   }
 }

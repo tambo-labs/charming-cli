@@ -1872,6 +1872,19 @@ describe('runCommand', () => {
     ).rejects.toEqual(expect.objectContaining({ status: 503 }));
   });
 
+  test('doctor reports the checked origin when the transport refuses it before fetching', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    await expect(
+      runCommand({
+        baseUrl: 'http://offline.example',
+        command: ['doctor'],
+        fetchImpl,
+        options: {},
+      }),
+    ).rejects.toThrow('Could not reach http://offline.example: The API origin must use HTTPS.');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   test('reports the checked origin when doctor cannot connect', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockRejectedValue(new TypeError('fetch failed'));
 

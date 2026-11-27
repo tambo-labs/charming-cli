@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+
 type Dependencies = {
   buildImpl?: () => void | Promise<void>;
   cwd?: string;
@@ -6,7 +8,14 @@ type Dependencies = {
 
 type Runtime = Dependencies & { exitCode?: number };
 
-const runtimeKey = Symbol.for('usecharming-runtime');
+const runtimeKey = Symbol.for('usecharming-command-invocations');
+const global = globalThis as typeof globalThis & {
+  [runtimeKey]?: { invocations: AsyncLocalStorage<Runtime>; fallback: Runtime };
+};
+const { invocations, fallback } = (global[runtimeKey] ??= {
+  invocations: new AsyncLocalStorage<Runtime>(),
+  fallback: {},
+});
 
 export function currentDependencies(): Dependencies {
   return currentRuntime();
@@ -24,17 +33,9 @@ export async function withRuntime<T>(
   dependencies: Dependencies,
   run: () => Promise<T>,
 ): Promise<T> {
-  const global = globalThis as typeof globalThis & { [runtimeKey]?: Runtime };
-  const previous = global[runtimeKey];
-  global[runtimeKey] = { ...dependencies };
-  try {
-    return await run();
-  } finally {
-    global[runtimeKey] = previous;
-  }
+  return invocations.run({ ...dependencies }, run);
 }
 
 function currentRuntime(): Runtime {
-  const global = globalThis as typeof globalThis & { [runtimeKey]?: Runtime };
-  return (global[runtimeKey] ??= {});
+  return invocations.getStore() ?? fallback;
 }

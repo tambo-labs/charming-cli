@@ -1,10 +1,17 @@
 import { existsSync } from 'node:fs';
-import { lstat, writeFile } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { clientFor, requireUserToken, timeoutFor, type CommandContext } from './commands.js';
-import { readAppPackage } from './files.js';
+import * as Cause from 'effect/Cause';
+import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
+import * as Semaphore from 'effect/Semaphore';
+
+import { clientFor, requireUserTokenEffect, timeoutFor, type CommandContext } from './commands.js';
+import { writeText } from './file-io.js';
+import { readAppPackageEffect } from './files.js';
 import { ApiError } from './http.js';
+import { fromPromise } from './io.js';
 
 /** A connector toolkit an App imports, with the names it imports from it. */
 export interface ToolkitImport {
@@ -304,43 +311,54 @@ const FUNCTIONS_PER_REQUEST = 50;
  * tool's schemas at the version the import names. A toolkit the server
  * refuses is left out and named in `errors`, and the rest are still written.
  */
-export async function runTypes(
+export function runTypes(
   context: CommandContext,
   directory: string,
   read?: Record<string, string>,
 ) {
-  const files = read ?? (await readAppPackage(directory));
+  return Effect.runPromise(generateTypes(context, directory, read));
+}
+
+export const generateTypes = Effect.fnUntraced(function* (
+  context: CommandContext,
+  directory: string,
+  read?: Record<string, string>,
+) {
+  const files = read ?? (yield* readAppPackageEffect(directory));
   const path = resolve(directory, DECLARATIONS_FILE);
-  if ((await lstat(path).catch(() => null))?.isSymbolicLink())
+  if ((yield* fromPromise(() => lstat(path).catch(() => null)))?.isSymbolicLink())
     throw new Error(
       `${path} is a symlink, so charming types will not write through it. Remove it and retry.`,
     );
   const toolkits = findToolkitImports(files);
-  const token = toolkits.length > 0 ? await requireUserToken(context) : undefined;
+  const token = toolkits.length > 0 ? yield* requireUserTokenEffect(context) : undefined;
   const typed: { specifier: string; tools: ToolSchemas[] }[] = [];
   const errors: { specifier: string; kind: string; message: string }[] = [];
-  for (const toolkit of toolkits) {
+  toolkitLoop: for (const toolkit of toolkits) {
     const tools: ToolSchemas[] = [];
-    try {
-      for (let start = 0; start < toolkit.functions.length; start += FUNCTIONS_PER_REQUEST) {
-        const query = new URLSearchParams({
-          functions: toolkit.functions.slice(start, start + FUNCTIONS_PER_REQUEST).join(','),
-        });
-        const { data } = await clientFor(context, token).request(
+    for (let start = 0; start < toolkit.functions.length; start += FUNCTIONS_PER_REQUEST) {
+      const query = new URLSearchParams({
+        functions: toolkit.functions.slice(start, start + FUNCTIONS_PER_REQUEST).join(','),
+      });
+      const result = yield* Effect.result(
+        clientFor(context, token).requestEffect(
           'GET',
           `/api/v1/connectors/${toolkit.toolkit}/versions/${toolkit.version}/tools?${query}`,
           { timeoutMs: timeoutFor(context, SCHEMA_TIMEOUT_MS) },
-        );
-        tools.push(...(data as { tools: ToolSchemas[] }).tools);
+        ),
+      );
+      if (Result.isFailure(result)) {
+        const error = result.failure;
+        if (!(error instanceof ApiError) || error.status >= 500 || error.status === 401)
+          return yield* Effect.fail(error);
+        errors.push({ specifier: toolkit.specifier, kind: error.kind, message: error.message });
+        continue toolkitLoop;
       }
-    } catch (error) {
-      if (!(error instanceof ApiError) || error.status >= 500 || error.status === 401) throw error;
-      errors.push({ specifier: toolkit.specifier, kind: error.kind, message: error.message });
-      continue;
+      tools.push(...(result.success.data as { tools: ToolSchemas[] }).tools);
     }
     typed.push({ specifier: toolkit.specifier, tools });
   }
-  await writeFile(path, renderDeclarations(typed));
+  yield* writeText(path, renderDeclarations(typed));
   return {
     ok: errors.length === 0,
     path,
@@ -350,7 +368,7 @@ export async function runTypes(
     })),
     ...(errors.length > 0 ? { errors } : {}),
   };
-}
+});
 
 /**
  * Keeps `charming-env.d.ts` current while `charming dev` runs: each call
@@ -365,15 +383,20 @@ export function typesRefresher(
   directory: string,
   log: (line: string) => void,
 ): () => Promise<void> {
+  return makeTypesRefresher(fromPromise(context), directory, log);
+}
+
+export function makeTypesRefresher(
+  context: Effect.Effect<CommandContext, unknown>,
+  directory: string,
+  log: (line: string) => void,
+): () => Promise<void> {
   let written: string | undefined;
-  let queue = Promise.resolve();
-  const refresh = async () => {
-    let files: Record<string, string>;
-    try {
-      files = await readAppPackage(directory);
-    } catch {
-      return;
-    }
+  const writes = Semaphore.makeUnsafe(1);
+  const refresh = Effect.gen(function* () {
+    const read = yield* Effect.exit(readAppPackageEffect(directory));
+    if (read._tag === 'Failure') return;
+    const files = read.value;
     const imports = findToolkitImports(files);
     if (
       imports.length === 0 &&
@@ -383,22 +406,25 @@ export function typesRefresher(
       return;
     const key = JSON.stringify(imports);
     if (key === written) return;
-    written = key;
-    try {
-      const result = await runTypes(await context(), directory, files);
-      const count = result.modules.reduce((total, module) => total + module.functions.length, 0);
-      log(
-        `Wrote ${DECLARATIONS_FILE} with the Route type and ${count} connector ${count === 1 ? 'function' : 'functions'}.`,
-      );
-      if (result.errors) written = undefined;
-      for (const error of result.errors ?? [])
-        log(`${DECLARATIONS_FILE} leaves out ${error.specifier}: ${error.message}`);
-    } catch (error) {
-      written = undefined;
+    written = undefined;
+    const generated = yield* Effect.exit(
+      Effect.flatMap(context, (ctx) => generateTypes(ctx, directory, files)),
+    );
+    if (generated._tag === 'Failure') {
+      const error = Cause.squash(generated.cause);
       log(
         `Could not write ${DECLARATIONS_FILE}: ${error instanceof Error ? error.message : String(error)}`,
       );
+      return;
     }
-  };
-  return () => (queue = queue.then(refresh));
+    const result = generated.value;
+    const count = result.modules.reduce((total, module) => total + module.functions.length, 0);
+    log(
+      `Wrote ${DECLARATIONS_FILE} with the Route type and ${count} connector ${count === 1 ? 'function' : 'functions'}.`,
+    );
+    if (!result.errors) written = key;
+    for (const error of result.errors ?? [])
+      log(`${DECLARATIONS_FILE} leaves out ${error.specifier}: ${error.message}`);
+  });
+  return () => Effect.runPromise(writes.withPermit(refresh));
 }

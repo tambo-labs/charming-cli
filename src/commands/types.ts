@@ -1,7 +1,7 @@
 import { Args } from '@oclif/core';
 
 import { CharmingCommand } from '../base-command.js';
-import { runTypes } from '../connector-types.js';
+import { generateTypes } from '../connector-types.js';
 
 export default class Types extends CharmingCommand {
   static override args = {
@@ -16,6 +16,6 @@ export default class Types extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Types);
-    this.output(await runTypes(await this.context(flags), args.directory));
+    this.output(await this.withContext(flags, (context) => generateTypes(context, args.directory)));
   }
 }

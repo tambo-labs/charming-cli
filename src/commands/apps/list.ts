@@ -1,7 +1,7 @@
 import { Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runApps } from '../../commands.js';
+import { runAppsEffect } from '../../commands.js';
 
 export default class AppsList extends CharmingCommand {
   static override description = 'List apps visible to the active user.';
@@ -13,6 +13,6 @@ export default class AppsList extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AppsList);
-    this.output(await runApps('list', [], await this.context(flags)));
+    this.output(await this.withContext(flags, (context) => runAppsEffect('list', [], context)));
   }
 }

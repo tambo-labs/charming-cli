@@ -8,8 +8,15 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import * as Cause from 'effect/Cause';
+import * as Effect from 'effect/Effect';
+import * as Exit from 'effect/Exit';
+import * as Scope from 'effect/Scope';
+import * as Semaphore from 'effect/Semaphore';
+
 import { DECLARATIONS_FILE } from './connector-types.js';
-import { readAppBundle, readAppPackage } from './files.js';
+import { readAppBundleEffect, readAppPackageEffect } from './files.js';
+import { fromPromise } from './io.js';
 
 /** A package App's file tree, or an App saved before packages as its three sources. */
 type DevAppSource =
@@ -136,24 +143,41 @@ export function isLoopbackHost(host: string): boolean {
   return LOOPBACK_HOSTNAMES.has(bracketless(host));
 }
 
-export async function startDevServer(options: DevServerOptions): Promise<DevServer> {
-  const readSource = (): Promise<DevAppSource> =>
+export function startDevServer(options: DevServerOptions): Promise<DevServer> {
+  const scope = Scope.makeUnsafe();
+  return Effect.runPromise(
+    openDevServer(options, scope).pipe(
+      Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(scope, exit) : Effect.void)),
+    ),
+  );
+}
+
+const openDevServer = Effect.fnUntraced(function* (
+  options: DevServerOptions,
+  scope: Scope.Closeable,
+): Effect.fn.Return<DevServer, unknown> {
+  const readSource = Effect.suspend((): Effect.Effect<DevAppSource, Error> =>
     isPackageSource(options)
-      ? readAppPackage(options.directory ?? '.').then((files) => ({ files }))
-      : readAppBundle({
+      ? readAppPackageEffect(options.directory ?? '.').pipe(Effect.map((files) => ({ files })))
+      : readAppBundleEffect({
           directory: options.directory,
           module: options.module,
           ui: options.ui,
           styles: options.styles,
-        });
-  const [source, state, user, assets, fetchFixtures, devHostModule] = await Promise.all([
-    readSource(),
-    initialState(options),
-    options.user ? readUserFile(options.user) : null,
-    readAssetSeeds(assetsDirectory(options)),
-    options.fetch ? readFetchFixtures(options.fetch) : undefined,
-    loadDevHostModule(),
-  ]);
+        }),
+  );
+  const { user: userPath, fetch: fetchPath } = options;
+  const [source, state, user, assets, fetchFixtures, devHostModule] = yield* Effect.all(
+    [
+      readSource,
+      fromPromise(() => initialState(options)),
+      userPath ? fromPromise(() => readUserFile(userPath)) : Effect.succeed(null),
+      fromPromise(() => readAssetSeeds(assetsDirectory(options))),
+      fetchPath ? fromPromise(() => readFetchFixtures(fetchPath)) : Effect.succeed(undefined),
+      fromPromise(loadDevHostModule),
+    ],
+    { concurrency: 'unbounded' },
+  );
   const fetchAllow = (options.fetchAllow ?? []).map(httpsOrigin);
   const secrets = parseSecrets(options.secret ?? []);
   if (fetchAllow.length > 0) {
@@ -167,7 +191,15 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     if (session) session.accept(request, response);
     else response.writeHead(503).end();
   });
-  const binding = bindingFor(await listen(server, options.port, options.host), options.host);
+  const address = yield* fromPromise(() => listen(server, options.port, options.host));
+  yield* Scope.addFinalizer(
+    scope,
+    Effect.andThen(
+      Effect.promise(() => closeServer(server)),
+      () => session?.flush().pipe(Effect.orDie) ?? Effect.void,
+    ),
+  );
+  const binding = bindingFor(address, options.host);
   if (!binding.loopback) {
     options.log(
       `Warning: listening on ${options.host}. Anyone who can reach this address can run the app's operations, including from the dev panel with owner authority whatever --as says, and the module runs in this process with your user's access.`,
@@ -175,9 +207,8 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
   }
 
   const stateFile = new StateFile(options.saveState, options.log);
-  let host: DevHost;
-  try {
-    host = await devHostModule.createDevHost({
+  const host = yield* fromPromise(() =>
+    devHostModule.createDevHost({
       source,
       assets,
       role: options.role,
@@ -192,21 +223,21 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
         session?.storageChangedInBackground();
       },
       operationTimeoutMs: options.operationTimeoutMs,
-    });
-  } catch (error) {
-    await closeServer(server);
-    throw devErrorFrom(error);
-  }
-  try {
-    await stateFile.prepare(host);
-  } catch (error) {
-    host.close();
-    await closeServer(server);
-    throw new DevError(
-      'save_state_failed',
-      `Could not write --save-state ${resolve(options.saveState ?? '')}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-  }
+    }),
+  ).pipe(Effect.mapError(devErrorFrom));
+  yield* Scope.addFinalizer(
+    scope,
+    Effect.sync(() => host.close()),
+  );
+  yield* fromPromise(() => stateFile.prepare(host)).pipe(
+    Effect.mapError(
+      (error) =>
+        new DevError(
+          'save_state_failed',
+          `Could not write --save-state ${resolve(options.saveState ?? '')}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+    ),
+  );
 
   const active = new DevSession({
     host,
@@ -218,10 +249,11 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     log: options.log,
   });
   session = active;
+  yield* Scope.addFinalizer(scope, active.drain());
   for (const op of options.runOp ?? []) {
-    const response = await host.runOperation(op, {}, binding.url);
+    const response = yield* fromPromise(() => host.runOperation(op, {}, binding.url));
     if (response.ok) continue;
-    const error = errorBody(await response.json().catch(() => null));
+    const error = errorBody(yield* fromPromise(() => response.json().catch(() => null)));
     // An App's own handler may answer 404 or 422 on purpose, even with
     // operation_not_found; only a name missing from the declared operations
     // means the flag was wrong. Any other failure is logged, as a Routine
@@ -229,27 +261,29 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     if (error.kind !== 'operation_not_found' || !error.knownOps || error.knownOps.includes(op)) {
       continue;
     }
-    await active.close(server);
-    throw new DevError(
-      'operation_not_found',
-      `--run-op ${op}: ${error.message ?? `the dev host answered ${response.status}`} Declared operations: ${error.knownOps.join(', ')}.`,
+    return yield* Effect.fail(
+      new DevError(
+        'operation_not_found',
+        `--run-op ${op}: ${error.message ?? `the dev host answered ${response.status}`} Declared operations: ${error.knownOps.join(', ')}.`,
+      ),
     );
   }
   const watcher = watchSources(options, () => {
     active.refresh();
     options.onSourceChange?.();
   });
+  yield* Scope.addFinalizer(
+    scope,
+    Effect.sync(() => watcher.close()),
+  );
   return {
     url: binding.url,
     panelUrl: `${binding.url}${devHostModule.DEV_PANEL_PATH}`,
     appId: devHostModule.DEV_APP_ID,
     check: (renderedHtml) => host.check(renderedHtml, new URL(binding.url).origin),
-    close: async () => {
-      watcher.close();
-      await active.close(server);
-    },
+    close: () => Effect.runPromise(Scope.close(scope, Exit.void)),
   };
-}
+});
 
 const WATCH_DEBOUNCE_MS = 50;
 
@@ -441,24 +475,28 @@ function admittedUrl(request: IncomingMessage, binding: Binding): URL | Refusal 
  */
 class SourceRefresher {
   private lastFailure: string | undefined;
-  private readonly read: () => Promise<DevAppSource>;
+  private readonly read: Effect.Effect<DevAppSource, Error>;
   private readonly log: (line: string) => void;
 
-  constructor(read: () => Promise<DevAppSource>, log: (line: string) => void) {
+  constructor(read: Effect.Effect<DevAppSource, Error>, log: (line: string) => void) {
     this.read = read;
     this.log = log;
   }
 
-  async refresh(host: DevHost): Promise<void> {
-    try {
-      await host.reload(await this.read());
-      this.lastFailure = undefined;
-    } catch (error) {
-      const failure = devErrorFrom(error);
-      const line = `${failure.kind}: ${failure.message}`;
-      if (line !== this.lastFailure) this.log(line);
-      this.lastFailure = line;
-    }
+  refresh(host: DevHost) {
+    return Effect.flatMap(this.read, (source) => fromPromise(() => host.reload(source))).pipe(
+      Effect.matchCause({
+        onSuccess: () => {
+          this.lastFailure = undefined;
+        },
+        onFailure: (cause) => {
+          const failure = devErrorFrom(Cause.squash(cause));
+          const line = `${failure.kind}: ${failure.message}`;
+          if (line !== this.lastFailure) this.log(line);
+          this.lastFailure = line;
+        },
+      }),
+    );
   }
 }
 
@@ -468,7 +506,7 @@ class SourceRefresher {
  * change and logged once until it succeeds or fails differently.
  */
 class StateFile {
-  private pending = Promise.resolve();
+  private readonly writes = Semaphore.makeUnsafe(1);
   private changed = false;
   private lastFailure: string | undefined;
   private readonly path: string | undefined;
@@ -496,35 +534,40 @@ class StateFile {
   }
 
   /** Save after a change, logging a failure instead of rejecting. */
-  saveIfChanged(host: DevHost): Promise<void> {
-    if (!this.changed) return Promise.resolve();
-    return this.flush(host).catch((error: unknown) => {
-      const line = `Could not write --save-state: ${error instanceof Error ? error.message : String(error)}. Retrying after the next change.`;
-      if (line !== this.lastFailure) this.log(line);
-      this.lastFailure = line;
-    });
+  saveIfChanged(host: DevHost) {
+    if (!this.changed) return Effect.void;
+    return this.flush(host).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          const line = `Could not write --save-state: ${error instanceof Error ? error.message : String(error)}. Retrying after the next change.`;
+          if (line !== this.lastFailure) this.log(line);
+          this.lastFailure = line;
+        }),
+      ),
+    );
   }
 
   /** Save any unsaved change; rejects when the write fails. */
-  flush(host: DevHost): Promise<void> {
+  flush(host: DevHost) {
     const path = this.path;
-    this.pending = this.pending
-      .catch(() => undefined)
-      .then(async () => {
-        if (!path || !this.changed) return;
-        this.changed = false;
-        const temporary = stateTemporaryPath(path);
-        try {
-          await writeFile(temporary, await this.serialize(host));
-          await rename(temporary, resolve(path));
-          this.lastFailure = undefined;
-        } catch (error) {
-          this.changed = true;
-          await unlink(temporary).catch(() => undefined);
-          throw error;
-        }
-      });
-    return this.pending;
+    return this.writes.withPermit(
+      Effect.uninterruptible(
+        fromPromise(async () => {
+          if (!path || !this.changed) return;
+          this.changed = false;
+          const temporary = stateTemporaryPath(path);
+          try {
+            await writeFile(temporary, await this.serialize(host));
+            await rename(temporary, resolve(path));
+            this.lastFailure = undefined;
+          } catch (error) {
+            this.changed = true;
+            await unlink(temporary).catch(() => undefined);
+            throw error;
+          }
+        }),
+      ),
+    );
   }
 
   private async serialize(host: DevHost): Promise<string> {
@@ -574,7 +617,7 @@ class DevSession {
       response.end(JSON.stringify({ ok: false, error }));
       return;
     }
-    const served = this.serve(request, response, url).catch((error: unknown) => {
+    const served = Effect.runPromise(this.serve(request, response, url)).catch((error: unknown) => {
       if (!isClientDisconnect(error, response)) {
         this.parts.log(`request failed: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -606,7 +649,7 @@ class DevSession {
     this.saveQueued = true;
     setTimeout(() => {
       this.saveQueued = false;
-      void this.parts.stateFile.saveIfChanged(this.parts.host);
+      Effect.runFork(this.parts.stateFile.saveIfChanged(this.parts.host));
     }, 0);
   }
 
@@ -616,57 +659,59 @@ class DevSession {
    */
   refresh(): void {
     if (this.closing) return;
-    const refreshed = this.parts.sources.refresh(this.parts.host);
+    const refreshed = Effect.runPromise(this.parts.sources.refresh(this.parts.host));
     this.refreshes.add(refreshed);
     void refreshed.finally(() => this.refreshes.delete(refreshed));
   }
 
-  async close(server: Server): Promise<void> {
-    this.closing = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const grace = new Promise<void>((resolveGrace) => {
-      timer = setTimeout(resolveGrace, this.parts.shutdownGraceMs);
+  drain() {
+    return Effect.suspend(() => {
+      this.closing = true;
+      return Effect.promise(() => Promise.allSettled([...this.inFlight, ...this.refreshes])).pipe(
+        Effect.timeoutOption(this.parts.shutdownGraceMs),
+        Effect.asVoid,
+      );
     });
-    await Promise.race([Promise.allSettled([...this.inFlight, ...this.refreshes]), grace]);
-    clearTimeout(timer);
-    this.parts.host.close();
-    await closeServer(server);
-    await this.parts.stateFile.flush(this.parts.host);
   }
 
-  private async serve(
-    request: IncomingMessage,
-    response: ServerResponse,
-    requestUrl: URL,
-  ): Promise<void> {
-    const { host, streamPaths, sources, stateFile, log } = this.parts;
-    const method = (request.method ?? 'GET').toUpperCase();
-    if (!streamPaths.has(requestUrl.pathname)) await sources.refresh(host);
-    const abort = new AbortController();
-    response.on('close', () => abort.abort());
-    const answer = await host.handle(
-      new Request(requestUrl, {
-        method,
-        headers: requestHeaders(request),
-        body: READ_METHODS.has(method)
-          ? undefined
-          : (Readable.toWeb(request) as unknown as ReadableStream<Uint8Array>),
-        signal: abort.signal,
-        duplex: 'half',
-      } as RequestInit),
-    );
-    await stateFile.saveIfChanged(host);
-    for (const [name, value] of answer.headers) {
-      if (name !== 'set-cookie') response.setHeader(name, value);
-    }
-    const cookies = answer.headers.getSetCookie();
-    if (cookies.length > 0) response.setHeader('set-cookie', cookies);
-    response.writeHead(answer.status);
-    if (answer.body && method !== 'HEAD') {
-      await pipeline(Readable.fromWeb(answer.body as unknown as NodeReadableStream), response);
-    } else {
-      response.end();
-    }
+  flush() {
+    return this.parts.stateFile.flush(this.parts.host);
+  }
+
+  private serve(request: IncomingMessage, response: ServerResponse, requestUrl: URL) {
+    const { host, streamPaths, sources, stateFile } = this.parts;
+    return Effect.gen(function* () {
+      const method = (request.method ?? 'GET').toUpperCase();
+      if (!streamPaths.has(requestUrl.pathname)) yield* sources.refresh(host);
+      const abort = new AbortController();
+      response.on('close', () => abort.abort());
+      const answer = yield* fromPromise(() =>
+        host.handle(
+          new Request(requestUrl, {
+            method,
+            headers: requestHeaders(request),
+            body: READ_METHODS.has(method)
+              ? undefined
+              : (Readable.toWeb(request) as unknown as ReadableStream<Uint8Array>),
+            signal: abort.signal,
+            duplex: 'half',
+          } as RequestInit),
+        ),
+      );
+      yield* stateFile.saveIfChanged(host);
+      for (const [name, value] of answer.headers) {
+        if (name !== 'set-cookie') response.setHeader(name, value);
+      }
+      const cookies = answer.headers.getSetCookie();
+      if (cookies.length > 0) response.setHeader('set-cookie', cookies);
+      response.writeHead(answer.status);
+      if (answer.body && method !== 'HEAD') {
+        const body = Readable.fromWeb(answer.body as unknown as NodeReadableStream);
+        yield* fromPromise(() => pipeline(body, response));
+      } else {
+        response.end();
+      }
+    });
   }
 }
 

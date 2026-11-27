@@ -37,6 +37,18 @@ describe('oclif command routing', () => {
     expect(new Headers(init?.headers).get('authorization')).toBe('Bearer chrm_user_test');
   });
 
+  test('overlapping commands use their own transport and exit code', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const argv = ['apps', 'list', '--base-url', 'https://cli.example', '--token', 'chrm_user_test'];
+    const results = await Promise.all([
+      main(argv, { fetchImpl: async () => Response.json({}, { status: 403 }) }),
+      main(argv, { fetchImpl: async () => Response.json({ apps: [] }) }),
+    ]);
+
+    expect(results).toEqual([4, 0]);
+  });
+
   test('parses API mutation parameters and prints the response', async () => {
     const stdout = vi.spyOn(console, 'log').mockImplementation(() => {});
     const fetchImpl = vi

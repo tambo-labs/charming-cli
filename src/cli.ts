@@ -3,10 +3,12 @@ import { dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { Config, Help } from '@oclif/core';
+import * as Effect from 'effect/Effect';
 
 import { canonicalizeGlobalFlags } from './argv.js';
-import { ensureCommandsBuilt } from './build-check.js';
+import { ensureCommandsBuiltEffect } from './build-check.js';
 import { redactSecrets } from './commands.js';
+import { fromPromise } from './io.js';
 import { currentDependencies, currentExitCode, withRuntime } from './runtime.js';
 
 export async function main(
@@ -17,44 +19,52 @@ export async function main(
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<number> {
-  return withRuntime(dependencies, async () => {
-    const root = packageRoot();
-    await ensureCommandsBuilt({
-      build: currentDependencies().buildImpl ?? (() => runBuild(root)),
-      moduleUrl: import.meta.url,
-      root,
-    });
-    const config = await Config.load(root);
-    const canonical = canonicalizeGlobalFlags(argv);
-    if (canonical.includes('--version')) {
-      process.stdout.write(`${config.pjson.version}\n`);
-      return 0;
-    }
-    if (canonical.length === 0 || canonical.includes('--help')) {
-      await new Help(config).showHelp(canonical.filter((value) => value !== '--help'));
-      return 0;
-    }
-
-    const resolved = resolveCommand(config, canonical);
-    if (!resolved) {
-      const topic = leadingWords(canonical);
-      if (config.findTopic(topic.join(':'))) {
-        await new Help(config).showHelp(topic);
-        return 0;
-      }
-      errorOutput(`Unknown command: ${canonical.join(' ') || '(none)'}`);
-      return 2;
-    }
-
-    try {
-      await config.runCommand(resolved.id, resolved.argv, resolved.command);
-      return currentExitCode() ?? 0;
-    } catch (error) {
-      errorOutput(error instanceof Error ? error.message : String(error));
-      return 2;
-    }
-  });
+  return withRuntime(dependencies, () => Effect.runPromise(dispatch(argv)));
 }
+
+const dispatch = Effect.fnUntraced(function* (argv: string[]) {
+  const root = packageRoot();
+  yield* ensureCommandsBuiltEffect({
+    build: currentDependencies().buildImpl ?? (() => runBuild(root)),
+    moduleUrl: import.meta.url,
+    root,
+  });
+  const config = yield* fromPromise(() => Config.load(root));
+  const canonical = canonicalizeGlobalFlags(argv);
+  if (canonical.includes('--version')) {
+    process.stdout.write(`${config.pjson.version}\n`);
+    return 0;
+  }
+  if (canonical.length === 0 || canonical.includes('--help')) {
+    yield* fromPromise(() =>
+      new Help(config).showHelp(canonical.filter((value) => value !== '--help')),
+    );
+    return 0;
+  }
+
+  const resolved = resolveCommand(config, canonical);
+  if (!resolved) {
+    const topic = leadingWords(canonical);
+    if (config.findTopic(topic.join(':'))) {
+      yield* fromPromise(() => new Help(config).showHelp(topic));
+      return 0;
+    }
+    errorOutput(`Unknown command: ${canonical.join(' ') || '(none)'}`);
+    return 2;
+  }
+
+  return yield* fromPromise(() =>
+    config.runCommand(resolved.id, resolved.argv, resolved.command),
+  ).pipe(
+    Effect.match({
+      onSuccess: () => currentExitCode() ?? 0,
+      onFailure: (error) => {
+        errorOutput(error instanceof Error ? error.message : String(error));
+        return 2;
+      },
+    }),
+  );
+});
 
 function packageRoot(): string {
   return dirname(dirname(fileURLToPath(import.meta.url)));

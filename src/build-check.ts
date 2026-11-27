@@ -1,6 +1,10 @@
 import { existsSync, readdirSync, statSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
 
+import * as Effect from 'effect/Effect';
+
+import { toPromise } from './io.js';
+
 /**
  * `oclif.commands` in `package.json` points at `./dist/commands`, so the
  * compiled output must exist and be current before `Config.load` can find
@@ -28,27 +32,29 @@ export function commandsNeedBuild(root: string): boolean {
   return newestSource !== undefined && newestSource > newestCommand;
 }
 
-export async function ensureCommandsBuilt(options: {
+export const ensureCommandsBuiltEffect = Effect.fnUntraced(function* (options: {
   build: BuildRunner;
   moduleUrl: string;
   root: string;
-}): Promise<void> {
+}) {
   if (!isSourceEntry(options.moduleUrl)) return;
   if (!commandsNeedBuild(options.root)) return;
-  try {
-    await options.build();
-  } catch (error) {
-    throw new Error(
-      'Charming CLI commands are missing or stale and the automatic build failed. Run `bun run --cwd packages/cli build` and try again.',
-      { cause: error },
-    );
-  }
+  yield* Effect.tryPromise({
+    try: async () => options.build(),
+    catch: (cause) =>
+      new Error(
+        'Charming CLI commands are missing or stale and the automatic build failed. Run `bun run --cwd packages/cli build` and try again.',
+        { cause },
+      ),
+  });
   if (commandsNeedBuild(options.root)) {
     throw new Error(
       'Charming CLI commands are still missing after building. Run `bun run --cwd packages/cli build` and try again.',
     );
   }
-}
+});
+
+export const ensureCommandsBuilt = toPromise(ensureCommandsBuiltEffect);
 
 function newestMtimeMs(directory: string): number | undefined {
   let newest: number | undefined;

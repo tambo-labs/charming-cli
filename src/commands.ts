@@ -5,29 +5,35 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import * as Clock from 'effect/Clock';
+import * as Effect from 'effect/Effect';
+import * as Result from 'effect/Result';
+
 import { type OptionValue, stringOption, stringOptions } from './args.js';
 import {
   PRODUCTION_BASE_URL,
-  loadAppToken,
-  dropAppToken,
-  dropPairing,
-  loadPairings,
-  logout,
-  saveAppToken,
-  saveLogin,
-  savePairing,
+  loadAppTokenEffect,
+  dropAppTokenEffect,
+  dropPairingEffect,
+  loadPairingsEffect,
+  logoutEffect,
+  saveAppTokenEffect,
+  saveLoginEffect,
+  savePairingEffect,
   type Session,
 } from './config.js';
 import { findOperation, type Operation, operations } from './contract.js';
 import { DevError } from './dev.js';
+import { fileOperation } from './file-io.js';
 import {
-  readAppBundle,
-  readAppPackage,
-  readJsonValue,
-  writeAppBundle,
-  writeAppPackage,
+  readAppBundleEffect,
+  readAppPackageEffect,
+  readJsonValueEffect,
+  writeAppBundleEffect,
+  writeAppPackageEffect,
 } from './files.js';
-import { ApiError, CharmingClient, isOpenableUrl } from './http.js';
+import { ApiError, CharmingClient, isOpenableUrl, type RequestOptions } from './http.js';
+import { toPromise } from './io.js';
 import { DEFAULT_PROFILE } from './profile-name.js';
 
 export type CommandContext = {
@@ -51,32 +57,36 @@ export const IDEMPOTENCY_KEY_PREVIEW = 'charming-cli-<uuid>';
 const APP_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UUID_APP_ID_ACTIONS = new Set(['call', 'describe', 'source', 'update', 'delete', 'rename']);
 
-async function packageUpdateBody(context: CommandContext, directory: string) {
+const packageUpdateBody = Effect.fnUntraced(function* (context: CommandContext, directory: string) {
   if (stringOption(context.options, 'description') !== undefined)
-    throw new Error('A package describes itself in package.json; drop --description.');
-  return { files: await readAppPackage(directory), ...migrateContract(context) };
-}
+    return yield* Effect.fail(
+      new Error('A package describes itself in package.json; drop --description.'),
+    );
+  return {
+    files: yield* readAppPackageEffect(directory),
+    ...migrateContract(context),
+  };
+});
 
-async function requirePackageSupport(
+const requirePackageSupport = Effect.fnUntraced(function* (
   context: CommandContext,
   operationId: 'create-app' | 'update-app',
-): Promise<void> {
-  let spec: unknown;
-  try {
-    spec = (
-      await clientFor(context).request('GET', '/.well-known/openapi.json', {
-        timeoutMs: timeoutFor(context, SPEC_READ_TIMEOUT_MS),
-      })
-    ).data;
-  } catch {
-    return;
-  }
+): Effect.fn.Return<void, Error> {
+  const checked = yield* Effect.result(
+    apiRequest(context, 'GET', '/.well-known/openapi.json', {
+      timeoutMs: timeoutFor(context, SPEC_READ_TIMEOUT_MS),
+    }),
+  );
+  if (Result.isFailure(checked)) return;
+  const spec = checked.success.data;
   if (acceptsFiles(spec, operationId) === false) {
-    throw new Error(
-      `${context.session.origin} does not accept package Apps yet. Update the server, or point --base-url at one that does.`,
+    return yield* Effect.fail(
+      new Error(
+        `${context.session.origin} does not accept package Apps yet. Update the server, or point --base-url at one that does.`,
+      ),
     );
   }
-}
+});
 
 // `undefined` means the document does not describe the operation, or describes
 // it in a shape this check does not follow (one plain `$ref` level), so the save
@@ -169,35 +179,45 @@ export type SourceResponse = {
   };
 };
 
-export async function runAuth(
+export const runAuthEffect = Effect.fnUntraced(function* (
   action: string | undefined,
   context: CommandContext,
-): Promise<unknown> {
+): Effect.fn.Return<unknown, unknown> {
   const { session } = context;
   if (action === 'logout') {
     if (session.tokenSource === 'flag') {
-      throw new Error('Cannot log out while --token is set. Remove it and try again.');
+      return yield* Effect.fail(
+        new Error('Cannot log out while --token is set. Remove it and try again.'),
+      );
     }
     if (session.tokenSource === 'legacy' || session.legacyFallback) {
-      throw new Error(
-        'Cannot log out while a legacy credential exists at ~/.buildy/user-token. Remove it and try again.',
+      return yield* Effect.fail(
+        new Error(
+          'Cannot log out while a legacy credential exists at ~/.buildy/user-token. Remove it and try again.',
+        ),
       );
     }
     if (session.tokenSource && session.tokenSource !== 'credentials') {
-      throw new Error(
-        `Cannot log out while ${session.tokenSource} is set. Unset it and try again.`,
+      return yield* Effect.fail(
+        new Error(`Cannot log out while ${session.tokenSource} is set. Unset it and try again.`),
       );
     }
-    return { ...(await logout(session)), authenticated: false };
+    return { ...(yield* logoutEffect(session)), authenticated: false };
   }
   if (action === 'status') {
-    await collectPairings(context);
+    yield* collectPairings(context);
     const current = context.session;
     const profile = current.profile ?? null;
     if (!current.token) return { authenticated: false, origin: current.origin, profile };
-    await clientFor(context, current.token).request('GET', '/app?limit=1', {
-      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-    });
+    yield* apiRequest(
+      context,
+      'GET',
+      '/app?limit=1',
+      {
+        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+      },
+      current.token,
+    );
     return {
       authenticated: true,
       origin: current.origin,
@@ -205,14 +225,20 @@ export async function runAuth(
       source: current.tokenSource === 'flag' ? '--token' : current.tokenSource,
     };
   }
-  if (action !== 'login') throw new Error('Usage: charming auth login|status|logout');
+  if (action !== 'login')
+    return yield* Effect.fail(new Error('Usage: charming auth login|status|logout'));
 
+  return yield* login(context);
+});
+
+export const runAuth = toPromise(runAuthEffect);
+
+const login = Effect.fnUntraced(function* (context: CommandContext) {
+  const { session } = context;
   const client = clientFor(context);
-  const started = (
-    await client.request('POST', '/api/pair/start', {
-      body: { label: `Charming CLI ${CLI_VERSION}` },
-    })
-  ).data as {
+  const started = (yield* client.requestEffect('POST', '/api/pair/start', {
+    body: { label: `Charming CLI ${CLI_VERSION}` },
+  })).data as {
     device_code?: string;
     expires_in?: number;
     polling_interval?: number;
@@ -221,8 +247,8 @@ export async function runAuth(
     verification_url_complete?: unknown;
   };
   if (!validPairingStart(started)) {
-    throw new Error(
-      'Charming returned an invalid pairing response. Run `charming auth login` again.',
+    return yield* Effect.fail(
+      new Error('Charming returned an invalid pairing response. Run `charming auth login` again.'),
     );
   }
 
@@ -236,77 +262,88 @@ export async function runAuth(
   );
   if (context.options['no-open'] !== true) openUrl(url, session.origin);
 
-  const deadline = Date.now() + Math.min(started.expires_in ?? 600, 600) * 1_000;
+  const deadline =
+    (yield* Clock.currentTimeMillis) + Math.min(started.expires_in ?? 600, 600) * 1_000;
   const interval = Math.max(started.polling_interval ?? 5, 1) * 1_000;
   while (true) {
-    const remaining = deadline - Date.now();
+    const remaining = deadline - (yield* Clock.currentTimeMillis);
     if (remaining <= 0) break;
-    await wait(Math.min(interval, remaining));
-    if (Date.now() >= deadline) break;
-    const polled = (
-      await client.request('POST', '/api/pair/poll', {
-        body: { device_code: started.device_code },
-      })
-    ).data as { already_delivered?: boolean; status?: string; token?: string };
+    yield* Effect.sleep(Math.min(interval, remaining));
+    if ((yield* Clock.currentTimeMillis) >= deadline) break;
+    const polled = (yield* client.requestEffect('POST', '/api/pair/poll', {
+      body: { device_code: started.device_code },
+    })).data as { already_delivered?: boolean; status?: string; token?: string };
     if (polled.status === 'pending') continue;
-    if (polled.status === 'expired') throw new Error('Pairing code expired. Run auth login again.');
+    if (polled.status === 'expired')
+      return yield* Effect.fail(new Error('Pairing code expired. Run auth login again.'));
     if (polled.status !== 'approved') {
-      throw new Error(
-        'Charming returned an invalid pairing response. Run `charming auth login` again.',
+      return yield* Effect.fail(
+        new Error(
+          'Charming returned an invalid pairing response. Run `charming auth login` again.',
+        ),
       );
     }
     if (typeof polled.token === 'string' && polled.token.length > 0) {
-      await saveLogin(session, polled.token);
+      const token = polled.token;
+      yield* saveLoginEffect(session, token);
       return { authenticated: true, origin: session.origin, profile: session.profile };
     }
     if (polled.already_delivered) {
-      throw new Error(
-        'Pairing token was already delivered and cannot be shown again. Run `charming auth login` again.',
+      return yield* Effect.fail(
+        new Error(
+          'Pairing token was already delivered and cannot be shown again. Run `charming auth login` again.',
+        ),
       );
     }
-    throw new Error(
-      'Charming returned an invalid pairing response. Run `charming auth login` again.',
+    return yield* Effect.fail(
+      new Error('Charming returned an invalid pairing response. Run `charming auth login` again.'),
     );
   }
-  throw new Error('Pairing code expired. Run auth login again.');
-}
+  return yield* Effect.fail(new Error('Pairing code expired. Run auth login again.'));
+});
 
-export async function runApps(
+export const runAppsEffect = Effect.fnUntraced(function* (
   action: string | undefined,
   positionals: string[],
   context: CommandContext,
-): Promise<unknown> {
+): Effect.fn.Return<unknown, unknown> {
   if (action === 'list') {
-    const token = await requireUserToken(context);
+    const token = yield* requireUserTokenEffect(context);
     const query = new URLSearchParams();
     const limit = stringOption(context.options, 'limit');
     const cursor = stringOption(context.options, 'cursor');
     if (limit) query.set('limit', limit);
     if (cursor) query.set('cursor', cursor);
     const suffix = query.size > 0 ? `?${query}` : '';
-    return (
-      await clientFor(context, token).request('GET', `/app${suffix}`, {
+    return (yield* apiRequest(
+      context,
+      'GET',
+      `/app${suffix}`,
+      {
         timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-      })
-    ).data;
+      },
+      token,
+    )).data;
   }
 
   if (action === 'create') {
-    if (context.options['dry-run'] !== true) await collectPairings(context);
+    if (context.options['dry-run'] !== true) yield* collectPairings(context);
     const token = context.session.token;
     const packageDirectory = stringOption(context.options, 'files');
     const body: Record<string, unknown> = packageDirectory
-      ? { files: await readAppPackage(packageDirectory) }
-      : { ...(await readBundle(positionals[0], context.options)) };
+      ? { files: yield* readAppPackageEffect(packageDirectory) }
+      : { ...(yield* readBundle(positionals[0], context.options)) };
     const description = stringOption(context.options, 'description');
     if (description !== undefined) {
       if (packageDirectory)
-        throw new Error('A package describes itself in package.json; drop --description.');
+        return yield* Effect.fail(
+          new Error('A package describes itself in package.json; drop --description.'),
+        );
       body.description = description;
     }
     if (packageDirectory && !token)
-      throw new Error(
-        `A package build needs a signed-in user. Run ${loginCommand(context.session)}.`,
+      return yield* Effect.fail(
+        new Error(`A package build needs a signed-in user. Run ${loginCommand(context.session)}.`),
       );
     if (!token) {
       body.pair = true;
@@ -322,35 +359,43 @@ export async function runApps(
       };
     }
     if (token && context.options.yes !== true) {
-      throw new Error(
-        'Authenticated create may overwrite an app with the same manifest id. Use --yes or --dry-run.',
+      return yield* Effect.fail(
+        new Error(
+          'Authenticated create may overwrite an app with the same manifest id. Use --yes or --dry-run.',
+        ),
       );
     }
-    if (packageDirectory) await requirePackageSupport(context, 'create-app');
-    const data = (
-      await clientFor(context, token).request('POST', '/app', {
+    if (packageDirectory) yield* requirePackageSupport(context, 'create-app');
+    const data = (yield* apiRequest(
+      context,
+      'POST',
+      '/app',
+      {
         body,
         ...(packageDirectory ? { headers: { 'Idempotency-Key': idempotencyKey() } } : {}),
         timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
-      })
-    ).data as {
+      },
+      token,
+    )).data as {
       id?: string;
       pairing?: { device_code?: unknown };
       token?: string;
       [key: string]: unknown;
     };
-    if (data.id && data.token) {
-      await saveAppToken(context.session.origin, data.id, data.token);
+    const { id, token: appToken } = data;
+    if (id && appToken) {
+      yield* saveAppTokenEffect(context.session.origin, id, appToken);
       const deviceCode = data.pairing?.device_code;
       if (typeof deviceCode === 'string' && deviceCode.length > 0) {
-        await savePairing(context.session.origin, data.id, deviceCode);
+        yield* savePairingEffect(context.session.origin, id, deviceCode);
       }
     }
     return safeCreateResult(data);
   }
 
   const appId = positionals[0];
-  if (!appId) throw new Error(`Usage: charming apps ${action ?? '<command>'} <APP_ID>`);
+  if (!appId)
+    return yield* Effect.fail(new Error(`Usage: charming apps ${action ?? '<command>'} <APP_ID>`));
   if (action && UUID_APP_ID_ACTIONS.has(action)) assertAppId(appId);
 
   if (action === 'delete') requireConsent(context);
@@ -358,9 +403,9 @@ export async function runApps(
   if (action === 'update' && context.options['dry-run'] === true) {
     const packageDirectory = stringOption(context.options, 'files');
     const body = packageDirectory
-      ? await packageUpdateBody(context, packageDirectory)
+      ? yield* packageUpdateBody(context, packageDirectory)
       : {
-          ...(await readBundle(positionals[1], context.options)),
+          ...(yield* readBundle(positionals[1], context.options)),
           description: stringOption(context.options, 'description'),
           ...migrateContract(context),
         };
@@ -387,7 +432,7 @@ export async function runApps(
 
   if (action === 'rename' && context.options['dry-run'] === true) {
     const name = positionals[1];
-    if (!name) throw new Error('Usage: charming apps rename <APP_ID> <NAME>');
+    if (!name) return yield* Effect.fail(new Error('Usage: charming apps rename <APP_ID> <NAME>'));
     return {
       dryRun: true,
       method: 'POST',
@@ -396,26 +441,22 @@ export async function runApps(
     };
   }
 
-  const token = await tokenForApp(context, appId);
+  const token = yield* tokenForApp(context, appId);
   const client = clientFor(context, token);
 
   if (action === 'describe') {
-    return (
-      await client.request('GET', `/app/${encodeURIComponent(appId)}/agent.json`, {
-        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-      })
-    ).data;
+    return (yield* client.requestEffect('GET', `/app/${encodeURIComponent(appId)}/agent.json`, {
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+    })).data;
   }
 
   if (action === 'source') {
-    const data = (
-      await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
-        timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
-      })
-    ).data as SourceResponse;
+    const data = (yield* client.requestEffect('GET', `/app/${encodeURIComponent(appId)}/source`, {
+      timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
+    })).data as SourceResponse;
     const outputDirectory = stringOption(context.options, 'out');
     if (outputDirectory) {
-      await writeSource(outputDirectory, data);
+      yield* writeSource(outputDirectory, data);
       return { id: appId, outputDirectory };
     }
     return data;
@@ -424,22 +465,26 @@ export async function runApps(
   if (action === 'update') {
     const packageDirectory = stringOption(context.options, 'files');
     if (packageDirectory && !isUserToken(token))
-      throw new Error(
-        `A package build needs a signed-in user. Run ${loginCommand(context.session)}.`,
+      return yield* Effect.fail(
+        new Error(`A package build needs a signed-in user. Run ${loginCommand(context.session)}.`),
       );
-    if (packageDirectory) await requirePackageSupport(context, 'update-app');
-    const local = packageDirectory ? null : await readBundle(positionals[1], context.options);
-    const current = await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
+    if (packageDirectory) yield* requirePackageSupport(context, 'update-app');
+    const local = packageDirectory ? null : yield* readBundle(positionals[1], context.options);
+    const current = yield* client.requestEffect('GET', `/app/${encodeURIComponent(appId)}/source`, {
       timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
     });
     const source = validSource(current.data as SourceResponse);
     if (!current.etag) {
-      throw new Error(
-        'Charming did not return an ETag for this app source; refusing to update without optimistic concurrency. Retry. If it still fails, run `charming doctor` and check that `--base-url` points to Charming.',
+      return yield* Effect.fail(
+        new Error(
+          'Charming did not return an ETag for this app source; refusing to update without optimistic concurrency. Retry. If it still fails, run `charming doctor` and check that `--base-url` points to Charming.',
+        ),
       );
     }
     if (packageFiles(current.data as SourceResponse) && !packageDirectory)
-      throw new Error('This App is a package. Pass --files <directory> holding its whole tree.');
+      return yield* Effect.fail(
+        new Error('This App is a package. Pass --files <directory> holding its whole tree.'),
+      );
     const body = local
       ? {
           module: local.module,
@@ -448,56 +493,57 @@ export async function runApps(
           description: stringOption(context.options, 'description'),
           ...migrateContract(context),
         }
-      : await packageUpdateBody(context, packageDirectory!);
-    return (
-      await client.request('PUT', `/app/${encodeURIComponent(appId)}`, {
-        body,
-        headers: {
-          'If-Match': current.etag,
-          ...(local ? {} : { 'Idempotency-Key': idempotencyKey() }),
-        },
-        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
-      })
-    ).data;
+      : yield* packageUpdateBody(context, packageDirectory!);
+    return (yield* client.requestEffect('PUT', `/app/${encodeURIComponent(appId)}`, {
+      body,
+      headers: {
+        'If-Match': current.etag,
+        ...(local ? {} : { 'Idempotency-Key': idempotencyKey() }),
+      },
+      timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+    })).data;
   }
 
   if (action === 'call') {
     const operation = positionals[1];
-    if (!operation) throw new Error('Usage: charming apps call <APP_ID> <OPERATION>');
+    if (!operation)
+      return yield* Effect.fail(new Error('Usage: charming apps call <APP_ID> <OPERATION>'));
     const inputOption = stringOption(context.options, 'input');
-    const input = inputOption ? await readJsonValue(inputOption) : {};
-    return callAppOperation(context, client, appId, operation, input);
+    const input = inputOption ? yield* readJsonValueEffect(inputOption) : {};
+    return yield* callAppOperation(context, client, appId, operation, input);
   }
 
   if (action === 'rename') {
     const name = positionals[1];
-    if (!name) throw new Error('Usage: charming apps rename <APP_ID> <NAME>');
-    const userToken = await requireUserToken(context);
-    return (
-      await clientFor(context, userToken).request(
-        'POST',
-        `/account/apps/${encodeURIComponent(appId)}/name`,
-        { body: { app_name: name }, timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS) },
-      )
-    ).data;
+    if (!name) return yield* Effect.fail(new Error('Usage: charming apps rename <APP_ID> <NAME>'));
+    const userToken = yield* requireUserTokenEffect(context);
+    return (yield* apiRequest(
+      context,
+      'POST',
+      `/account/apps/${encodeURIComponent(appId)}/name`,
+      { body: { app_name: name }, timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS) },
+      userToken,
+    )).data;
   }
 
   if (action === 'delete') {
-    return (
-      await client.request('DELETE', `/app/${encodeURIComponent(appId)}`, {
-        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
-      })
-    ).data;
+    return (yield* client.requestEffect('DELETE', `/app/${encodeURIComponent(appId)}`, {
+      timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+    })).data;
   }
 
-  throw new Error('Usage: charming apps list|create|source|update|call|delete|rename');
-}
+  return yield* Effect.fail(
+    new Error('Usage: charming apps list|create|source|update|call|delete|rename'),
+  );
+});
 
-export async function runApi(
+export const runApps = toPromise(runAppsEffect);
+
+export const runApiEffect = Effect.fnUntraced(function* (
   action: string | undefined,
   positionals: string[],
   context: CommandContext,
-): Promise<unknown> {
+): Effect.fn.Return<unknown, unknown> {
   if (action === 'list') {
     return {
       operations: operations.map(({ id, method, path, summary }) => ({
@@ -509,25 +555,35 @@ export async function runApi(
     };
   }
   const operationId = positionals[0];
-  if (!operationId) throw new Error(`Usage: charming api ${action ?? '<command>'} <OPERATION_ID>`);
+  if (!operationId)
+    return yield* Effect.fail(
+      new Error(`Usage: charming api ${action ?? '<command>'} <OPERATION_ID>`),
+    );
   const operation = findOperation(operationId);
-  if (!operation) throw new Error(`Unknown OpenAPI operation: ${operationId}`);
+  if (!operation) return yield* Effect.fail(new Error(`Unknown OpenAPI operation: ${operationId}`));
   if (action === 'describe') return operation;
-  if (action !== 'request') throw new Error('Usage: charming api list|describe|request');
+  if (action !== 'request')
+    return yield* Effect.fail(new Error('Usage: charming api list|describe|request'));
   if (HIDDEN_CREDENTIAL_OPERATIONS.has(operation.id) && context.options['dry-run'] !== true) {
-    throw new Error(
-      `Raw ${operation.id} requests cannot show the credential safely. Run \`charming auth login\` instead.`,
+    return yield* Effect.fail(
+      new Error(
+        `Raw ${operation.id} requests cannot show the credential safely. Run \`charming auth login\` instead.`,
+      ),
     );
   }
   if (operation.streaming) {
-    throw new Error(
-      `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
+    return yield* Effect.fail(
+      new Error(
+        `Operation ${operation.id} returns a live stream. This CLI version does not support streaming.`,
+      ),
     );
   }
   const sessionOnly = acceptsOnlySessionCookie(operation);
   if (sessionOnly && context.session.tokenSource === 'flag') {
-    throw new Error(
-      `Operation ${operation.id} does not accept --token. It needs a signed-in Charming session cookie. Pass one with --header Cookie=NAME=VALUE, or do this in the Charming web app.`,
+    return yield* Effect.fail(
+      new Error(
+        `Operation ${operation.id} does not accept --token. It needs a signed-in Charming session cookie. Pass one with --header Cookie=NAME=VALUE, or do this in the Charming web app.`,
+      ),
     );
   }
   if (operation.method === 'DELETE' || REQUIRES_CONSENT.has(operation.id)) {
@@ -539,8 +595,10 @@ export async function runApi(
   const parameterNames = new Set(operation.parameters.map((parameter) => parameter.name));
   const unknownParameter = [...supplied.keys()].find((name) => !parameterNames.has(name));
   if (unknownParameter) {
-    throw new Error(
-      `Unknown --param ${unknownParameter}. Run \`charming api describe ${operation.id}\`.`,
+    return yield* Effect.fail(
+      new Error(
+        `Unknown --param ${unknownParameter}. Run \`charming api describe ${operation.id}\`.`,
+      ),
     );
   }
   let path = operation.path;
@@ -549,7 +607,7 @@ export async function runApi(
   for (const parameter of operation.parameters) {
     const value = supplied.get(parameter.name);
     if (parameter.required && value === undefined) {
-      throw new Error(`Missing required --param ${parameter.name}=VALUE`);
+      return yield* Effect.fail(new Error(`Missing required --param ${parameter.name}=VALUE`));
     }
     if (value === undefined) continue;
     if (parameter.in === 'path') {
@@ -563,15 +621,15 @@ export async function runApi(
   if (query.size > 0) path += `?${query}`;
   const bodyOption = stringOption(context.options, 'body');
   if (operation.requestBody?.required && bodyOption === undefined) {
-    throw new Error(`Operation ${operation.id} requires --body JSON|@FILE.`);
+    return yield* Effect.fail(new Error(`Operation ${operation.id} requires --body JSON|@FILE.`));
   }
-  const body = bodyOption ? await readJsonValue(bodyOption) : undefined;
+  const body = bodyOption ? yield* readJsonValueEffect(bodyOption) : undefined;
   const file = stringOption(context.options, 'file');
   if (operation.requestBody?.mediaType === 'multipart/form-data' && !file) {
-    throw new Error(`Operation ${operation.id} requires --file PATH.`);
+    return yield* Effect.fail(new Error(`Operation ${operation.id} requires --file PATH.`));
   }
   if (file && operation.requestBody?.mediaType !== 'multipart/form-data') {
-    throw new Error(`Operation ${operation.id} does not accept --file.`);
+    return yield* Effect.fail(new Error(`Operation ${operation.id} does not accept --file.`));
   }
   const headers = Object.fromEntries(
     [
@@ -581,8 +639,15 @@ export async function runApi(
   );
   if (operation.id === 'call-app-operation') {
     const appId = supplied.get('id')!;
-    const client = clientFor(context, await rawRequestToken(context, appId));
-    return callAppOperation(context, client, appId, supplied.get('operation')!, body, headers);
+    const client = clientFor(context, yield* rawRequestToken(context, appId));
+    return yield* callAppOperation(
+      context,
+      client,
+      appId,
+      supplied.get('operation')!,
+      body,
+      headers,
+    );
   }
   if (context.options['dry-run'] === true && operation.method !== 'GET') {
     return {
@@ -597,12 +662,14 @@ export async function runApi(
       ([name, value]) => name.toLowerCase() === 'cookie' && value.length > 0,
     );
     if (!hasCookie) {
-      throw new Error(
-        `Operation ${operation.id} needs a signed-in Charming session cookie. Personal access tokens, including the one from \`charming auth login\`, are not accepted. Do this in the Charming web app, or pass your session cookie with --header Cookie=NAME=VALUE.`,
+      return yield* Effect.fail(
+        new Error(
+          `Operation ${operation.id} needs a signed-in Charming session cookie. Personal access tokens, including the one from \`charming auth login\`, are not accepted. Do this in the Charming web app, or pass your session cookie with --header Cookie=NAME=VALUE.`,
+        ),
       );
     }
   }
-  const token = sessionOnly ? undefined : await rawRequestToken(context, supplied.get('id'));
+  const token = sessionOnly ? undefined : yield* rawRequestToken(context, supplied.get('id'));
   if (
     operation.id === 'create-app' &&
     (!isUserToken(token) ||
@@ -611,28 +678,38 @@ export async function runApi(
         !Array.isArray(body) &&
         (body as Record<string, unknown>).pair === true))
   ) {
-    throw new Error(
-      'Raw create-app cannot save anonymous or pairing credentials safely. Run `charming apps create` instead.',
+    return yield* Effect.fail(
+      new Error(
+        'Raw create-app cannot save anonymous or pairing credentials safely. Run `charming apps create` instead.',
+      ),
     );
   }
   if (REPLACES_IN_PLACE.has(operation.id) && context.options.yes !== true) {
-    throw new Error(
-      'This operation may overwrite an existing app with the same manifest id. Use --yes or --dry-run.',
+    return yield* Effect.fail(
+      new Error(
+        'This operation may overwrite an existing app with the same manifest id. Use --yes or --dry-run.',
+      ),
     );
   }
   const rawBody =
     operation.requestBody?.mediaType === 'multipart/form-data' && file
-      ? await multipartBody(body, file)
+      ? yield* multipartBody(body, file)
       : undefined;
-  return (
-    await clientFor(context, token).request(operation.method, path, {
+  return (yield* apiRequest(
+    context,
+    operation.method,
+    path,
+    {
       body: rawBody ? undefined : body,
       headers,
       rawBody,
       timeoutMs: timeoutFor(context, operation.timeoutMs),
-    })
-  ).data;
-}
+    },
+    token,
+  )).data;
+});
+
+export const runApi = toPromise(runApiEffect);
 
 function acceptsOnlySessionCookie(operation: Operation): boolean {
   return (
@@ -712,36 +789,39 @@ export function agentContext(session: Pick<Session, 'origin' | 'profile'>): unkn
   };
 }
 
-export async function runDoctor(context: CommandContext): Promise<unknown> {
+export const runDoctorEffect = Effect.fnUntraced(function* (
+  context: CommandContext,
+): Effect.fn.Return<unknown, unknown> {
   const token = context.session.token;
-  let spec;
-  try {
-    spec = await clientFor(context).request('GET', '/.well-known/openapi.json', {
-      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-    });
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `Could not reach ${context.session.origin}: ${detail}. Check --base-url and your network connection.`,
-      { cause: error },
-    );
-  }
-  let auth: 'invalid' | 'missing' | 'ok' = 'missing';
-  if (token) {
-    try {
-      await clientFor(context, token).request('GET', '/app?limit=1', {
-        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-      });
-      auth = 'ok';
-    } catch (error) {
-      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        auth = 'invalid';
-      } else {
-        throw error;
-      }
-    }
-  }
+  const spec = yield* apiRequest(context, 'GET', '/.well-known/openapi.json', {
+    timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+  }).pipe(
+    Effect.mapError((error) => {
+      if (error instanceof ApiError) return error;
+      const detail = error instanceof Error ? error.message : String(error);
+      return new Error(
+        `Could not reach ${context.session.origin}: ${detail}. Check --base-url and your network connection.`,
+        { cause: error },
+      );
+    }),
+  );
+  const auth = token
+    ? yield* apiRequest(
+        context,
+        'GET',
+        '/app?limit=1',
+        {
+          timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+        },
+        token,
+      ).pipe(
+        Effect.as('ok'),
+        Effect.catchIf(
+          (error) => error instanceof ApiError && (error.status === 401 || error.status === 403),
+          () => Effect.succeed('invalid'),
+        ),
+      )
+    : 'missing';
   const document = spec.data as {
     info?: { version?: unknown };
     openapi?: unknown;
@@ -764,42 +844,50 @@ export async function runDoctor(context: CommandContext): Promise<unknown> {
     ),
     openapiVersion: document.openapi ?? null,
   };
-}
+});
 
-async function multipartBody(body: unknown, filePath: string): Promise<FormData> {
+export const runDoctor = toPromise(runDoctorEffect);
+
+const multipartBody = Effect.fnUntraced(function* (
+  body: unknown,
+  filePath: string,
+): Effect.fn.Return<FormData, Error> {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new Error('Multipart operations require --body with a JSON object.');
+    return yield* Effect.fail(new Error('Multipart operations require --body with a JSON object.'));
   }
   const form = new FormData();
   for (const [key, value] of Object.entries(body)) {
     if (typeof value !== 'string') {
-      throw new Error(`Multipart field ${key} must be a string.`);
+      return yield* Effect.fail(new Error(`Multipart field ${key} must be a string.`));
     }
     form.set(key, value);
   }
   const path = resolve(filePath);
-  form.set('file', new File([await readFile(path)], basename(path)));
+  form.set(
+    'file',
+    new File([yield* fileOperation((signal) => readFile(path, { signal }))], basename(path)),
+  );
   return form;
-}
+});
 
-async function rawRequestToken(
+const rawRequestToken = Effect.fnUntraced(function* (
   context: CommandContext,
   appId: string | undefined,
-): Promise<string | undefined> {
-  if (appId) return appCredential(context, appId);
-  await collectPairings(context);
+): Effect.fn.Return<string | undefined, Error> {
+  if (appId) return yield* appCredential(context, appId);
+  yield* collectPairings(context);
   return context.session.token;
-}
+});
 
-async function callAppOperation(
+const callAppOperation = Effect.fnUntraced(function* (
   context: CommandContext,
   client: CharmingClient,
   appId: string,
   operation: string,
   input: unknown,
   headers?: Record<string, string>,
-): Promise<unknown> {
-  const { method, path, destructive } = await resolveOperationRequest(
+): Effect.fn.Return<unknown, unknown> {
+  const { method, path, destructive } = yield* resolveOperationRequest(
     client,
     context,
     appId,
@@ -813,14 +901,12 @@ async function callAppOperation(
     const preview = queryFromInput(operation, redactSecrets(input ?? {}));
     return { dryRun: true, method, path: withQuery(path, preview) };
   }
-  return (
-    await client.request(method, query ? withQuery(path, query) : path, {
-      body: query ? undefined : input,
-      headers,
-      timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
-    })
-  ).data;
-}
+  return (yield* client.requestEffect(method, query ? withQuery(path, query) : path, {
+    body: query ? undefined : input,
+    headers,
+    timeoutMs: timeoutFor(context, CALL_TIMEOUT_MS),
+  })).data;
+});
 
 type OperationRequest = { method: string; path: string; destructive: boolean };
 
@@ -838,53 +924,59 @@ type DeclaredOperation = {
  * `charming dev --pull-data`. Refuses an operation the App does not declare
  * read-only, so pulling data never writes to the App.
  */
-export async function readOnlyOperationValue(
+export const readOnlyOperationValueEffect = Effect.fnUntraced(function* (
   context: CommandContext,
   appId: string,
   operation: string,
-): Promise<unknown> {
+): Effect.fn.Return<unknown, unknown> {
   assertAppId(appId);
-  const client = clientFor(context, await tokenForApp(context, appId));
-  const descriptor = (
-    await client.request('GET', `/app/${encodeURIComponent(appId)}/agent.json`, {
+  const client = clientFor(context, yield* tokenForApp(context, appId));
+  const descriptor = (yield* client.requestEffect(
+    'GET',
+    `/app/${encodeURIComponent(appId)}/agent.json`,
+    {
       timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-    })
-  ).data;
+    },
+  )).data;
   const declared = declaredOperations(descriptor).find((candidate) => candidate.op === operation);
   // The App's readOnly label is advisory on the server, so a GET is required too.
   if (!declared?.readOnly || declared.method !== 'GET') {
-    throw new DevError(
-      'invalid_arguments',
-      `App ${appId} declares no read-only GET operation named \`${operation}\`. --pull-data calls only GET operations the App declares read-only.`,
+    return yield* Effect.fail(
+      new DevError(
+        'invalid_arguments',
+        `App ${appId} declares no read-only GET operation named \`${operation}\`. --pull-data calls only GET operations the App declares read-only.`,
+      ),
     );
   }
-  const result = await callAppOperation(context, client, appId, operation, {});
+  const result = yield* callAppOperation(context, client, appId, operation, {});
   if (!isRecord(result) || result.ok !== true || !('value' in result)) {
-    throw new Error(`Operation \`${operation}\` answered without a value.`);
+    return yield* Effect.fail(new Error(`Operation \`${operation}\` answered without a value.`));
   }
   return result.value;
-}
+});
 
-async function resolveOperationRequest(
+export const readOnlyOperationValue = toPromise(readOnlyOperationValueEffect);
+
+const resolveOperationRequest = Effect.fnUntraced(function* (
   client: CharmingClient,
   context: CommandContext,
   appId: string,
   operation: string,
   headers?: Record<string, string>,
-): Promise<OperationRequest> {
+): Effect.fn.Return<OperationRequest, unknown> {
   const appPath = `/app/${encodeURIComponent(appId)}`;
-  const descriptor = (
-    await client.request('GET', `${appPath}/agent.json`, {
-      headers,
-      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-    })
-  ).data;
+  const descriptor = (yield* client.requestEffect('GET', `${appPath}/agent.json`, {
+    headers,
+    timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+  })).data;
   const declared = declaredOperations(descriptor);
   const match = declared.find((candidate) => candidate.op === operation);
   if (!match) {
     if (declared.some((candidate) => candidate.fromRoutes)) {
-      throw new Error(
-        `App ${appId} has no operation named \`${operation}\` that this credential can see. Known operations: ${declared.map((candidate) => candidate.op).join(', ')}.`,
+      return yield* Effect.fail(
+        new Error(
+          `App ${appId} has no operation named \`${operation}\` that this credential can see. Known operations: ${declared.map((candidate) => candidate.op).join(', ')}.`,
+        ),
       );
     }
     return {
@@ -900,8 +992,10 @@ async function resolveOperationRequest(
     resolved.hash !== '' ||
     (resolved.pathname !== `${appPath}/api` && !resolved.pathname.startsWith(`${appPath}/api/`))
   ) {
-    throw new Error(
-      `Operation \`${operation}\` declares path ${JSON.stringify(match.path)}, which is not under the app's /api routes.`,
+    return yield* Effect.fail(
+      new Error(
+        `Operation \`${operation}\` declares path ${JSON.stringify(match.path)}, which is not under the app's /api routes.`,
+      ),
     );
   }
   return {
@@ -909,7 +1003,7 @@ async function resolveOperationRequest(
     path,
     destructive: match.method === 'DELETE' || match.destructive,
   };
-}
+});
 
 function withQuery(path: string, query: URLSearchParams): string {
   return query.size > 0 ? `${path}?${query}` : path;
@@ -967,6 +1061,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function apiRequest(
+  context: CommandContext,
+  method: string,
+  path: string,
+  options: RequestOptions,
+  token?: string,
+) {
+  return Effect.try({
+    try: () => clientFor(context, token),
+    catch: (error) => error,
+  }).pipe(Effect.flatMap((client) => client.requestEffect(method, path, options)));
+}
+
 export function clientFor(context: CommandContext, token?: string): CharmingClient {
   return new CharmingClient({
     baseUrl: context.session.origin,
@@ -975,114 +1082,136 @@ export function clientFor(context: CommandContext, token?: string): CharmingClie
   });
 }
 
-export async function requireUserToken(context: CommandContext): Promise<string> {
-  await collectPairings(context);
+export const requireUserTokenEffect = Effect.fnUntraced(function* (
+  context: CommandContext,
+): Effect.fn.Return<string, Error> {
+  yield* collectPairings(context);
   const token = context.session.token;
-  if (!token) throw new Error(`Not authenticated. Run \`${loginCommand(context.session)}\`.`);
+  if (!token)
+    return yield* Effect.fail(
+      new Error(`Not authenticated. Run \`${loginCommand(context.session)}\`.`),
+    );
   return token;
-}
+});
 
-async function tokenForApp(context: CommandContext, appId: string): Promise<string> {
-  const token = await appCredential(context, appId);
+export const requireUserToken = toPromise(requireUserTokenEffect);
+
+const tokenForApp = Effect.fnUntraced(function* (
+  context: CommandContext,
+  appId: string,
+): Effect.fn.Return<string, Error> {
+  const token = yield* appCredential(context, appId);
   if (!token) {
-    throw new Error(`No credential for this app. Run \`${loginCommand(context.session)}\`.`);
+    return yield* Effect.fail(
+      new Error(`No credential for this app. Run \`${loginCommand(context.session)}\`.`),
+    );
   }
   return token;
-}
+});
 
 // An app token on disk always comes from a no-login create on this machine. With
 // a saved account token at hand, claim the app before using it: an account token
 // cannot reach an unclaimed app. A 409 already_claimed means someone claimed it
 // already, which revoked the app token. A failed claim falls back to the app
 // token and the next command tries again.
-async function appCredential(context: CommandContext, appId: string): Promise<string | undefined> {
-  await collectPairings(context, appId);
+const appCredential = Effect.fnUntraced(function* (
+  context: CommandContext,
+  appId: string,
+): Effect.fn.Return<string | undefined, Error> {
+  yield* collectPairings(context, appId);
   const { origin, token: userToken, tokenSource } = context.session;
   const saved = tokenSource === 'credentials' || tokenSource === 'legacy';
   if (!saved || !userToken || !isUserToken(userToken)) {
-    return userToken ?? (await loadAppToken(origin, appId));
+    return userToken ?? (yield* loadAppTokenEffect(origin, appId));
   }
-  const appToken = await loadAppToken(origin, appId);
+  const appToken = yield* loadAppTokenEffect(origin, appId);
   if (!appToken) return userToken;
-  return (await claimSavedApp(context, appId, userToken, appToken)) ? userToken : appToken;
-}
+  return (yield* claimSavedApp(context, appId, userToken, appToken)) ? userToken : appToken;
+});
 
 // A no-login create saves the pairing the server bound to the new app. Once the
 // user approves its code or claims the app, the next command collects the
 // account token. The pickup is one-shot, so the token is saved before anything
 // else can fail.
-async function collectPairings(context: CommandContext, onlyAppId?: string): Promise<void> {
+const collectPairings = Effect.fnUntraced(function* (
+  context: CommandContext,
+  onlyAppId?: string,
+): Effect.fn.Return<void, Error> {
   if (context.session.token || !context.session.profile) return;
-  const pairings = Object.entries(await loadPairings(context.session.origin)).filter(
+  const pairings = Object.entries(yield* loadPairingsEffect(context.session.origin)).filter(
     ([appId]) => onlyAppId === undefined || appId === onlyAppId,
   );
   for (const [appId, deviceCode] of pairings) {
-    const userToken = await collectPairing(context, appId, deviceCode);
+    const userToken = yield* collectPairing(context, appId, deviceCode);
     if (!userToken) continue;
-    const appToken = await loadAppToken(context.session.origin, appId);
+    const appToken = yield* loadAppTokenEffect(context.session.origin, appId);
     if (onlyAppId === undefined && appToken) {
-      await claimSavedApp(context, appId, userToken, appToken);
+      yield* claimSavedApp(context, appId, userToken, appToken);
     }
     return;
   }
-}
+});
 
-async function collectPairing(
+const collectPairing = Effect.fnUntraced(function* (
   context: CommandContext,
   appId: string,
   deviceCode: string,
-): Promise<string | undefined> {
-  let polled: { status?: unknown; token?: unknown };
-  try {
-    polled = (
-      await clientFor(context).request('POST', '/api/pair/poll', {
-        body: { device_code: deviceCode },
-        timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
-      })
-    ).data as typeof polled;
-  } catch {
-    return undefined;
-  }
+): Effect.fn.Return<string | undefined, Error> {
+  const reply = yield* Effect.result(
+    apiRequest(context, 'POST', '/api/pair/poll', {
+      body: { device_code: deviceCode },
+      timeoutMs: timeoutFor(context, READ_TIMEOUT_MS),
+    }),
+  );
+  if (Result.isFailure(reply)) return undefined;
+  const polled = reply.success.data as { status?: unknown; token?: unknown };
   const delivered = typeof polled.token === 'string' && polled.token.length > 0;
   if (polled.status === 'expired' || (polled.status === 'approved' && !delivered)) {
-    await dropPairing(context.session.origin, appId);
+    yield* dropPairingEffect(context.session.origin, appId);
     return undefined;
   }
   if (polled.status !== 'approved' || typeof polled.token !== 'string') return undefined;
 
-  await saveLogin(context.session, polled.token);
+  const token = polled.token;
+  yield* saveLoginEffect(context.session, token);
   context.session = { ...context.session, token: polled.token, tokenSource: 'credentials' };
   return polled.token;
-}
+});
 
 // Resolves to true once the app token is retired: the claim landed, someone
 // else claimed the app, or the app or its token is gone.
-async function claimSavedApp(
+const claimSavedApp = Effect.fnUntraced(function* (
   context: CommandContext,
   appId: string,
   userToken: string,
   appToken: string,
-): Promise<boolean> {
-  try {
-    await clientFor(context, userToken).request('POST', `/app/${encodeURIComponent(appId)}/claim`, {
-      body: { token: appToken },
-      timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
-    });
-  } catch (error) {
-    if (!isRetiredAppToken(error)) {
-      process.stderr.write(
-        `${JSON.stringify({
-          event: 'app_claim_failed',
-          appId,
-          message: `Could not claim this app into your account: ${error instanceof Error ? error.message : String(error)} This command used the app's own credential, and the next command on the app tries the claim again.`,
-        })}\n`,
-      );
-      return false;
-    }
+): Effect.fn.Return<boolean, Error> {
+  const claim = yield* Effect.result(
+    apiRequest(
+      context,
+      'POST',
+      `/app/${encodeURIComponent(appId)}/claim`,
+      {
+        body: { token: appToken },
+        timeoutMs: timeoutFor(context, MUTATE_TIMEOUT_MS),
+      },
+      userToken,
+    ),
+  );
+  if (Result.isFailure(claim) && !isRetiredAppToken(claim.failure)) {
+    const error = claim.failure;
+    process.stderr.write(
+      `${JSON.stringify({
+        event: 'app_claim_failed',
+        appId,
+        message: `Could not claim this app into your account: ${error instanceof Error ? error.message : String(error)} This command used the app's own credential, and the next command on the app tries the claim again.`,
+      })}\n`,
+    );
+    return false;
   }
-  await dropAppToken(context.session.origin, appId);
+  yield* dropAppTokenEffect(context.session.origin, appId);
   return true;
-}
+});
 
 function isRetiredAppToken(error: unknown): boolean {
   if (!(error instanceof ApiError)) return false;
@@ -1103,36 +1232,42 @@ function loginCommand(session: Session): string {
   return `charming auth login${profile}${origin}`;
 }
 
-async function readBundle(directory: string | undefined, options: Record<string, OptionValue>) {
-  return readAppBundle({
+const readBundle = Effect.fnUntraced(function* (
+  directory: string | undefined,
+  options: Record<string, OptionValue>,
+) {
+  return yield* readAppBundleEffect({
     directory,
     module: stringOption(options, 'module'),
     styles: stringOption(options, 'styles'),
     ui: stringOption(options, 'ui'),
   });
-}
+});
 
-async function writeSource(directory: string, data: SourceResponse): Promise<void> {
+const writeSource = Effect.fnUntraced(function* (
+  directory: string,
+  data: SourceResponse,
+): Effect.fn.Return<void, Error> {
   const files = packageFiles(data);
-  if (files) await writeAppPackage(directory, files);
-  else await writeAppBundle(directory, validSource(data));
-}
+  if (files) yield* writeAppPackageEffect(directory, files);
+  else yield* writeAppBundleEffect(directory, validSource(data));
+});
 
 /** Write a live App's source into a directory, as `apps source --out` does. */
-export async function writeAppSource(
+export const writeAppSourceEffect = Effect.fnUntraced(function* (
   context: CommandContext,
   appId: string,
   directory: string,
-): Promise<void> {
+): Effect.fn.Return<void, unknown> {
   assertAppId(appId);
-  const client = clientFor(context, await tokenForApp(context, appId));
-  const data = (
-    await client.request('GET', `/app/${encodeURIComponent(appId)}/source`, {
-      timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
-    })
-  ).data as SourceResponse;
-  await writeSource(directory, data);
-}
+  const client = clientFor(context, yield* tokenForApp(context, appId));
+  const data = (yield* client.requestEffect('GET', `/app/${encodeURIComponent(appId)}/source`, {
+    timeoutMs: timeoutFor(context, SOURCE_READ_TIMEOUT_MS),
+  })).data as SourceResponse;
+  yield* writeSource(directory, data);
+});
+
+export const writeAppSource = toPromise(writeAppSourceEffect);
 
 export function packageFiles(data: SourceResponse): Record<string, string> | null {
   const files = data.source?.files;
@@ -1227,10 +1362,6 @@ function openUrl(url: string, baseUrl: string): void {
   const child = spawn(command, args, { detached: true, stdio: 'ignore' });
   child.on('error', () => {});
   child.unref();
-}
-
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function validPairingStart(started: {

@@ -1,9 +1,11 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
+import * as Effect from 'effect/Effect';
 import { applyEdits, modify, type ParseError, parse, printParseErrorCode } from 'jsonc-parser';
 
+import { readText, writeText, makeDirectory } from './file-io.js';
+import { toPromise } from './io.js';
 import { validateProfileName } from './profile-name.js';
 
 const PROJECT_CONFIG_PATH = join('.config', 'charming.json');
@@ -15,34 +17,38 @@ type ProjectConfig = { path: string; profile?: string };
 
 type Boundaries = { cwd: string; home: string };
 
-export async function findProjectConfig(
+export const findProjectConfigEffect = Effect.fnUntraced(function* (
   boundaries: Boundaries,
-): Promise<ProjectConfig | undefined> {
+): Effect.fn.Return<ProjectConfig | undefined, Error> {
   const path = locateProjectConfig(boundaries);
   return path
-    ? { path, profile: parseProjectConfig(path, await readFile(path, 'utf8')).profile }
+    ? { path, profile: parseProjectConfig(path, yield* readText(path)).profile }
     : undefined;
-}
+});
 
-export async function writeProjectProfile(
+export const findProjectConfig = toPromise(findProjectConfigEffect);
+
+export const writeProjectProfileEffect = Effect.fnUntraced(function* (
   name: string,
   boundaries: Boundaries,
-): Promise<{ path: string }> {
+) {
   const existing = locateProjectConfig(boundaries);
   if (!existing) {
     const path = join(projectRoot(boundaries), PROJECT_CONFIG_PATH);
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify({ profile: name }, null, 2)}\n`);
+    yield* makeDirectory(dirname(path));
+    yield* writeText(path, `${JSON.stringify({ profile: name }, null, 2)}\n`);
     return { path };
   }
-  const text = await readFile(existing, 'utf8');
+  const text = yield* readText(existing);
   parseProjectConfig(existing, text);
   const edits = modify(text, ['profile'], name, {
     formattingOptions: { insertSpaces: true, tabSize: indentWidth(text) },
   });
-  await writeFile(existing, applyEdits(text, edits));
+  yield* writeText(existing, applyEdits(text, edits));
   return { path: existing };
-}
+});
+
+export const writeProjectProfile = toPromise(writeProjectProfileEffect);
 
 function locateProjectConfig({ cwd, home }: Boundaries): string | undefined {
   for (const directory of searchedDirectories({ cwd, home })) {

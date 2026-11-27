@@ -1,3 +1,7 @@
+import * as Effect from 'effect/Effect';
+
+import { fromPromise } from './io.js';
+
 export type RequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
@@ -90,9 +94,10 @@ export class TimeoutError extends Error {
   readonly status = 0;
   readonly timeoutMs: number;
 
-  constructor(timeoutMs: number) {
+  constructor(timeoutMs: number, options?: ErrorOptions) {
     super(
       `Request timed out after ${timeoutMs}ms. Increase it with --timeout <ms>, e.g. --timeout ${timeoutMs * 2}.`,
+      options,
     );
     this.name = 'TimeoutError';
     this.timeoutMs = timeoutMs;
@@ -115,33 +120,46 @@ export class CharmingClient {
     path: string,
     options: RequestOptions = {},
   ): Promise<{ data: unknown; etag: string | null; status: number }> {
-    const controller = new AbortController();
+    return Effect.runPromise(this.requestEffect(method, path, options));
+  }
+
+  requestEffect(method: string, path: string, options: RequestOptions = {}) {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
     if (this.token) headers.Authorization = `Bearer ${this.token}`;
     if (options.body !== undefined) headers['Content-Type'] = 'application/json';
 
-    try {
+    const exchange = fromPromise(async (signal) => {
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
         method,
         headers,
         body:
           options.rawBody ??
           (options.body === undefined ? undefined : JSON.stringify(options.body)),
-        signal: controller.signal,
+        signal,
       });
-      const text = await response.text();
-      const data =
-        text.length === 0 ? null : parseResponse(text, response.headers.get('content-type'));
-      if (!response.ok) throw new ApiError(response.status, data);
-      return { data, etag: response.headers.get('etag'), status: response.status };
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') throw new TimeoutError(timeoutMs);
-      throw error;
-    } finally {
-      clearTimeout(timeout);
-    }
+      return { response, text: await response.text() };
+    }).pipe(
+      Effect.mapError((error) =>
+        error instanceof Error && error.name === 'AbortError'
+          ? new TimeoutError(timeoutMs, { cause: error })
+          : error,
+      ),
+    );
+
+    return exchange.pipe(
+      Effect.timeoutOrElse({
+        duration: timeoutMs,
+        orElse: () => Effect.fail(new TimeoutError(timeoutMs)),
+      }),
+      Effect.flatMap(({ response, text }) => {
+        const data =
+          text.length === 0 ? null : parseResponse(text, response.headers.get('content-type'));
+        return response.ok
+          ? Effect.succeed({ data, etag: response.headers.get('etag'), status: response.status })
+          : Effect.fail(new ApiError(response.status, data));
+      }),
+    );
   }
 }
 

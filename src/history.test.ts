@@ -2,12 +2,14 @@ import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import * as Effect from 'effect/Effect';
+import * as Fiber from 'effect/Fiber';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { directoryOutsideAnyProject } from '../test-helpers.js';
 import { type CommandContext } from './commands.js';
 import { resolveSession } from './config.js';
-import { runHistory } from './history.js';
+import { runHistory, runHistoryEffect } from './history.js';
 import { ApiError } from './http.js';
 
 const ORIGIN = 'https://charming.test';
@@ -203,6 +205,30 @@ describe('apps history restore', () => {
     await expect(
       runHistory('restore', [APP_ID, '3'], await context(fetchImpl, { yes: true })),
     ).resolves.toEqual(accepted);
+  });
+
+  test('interrupting a restore aborts its in-flight build poll', async () => {
+    const polling = Promise.withResolvers<AbortSignal>();
+    const reply = Promise.withResolvers<Response>();
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      if (urlOf(input).endsWith('/app-builds/build_4')) {
+        if (!init?.signal) throw new Error('Build status request is missing its abort signal');
+        polling.resolve(init.signal);
+        return reply.promise;
+      }
+      return Response.json(
+        urlOf(input).endsWith('/restore') ? { buildId: 'build_4' } : { currentRevision: 6 },
+      );
+    });
+    const command = await context(fetchImpl, { yes: true, wait: true });
+    const fiber = Effect.runFork(runHistoryEffect('restore', [APP_ID, '3'], command));
+    try {
+      const signal = await polling.promise;
+      await Effect.runPromise(Fiber.interrupt(fiber));
+      expect(signal.aborted).toBe(true);
+    } finally {
+      reply.resolve(Response.json({ state: 'published' }));
+    }
   });
 
   test('--wait returns a module revision as restored, without polling any build', async () => {

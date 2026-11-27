@@ -1,7 +1,7 @@
 import { Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runAuth } from '../../commands.js';
+import { runAuthEffect } from '../../commands.js';
 
 export default class AuthLogin extends CharmingCommand {
   static override description = 'Sign in with a device-pairing flow.';
@@ -12,6 +12,8 @@ export default class AuthLogin extends CharmingCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(AuthLogin);
-    this.output(await runAuth('login', await this.context(flags, 'login')));
+    this.output(
+      await this.withContext(flags, (context) => runAuthEffect('login', context), 'login'),
+    );
   }
 }

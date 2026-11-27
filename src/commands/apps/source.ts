@@ -1,7 +1,7 @@
 import { Args, Flags } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runApps } from '../../commands.js';
+import { runAppsEffect } from '../../commands.js';
 
 export default class AppsSource extends CharmingCommand {
   static override args = { appId: Args.string({ required: true }) };
@@ -12,9 +12,12 @@ export default class AppsSource extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsSource);
-    this.output(await runApps('source', [args.appId], await this.context(flags)), {
-      truncationHint:
-        'Source exceeded the CLI output cap. Write it to a directory with `apps source <APP_ID> --out <dir>` and read the files there.',
-    });
+    this.output(
+      await this.withContext(flags, (context) => runAppsEffect('source', [args.appId], context)),
+      {
+        truncationHint:
+          'Source exceeded the CLI output cap. Write it to a directory with `apps source <APP_ID> --out <dir>` and read the files there.',
+      },
+    );
   }
 }

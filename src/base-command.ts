@@ -1,8 +1,9 @@
 import { Command, Flags, type Interfaces } from '@oclif/core';
+import * as Effect from 'effect/Effect';
 
 import { BuildNotPublishedError } from './builds.js';
 import { type CommandContext, redactSecrets } from './commands.js';
-import { resolveSession, type SessionRequest } from './config.js';
+import { sessionFor, type SessionRequest } from './config.js';
 import { ApiError, TimeoutError } from './http.js';
 import { currentDependencies, setExitCode } from './runtime.js';
 
@@ -22,17 +23,33 @@ export abstract class CharmingCommand extends Command {
     token: Flags.string({ description: 'Override saved credentials' }),
   };
 
-  protected async context(
+  protected context(flags: Record<string, unknown>, purpose: SessionRequest['purpose'] = 'use') {
+    return Effect.runPromise(this.contextEffect(flags, purpose));
+  }
+
+  protected contextEffect(
     flags: Record<string, unknown>,
     purpose: SessionRequest['purpose'] = 'use',
-  ): Promise<CommandContext> {
-    const { options, request, timeoutMs } = this.sessionRequest(flags);
-    return {
-      fetchImpl: currentDependencies().fetchImpl,
-      options,
-      session: await resolveSession({ ...request, purpose }),
-      timeoutMs,
-    };
+  ) {
+    return Effect.suspend(() => {
+      const { options, request, timeoutMs } = this.sessionRequest(flags);
+      return sessionFor({ ...request, purpose }).pipe(
+        Effect.map((session): CommandContext => ({
+          fetchImpl: currentDependencies().fetchImpl,
+          options,
+          session,
+          timeoutMs,
+        })),
+      );
+    });
+  }
+
+  protected withContext<A, E>(
+    flags: Record<string, unknown>,
+    workflow: (context: CommandContext) => Effect.Effect<A, E>,
+    purpose: SessionRequest['purpose'] = 'use',
+  ): Promise<A> {
+    return Effect.runPromise(Effect.flatMap(this.contextEffect(flags, purpose), workflow));
   }
 
   protected sessionRequest(flags: Record<string, unknown>): {

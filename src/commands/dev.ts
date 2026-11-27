@@ -1,9 +1,10 @@
 import { Args, Flags } from '@oclif/core';
+import * as Effect from 'effect/Effect';
 
 import { CharmingCommand, writeErrorOutput } from '../base-command.js';
-import { typesRefresher } from '../connector-types.js';
+import { makeTypesRefresher } from '../connector-types.js';
 import { checkApp, recordProcessFailures } from '../dev-check.js';
-import { devTarget, pullLiveApp } from '../dev-pull.js';
+import { devTarget, pullLiveAppEffect } from '../dev-pull.js';
 import { DEV_ROLES, isPackageSource, startDevServer } from '../dev.js';
 import { ApiError, TimeoutError } from '../http.js';
 import { currentExitCode, setExitCode } from '../runtime.js';
@@ -115,10 +116,12 @@ export default class Dev extends CharmingCommand {
       });
       let state = flags.state;
       if (target.kind === 'live') {
-        const pulled = await pullLiveApp(await this.context(flags), target, {
-          dataOperation: flags['pull-data'],
-          log,
-        });
+        const pulled = await this.withContext(flags, (context) =>
+          pullLiveAppEffect(context, target, {
+            dataOperation: flags['pull-data'],
+            log,
+          }),
+        );
         state ??= pulled.statePath;
       }
       refreshTypes =
@@ -130,11 +133,13 @@ export default class Dev extends CharmingCommand {
           ui: flags.ui,
           styles: flags.styles,
         })
-          ? typesRefresher(
-              async () => {
-                const context = await this.context(flags);
-                return { ...context, fetchImpl: context.fetchImpl ?? charmingFetch };
-              },
+          ? makeTypesRefresher(
+              this.contextEffect(flags).pipe(
+                Effect.map((context) => ({
+                  ...context,
+                  fetchImpl: context.fetchImpl ?? charmingFetch,
+                })),
+              ),
               target.directory ?? '.',
               log,
             )
@@ -200,22 +205,27 @@ export default class Dev extends CharmingCommand {
     process.stderr.write(
       `Serving the app at ${server.url}, with its operations and call log at ${server.panelUrl}. Press Ctrl+C to stop.\n`,
     );
-    await new Promise<void>((resolveStop) => {
-      const stop = () => {
-        process.off('SIGINT', stop);
-        process.off('SIGTERM', stop);
-        resolveStop();
-      };
-      process.on('SIGINT', stop);
-      process.on('SIGTERM', stop);
-    });
     try {
-      await server.close();
-    } catch (error) {
-      fail(error);
+      await Effect.runPromise(waitForStop);
+    } finally {
+      await server.close().catch(fail);
     }
   }
 }
+
+const waitForStop = Effect.callback<void>((resume) => {
+  const remove = () => {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  };
+  const stop = () => {
+    remove();
+    resume(Effect.void);
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  return Effect.sync(remove);
+});
 
 /** Once the report is decided, a late throw from the App's server code must not change the exit code. */
 function ignoreLateFailures(): void {

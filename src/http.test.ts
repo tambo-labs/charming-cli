@@ -99,14 +99,16 @@ describe('CharmingClient', () => {
     );
   });
 
-  test('turns an aborted request into a TimeoutError naming the timeout used', async () => {
+  test('aborts the fetch and reports the request timeout', async () => {
+    const fetchImpl = vi.fn(fetchThatWaitsForAbort);
     const client = new CharmingClient({
       baseUrl: 'https://charming.test',
-      fetchImpl: fetchThatWaitsForAbort,
+      fetchImpl,
     });
 
     const error = await client.request('GET', '/app/abc/source', { timeoutMs: 5 }).catch((e) => e);
 
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
     expect(error).toBeInstanceOf(TimeoutError);
     expect(error.kind).toBe('timeout');
     expect(error.message).toContain('5ms');

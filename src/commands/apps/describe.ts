@@ -1,7 +1,7 @@
 import { Args } from '@oclif/core';
 
 import { CharmingCommand } from '../../base-command.js';
-import { runApps } from '../../commands.js';
+import { runAppsEffect } from '../../commands.js';
 
 export default class AppsDescribe extends CharmingCommand {
   static override args = { appId: Args.string({ required: true }) };
@@ -10,6 +10,8 @@ export default class AppsDescribe extends CharmingCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(AppsDescribe);
-    this.output(await runApps('describe', [args.appId], await this.context(flags)));
+    this.output(
+      await this.withContext(flags, (context) => runAppsEffect('describe', [args.appId], context)),
+    );
   }
 }
