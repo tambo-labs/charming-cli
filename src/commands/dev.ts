@@ -144,8 +144,8 @@ export default class Dev extends CharmingCommand {
               log,
             )
           : undefined;
-      const server = yield* startDevServerEffect({
-        onSourceChange: refreshTypes,
+      return yield* startDevServerEffect({
+        refreshTypes,
         directory: target.directory,
         host: flags.check ? '127.0.0.1' : flags.host,
         log,
@@ -162,7 +162,6 @@ export default class Dev extends CharmingCommand {
         ui: flags.ui,
         user: flags.user,
       });
-      return { server, refreshTypes };
     });
     await Effect.runPromise(
       Effect.gen({ self: this }, function* () {
@@ -177,7 +176,7 @@ export default class Dev extends CharmingCommand {
           return;
         }
 
-        const { server, refreshTypes } = opened.value;
+        const server = opened.value;
         const serve = Effect.gen({ self: this }, function* () {
           if (failures) {
             const outcome = yield* Effect.exit(
@@ -193,7 +192,6 @@ export default class Dev extends CharmingCommand {
             }
             return;
           }
-          void refreshTypes?.();
           this.log(
             JSON.stringify(
               { ok: true, url: server.url, appId: server.appId, panelUrl: server.panelUrl },

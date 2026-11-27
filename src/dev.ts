@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as Cause from 'effect/Cause';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
+import * as FiberSet from 'effect/FiberSet';
 import * as Scope from 'effect/Scope';
 import * as Semaphore from 'effect/Semaphore';
 
@@ -108,6 +109,7 @@ export interface DevServerOptions {
   operationTimeoutMs?: number;
   /** Called after a watched source file changes, once the change settles. */
   onSourceChange?: () => void;
+  refreshTypes?: Effect.Effect<void>;
 }
 
 export interface DevServer {
@@ -249,7 +251,25 @@ const openDevServer = Effect.fnUntraced(function* (
     log: options.log,
   });
   session = active;
-  yield* Scope.addFinalizer(scope, active.drain());
+  const typeJobs = yield* Scope.provide(FiberSet.make<void>(), scope);
+  const forkTypeJob = yield* FiberSet.runtime(typeJobs)();
+  const scheduleRefresh = (job?: Effect.Effect<void>) => {
+    if (!job) return;
+    forkTypeJob(
+      job.pipe(
+        Effect.catchCause((cause) =>
+          Effect.sync(() => {
+            if (Cause.hasInterruptsOnly(cause)) return;
+            const error = Cause.squash(cause);
+            options.log(
+              `dev maintenance failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }),
+        ),
+      ),
+    );
+  };
+  yield* Scope.addFinalizer(scope, active.drain(FiberSet.awaitEmpty(typeJobs)));
   for (const op of options.runOp ?? []) {
     const response = yield* fromPromise(() => host.runOperation(op, {}, binding.url));
     if (response.ok) continue;
@@ -268,14 +288,18 @@ const openDevServer = Effect.fnUntraced(function* (
       ),
     );
   }
+  const onChange = options.onSourceChange;
+  const changeHook = onChange && Effect.promise(() => Promise.resolve(onChange()));
   const watcher = watchSources(options, () => {
     active.refresh();
-    options.onSourceChange?.();
+    scheduleRefresh(options.refreshTypes);
+    scheduleRefresh(changeHook);
   });
   yield* Scope.addFinalizer(
     scope,
     Effect.sync(() => watcher.close()),
   );
+  scheduleRefresh(options.refreshTypes);
   return {
     url: binding.url,
     panelUrl: `${binding.url}${devHostModule.DEV_PANEL_PATH}`,
@@ -594,10 +618,9 @@ interface DevSessionParts {
 /** A running dev host behind the HTTP server: admits, serves, and drains requests. */
 class DevSession {
   private closing = false;
-  private saveQueued = false;
+  private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private readonly inFlight = new Set<Promise<void>>();
-  /** Refreshes the watcher started; kept apart so they do not hold back a background save. */
-  private readonly refreshes = new Set<Promise<void>>();
+  private readonly maintenance = new Set<Promise<void>>();
 
   private readonly parts: DevSessionParts;
 
@@ -645,11 +668,10 @@ class DevSession {
    * request. Writes in the same tick share one save.
    */
   storageChangedInBackground(): void {
-    if (this.closing || this.inFlight.size > 0 || this.saveQueued) return;
-    this.saveQueued = true;
-    setTimeout(() => {
-      this.saveQueued = false;
-      Effect.runFork(this.parts.stateFile.saveIfChanged(this.parts.host));
+    if (this.closing || this.inFlight.size > 0 || this.saveTimer !== undefined) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = undefined;
+      this.startMaintenance(this.parts.stateFile.saveIfChanged(this.parts.host));
     }, 0);
   }
 
@@ -659,18 +681,37 @@ class DevSession {
    */
   refresh(): void {
     if (this.closing) return;
-    const refreshed = Effect.runPromise(this.parts.sources.refresh(this.parts.host));
-    this.refreshes.add(refreshed);
-    void refreshed.finally(() => this.refreshes.delete(refreshed));
+    this.startMaintenance(this.parts.sources.refresh(this.parts.host));
   }
 
-  drain() {
+  private startMaintenance(work: Effect.Effect<void>) {
+    const completion = Effect.runPromise(work);
+    this.maintenance.add(completion);
+    void completion.then(
+      () => this.maintenance.delete(completion),
+      (error: unknown) => {
+        this.maintenance.delete(completion);
+        this.parts.log(
+          `dev maintenance failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      },
+    );
+  }
+
+  drain(typeJobs: Effect.Effect<void>) {
     return Effect.suspend(() => {
       this.closing = true;
-      return Effect.promise(() => Promise.allSettled([...this.inFlight, ...this.refreshes])).pipe(
-        Effect.timeoutOption(this.parts.shutdownGraceMs),
-        Effect.asVoid,
-      );
+      if (this.saveTimer !== undefined) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = undefined;
+      }
+      return Effect.all(
+        [
+          typeJobs,
+          Effect.promise(() => Promise.allSettled([...this.inFlight, ...this.maintenance])),
+        ],
+        { concurrency: 'unbounded' },
+      ).pipe(Effect.timeoutOption(this.parts.shutdownGraceMs), Effect.asVoid);
     });
   }
 

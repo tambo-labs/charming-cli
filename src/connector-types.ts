@@ -383,14 +383,15 @@ export function typesRefresher(
   directory: string,
   log: (line: string) => void,
 ): () => Promise<void> {
-  return makeTypesRefresher(fromPromise(context), directory, log);
+  const refresh = makeTypesRefresher(fromPromise(context), directory, log);
+  return () => Effect.runPromise(refresh);
 }
 
 export function makeTypesRefresher(
   context: Effect.Effect<CommandContext, unknown>,
   directory: string,
   log: (line: string) => void,
-): () => Promise<void> {
+): Effect.Effect<void> {
   let written: string | undefined;
   const writes = Semaphore.makeUnsafe(1);
   const refresh = Effect.gen(function* () {
@@ -426,5 +427,5 @@ export function makeTypesRefresher(
     for (const error of result.errors ?? [])
       log(`${DECLARATIONS_FILE} leaves out ${error.specifier}: ${error.message}`);
   });
-  return () => Effect.runPromise(writes.withPermit(refresh));
+  return writes.withPermit(refresh);
 }

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import * as Effect from 'effect/Effect';
 import { afterEach, describe, expect, test } from 'vitest';
 
 import Dev from './commands/dev.js';
@@ -81,6 +82,7 @@ async function start(
     saveState?: string;
     state?: string;
     shutdownGraceMs?: number;
+    refreshTypes?: Effect.Effect<void>;
     operationTimeoutMs?: number;
     runOp?: string[];
   } = {},
@@ -135,6 +137,42 @@ function freePort(): Promise<number> {
 }
 
 describe.skipIf(!existsSync(vendoredDevHost))('startDevServer', () => {
+  test('interrupts a stalled initial type refresh when the shutdown grace period expires', async () => {
+    const started = Promise.withResolvers<AbortSignal>();
+    const server = await start(await appDirectory(), {
+      shutdownGraceMs: 0,
+      refreshTypes: Effect.promise((signal) => {
+        started.resolve(signal);
+        return new Promise<void>(() => {});
+      }),
+    });
+    const signal = await started.promise;
+    expect(signal.aborted).toBe(false);
+    await server.close();
+    expect(signal.aborted).toBe(true);
+  });
+
+  test('reports a failed type refresh and runs it again after an edit', async () => {
+    const first = Promise.withResolvers<void>();
+    const edited = Promise.withResolvers<void>();
+    const directory = await appDirectory();
+    let runs = 0;
+    const server = await start(directory, {
+      refreshTypes: Effect.sync(() => {
+        if (++runs === 1) {
+          first.resolve();
+          throw new Error('type refresh failed');
+        }
+        edited.resolve();
+      }),
+    });
+    await first.promise;
+    await writeFile(join(directory, 'module.js'), MODULE.replace('LABEL', 'edited'));
+    await edited.promise;
+    expect(lines).toContain('dev maintenance failed: type refresh failed');
+    expect((await httpFetch(server.url)).status).toBe(200);
+  });
+
   test('serves the page and runs operations over HTTP', async () => {
     const server = await start(await appDirectory());
     const page = await httpFetch(`${server.url}/`);
