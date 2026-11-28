@@ -4353,7 +4353,8 @@ export const generatedOperations = [
               "manifestVersion",
               "current",
               "live",
-              "restorable"
+              "restorable",
+              "rebuildable"
             ],
             "properties": {
               "revision": {
@@ -4382,6 +4383,57 @@ export const generatedOperations = [
               "restorable": {
                 "type": "boolean",
                 "description": "True when the revision passes the checks restore runs on its stored source. The current and live revisions are never restorable. Restore runs the checks again, so a marked revision can still be refused."
+              },
+              "rebuildable": {
+                "type": "boolean",
+                "description": "True for the desired revision of a package App when it is not live and no build of it is still running. POST /api/v1/apps/{appId}/revisions/{revision}/rebuild accepts it."
+              },
+              "build": {
+                "type": "object",
+                "description": "On the desired revision while it is not live: the build Charming accepted for it. `error` says why it stopped without publishing.",
+                "required": [
+                  "buildId",
+                  "state",
+                  "statusUrl"
+                ],
+                "properties": {
+                  "buildId": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "resolving",
+                      "building",
+                      "validating",
+                      "published",
+                      "failed",
+                      "superseded",
+                      "canceled",
+                      "expired"
+                    ]
+                  },
+                  "statusUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "error": {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "message"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      },
+                      "message": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
               }
             }
           },
@@ -6287,7 +6339,8 @@ export const generatedOperations = [
                 "manifestVersion",
                 "current",
                 "live",
-                "restorable"
+                "restorable",
+                "rebuildable"
               ],
               "properties": {
                 "revision": {
@@ -6316,6 +6369,57 @@ export const generatedOperations = [
                 "restorable": {
                   "type": "boolean",
                   "description": "True when the revision passes the checks restore runs on its stored source. The current and live revisions are never restorable. Restore runs the checks again, so a marked revision can still be refused."
+                },
+                "rebuildable": {
+                  "type": "boolean",
+                  "description": "True for the desired revision of a package App when it is not live and no build of it is still running. POST /api/v1/apps/{appId}/revisions/{revision}/rebuild accepts it."
+                },
+                "build": {
+                  "type": "object",
+                  "description": "On the desired revision while it is not live: the build Charming accepted for it. `error` says why it stopped without publishing.",
+                  "required": [
+                    "buildId",
+                    "state",
+                    "statusUrl"
+                  ],
+                  "properties": {
+                    "buildId": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "resolving",
+                        "building",
+                        "validating",
+                        "published",
+                        "failed",
+                        "superseded",
+                        "canceled",
+                        "expired"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "message"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
